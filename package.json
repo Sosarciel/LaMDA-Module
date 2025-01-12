@@ -1,5 +1,5 @@
 {
     "workspaces": [
-        "./Onebot11-ProtoClient"
+        "./CommPlatform-ProtoClient/Onebot11-ProtoClient"
     ]
 }

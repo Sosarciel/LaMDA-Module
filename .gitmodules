@@ -1,3 +1,3 @@
-[submodule "Onebot11-ProtoClient"]
-	path = Onebot11-ProtoClient
+[submodule "CommPlatform-ProtoClient/Onebot11-ProtoClient"]
+	path = CommPlatform-ProtoClient/Onebot11-ProtoClient
 	url = https://github.com/Sosarciel/Onebot11-ProtoClient.git

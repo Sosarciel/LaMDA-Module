@@ -1,0 +1,21 @@
+{
+  "name": "kook-proto-client",
+  "version": "1.0.0",
+  "description": "kook协议客户端api",
+  "main": "index.js",
+  "scripts": {
+    "compile": "powershell scripts/compile"
+  },
+  "author": "zwa73",
+  "license": "ISC",
+  "dependencies": {
+    "@zwa73/utils": "^1.0.170",
+    "querystring": "^0.2.1",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/fluent-ffmpeg": "^2.1.27",
+    "@types/node": "^22.10.6",
+    "@types/ws": "^8.5.13"
+  }
+}

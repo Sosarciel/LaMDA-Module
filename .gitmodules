@@ -7,3 +7,6 @@
 [submodule "Service-Adapter/LaM-Adapter"]
 	path = Service-Adapter/LaM-Adapter
 	url = https://github.com/Sosarciel/LaM-Adapter.git
+[submodule "Service-Adapter/Creds-Adapter"]
+	path = Service-Adapter/Creds-Adapter
+	url = https://github.com/Sosarciel/Creds-Adapter.git

@@ -1,6 +1,7 @@
 {
     "workspaces": [
         "./CommPlatform-ProtoClient/OneBot11-ProtoClient",
-        "./CommPlatform-ProtoClient/KOOK-ProtoClient"
+        "./CommPlatform-ProtoClient/KOOK-ProtoClient",
+        "./Service-Adapter/LaM-Adapter"
     ]
 }

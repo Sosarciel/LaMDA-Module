@@ -4,3 +4,6 @@
 [submodule "CommPlatform-ProtoClient/KOOK-ProtoClient"]
 	path = CommPlatform-ProtoClient/KOOK-ProtoClient
 	url = https://github.com/Sosarciel/KOOK-ProtoClient.git
+[submodule "Service-Adapter/LaM-Adapter"]
+	path = Service-Adapter/LaM-Adapter
+	url = https://github.com/Sosarciel/LaM-Adapter.git

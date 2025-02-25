@@ -1,0 +1,12 @@
+[submodule "Service-Manager/Creds-Manager"]
+	path = Service-Manager/Creds-Manager
+	url = https://github.com/Sosarciel/Creds-Manager.git
+[submodule "Service-Manager/LaM-Manager"]
+	path = Service-Manager/LaM-Manager
+	url = https://github.com/Sosarciel/LaM-Manager.git
+[submodule "CommPlatform-ProtoClient/OneBot11-ProtoClient"]
+	path = CommPlatform-ProtoClient/OneBot11-ProtoClient
+	url = https://github.com/Sosarciel/OneBot11-ProtoClient.git
+[submodule "CommPlatform-ProtoClient/KOOK-ProtoClient"]
+	path = CommPlatform-ProtoClient/KOOK-ProtoClient
+	url = https://github.com/Sosarciel/KOOK-ProtoClient.git

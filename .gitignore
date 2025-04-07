@@ -1,3 +1,8 @@
 node_modules/**
 dist/**
 build/**
+
+Service-Manager/Creds-Manager
+Service-Manager/LaM-Manager
+CommPlatform-ProtoClient/OneBot11-ProtoClient
+CommPlatform-ProtoClient/KOOK-ProtoClient

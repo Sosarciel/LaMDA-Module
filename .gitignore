@@ -1,9 +1,3 @@
 node_modules/**
 dist/**
 build/**
-
-## 忽略子模块
-Service-Manager/Creds-Manager
-Service-Manager/LaM-Manager
-CommPlatform-ProtoClient/OneBot11-ProtoClient
-CommPlatform-ProtoClient/KOOK-ProtoClient

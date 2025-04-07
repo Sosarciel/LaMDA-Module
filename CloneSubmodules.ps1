@@ -1,12 +1,12 @@
 ﻿# 确保当前目录是 git 仓库的根目录
-if (!(Test-Path ".gitmodules")) {
-    Write-Host "未找到 .gitmodules 文件，请确保在正确的仓库根目录" -ForegroundColor Red
+if (!(Test-Path ".modulelinks")) {
+    Write-Host "未找到 .modulelinks 文件，请确保在正确的仓库根目录" -ForegroundColor Red
     Exit 1
 }
 
-# 读取 .gitmodules 文件
-Write-Host "正在读取 .gitmodules 文件..." -ForegroundColor Yellow
-$gitmodules = Get-Content ".gitmodules"
+# 读取 .modulelinks 文件
+Write-Host "正在读取 .modulelinks 文件..." -ForegroundColor Yellow
+$gitmodules = Get-Content ".modulelinks"
 
 # 初始化变量
 $submodules = @()

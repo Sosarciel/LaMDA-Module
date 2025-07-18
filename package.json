@@ -2,7 +2,6 @@
     "workspaces": [
         "./CommPlatform-ProtoClient/OneBot11-ProtoClient",
         "./CommPlatform-ProtoClient/KOOK-ProtoClient",
-        "./Service-Manager/LaM-Manager",
-        "./Service-Manager/Creds-Manager"
+        "./Service-Manager/LaM-Manager"
     ]
 }

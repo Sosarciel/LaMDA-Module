@@ -2,7 +2,8 @@
     "workspaces": [
         "./CommPlatform-ProtoClient/OneBot11-ProtoClient",
         "./CommPlatform-ProtoClient/KOOK-ProtoClient",
-        "./Service-Manager/LaM-Manager"
+        "./Service-Manager/LaM-Manager",
+        "./Service-Manager/PostgreSQL-Manager"
     ],
     "dependencies": {
         "tsconfig-paths": "^4.2.0"

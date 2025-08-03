@@ -1,6 +1,9 @@
 [submodule "Service-Manager/LaM-Manager"]
 	path = Service-Manager/LaM-Manager
 	url = https://github.com/Sosarciel/LaM-Manager.git
+[submodule "Service-ManagerPostgreSQL-Manager"]
+	path = Service-Manager/PostgreSQL-Manager
+	url = https://github.com/Sosarciel/PostgreSQL-Manager.git
 [submodule "CommPlatform-ProtoClient/OneBot11-ProtoClient"]
 	path = CommPlatform-ProtoClient/OneBot11-ProtoClient
 	url = https://github.com/Sosarciel/OneBot11-ProtoClient.git

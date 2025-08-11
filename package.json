@@ -3,7 +3,8 @@
         "./CommPlatform-ProtoClient/OneBot11-ProtoClient",
         "./CommPlatform-ProtoClient/KOOK-ProtoClient",
         "./Service-Manager/LaM-Manager",
-        "./Service-Manager/PostgreSQL-Manager"
+        "./Service-Manager/PostgreSQL-Manager",
+        "./Service-Manager/CommApi-Manager"
     ],
     "dependencies": {
         "tsconfig-paths": "^4.2.0"

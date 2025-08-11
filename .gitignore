@@ -5,5 +5,6 @@ build/**
 ##Modules
 Service-Manager/LaM-Manager
 Service-Manager/PostgreSQL-Manager
+Service-Manager/CommApi-Manager
 CommPlatform-ProtoClient/OneBot11-ProtoClient
 CommPlatform-ProtoClient/KOOK-ProtoClient

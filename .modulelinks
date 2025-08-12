@@ -1,12 +1,12 @@
 [submodule "Service-Manager/LaM-Manager"]
 	path = Service-Manager/LaM-Manager
-	url = https://github.com/Sosarciel/LaM-Manager.git
+	url = https://github.com/Sosarciel/LaMDA-LaM-Manager.git
 [submodule "Service-ManagerPostgreSQL-Manager"]
 	path = Service-Manager/PostgreSQL-Manager
-	url = https://github.com/Sosarciel/PostgreSQL-Manager.git
+	url = https://github.com/Sosarciel/LaMDA-PostgreSQL-Manager.git
 [submodule "CommPlatform-ProtoClient/OneBot11-ProtoClient"]
 	path = CommPlatform-ProtoClient/OneBot11-ProtoClient
-	url = https://github.com/Sosarciel/OneBot11-ProtoClient.git
+	url = https://github.com/Sosarciel/LaMDA-OneBot11-ProtoClient.git
 [submodule "CommPlatform-ProtoClient/KOOK-ProtoClient"]
 	path = CommPlatform-ProtoClient/KOOK-ProtoClient
-	url = https://github.com/Sosarciel/KOOK-ProtoClient.git
+	url = https://github.com/Sosarciel/LaMDA-KOOK-ProtoClient.git

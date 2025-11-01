@@ -1,9 +1,12 @@
 [submodule "Service-Manager/LaM-Manager"]
 	path = Service-Manager/LaM-Manager
 	url = https://github.com/Sosarciel/LaMDA-LaM-Manager.git
-[submodule "Service-ManagerPostgreSQL-Manager"]
+[submodule "Service-Manager/PostgreSQL-Manager"]
 	path = Service-Manager/PostgreSQL-Manager
 	url = https://github.com/Sosarciel/LaMDA-PostgreSQL-Manager.git
+[submodule "Service-Manager/CommApi-Manager"]
+	path = Service-Manager/CommApi-Manager
+	url = https://github.com/Sosarciel/LaMDA-CommApi-Manager.git
 [submodule "CommPlatform-ProtoClient/OneBot11-ProtoClient"]
 	path = CommPlatform-ProtoClient/OneBot11-ProtoClient
 	url = https://github.com/Sosarciel/LaMDA-OneBot11-ProtoClient.git

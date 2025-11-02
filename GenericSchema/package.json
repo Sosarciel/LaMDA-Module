@@ -1,0 +1,9 @@
+{
+  "name": "@sosraciel-lamda/genericschema",
+  "version": "1.0.0",
+  "main": "dist/index.ts",
+  "scripts": {},
+  "author": "zwa73",
+  "license": "ISC",
+  "description": ""
+}

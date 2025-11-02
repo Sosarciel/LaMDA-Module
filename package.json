@@ -5,7 +5,8 @@
         "./Service-Manager/LaM-Manager",
         "./Service-Manager/PostgreSQL-Manager",
         "./Service-Manager/CommApi-Manager",
-        "./Data-Manager/Conversation-Manager"
+        "./Data-Manager/Conversation-Manager",
+        "./GenericSchema"
     ],
     "dependencies": {
         "tsconfig-paths": "^4.2.0"

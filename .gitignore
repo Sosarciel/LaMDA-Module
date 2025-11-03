@@ -8,5 +8,5 @@ Service-Manager/PostgreSQL-Manager
 Service-Manager/CommApi-Manager
 CommPlatform-ProtoClient/OneBot11-ProtoClient
 CommPlatform-ProtoClient/KOOK-ProtoClient
-Data-Manager/Conversation-Manager
-Data-Manager/User-Manager
+Data-Store/Conversation-Store
+Data-Store/User-Store

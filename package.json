@@ -5,9 +5,11 @@
         "./Service-Manager/LaM-Manager",
         "./Service-Manager/PostgreSQL-Manager",
         "./Service-Manager/CommApi-Manager",
-        "./Data-Store/Dialog-Store"
+        "./Data-Store/Dialog-Store",
+        "./Test"
     ],
     "dependencies": {
+        "@sosraciel-lamda/lam-manager": "^1.0.86",
         "tsconfig-paths": "^4.2.0"
     }
 }

@@ -8,5 +8,5 @@ Service-Manager/PostgreSQL-Manager
 Service-Manager/CommApi-Manager
 CommPlatform-ProtoClient/OneBot11-ProtoClient
 CommPlatform-ProtoClient/KOOK-ProtoClient
-Data-Store/Dialog-Store
-Data-Store/User-Store
+Business-Domain/Dialog-Domain
+Business-Domain/User-Domain

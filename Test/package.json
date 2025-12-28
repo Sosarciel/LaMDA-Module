@@ -3,16 +3,18 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-		"test": "jest",
-		"compile": "powershell scripts/compile",
-		"watch": "powershell scripts/watch",
-		"build-schema": "powershell scripts/build-schema",
-		"expand-macro": "powershell scripts/expand-macro"
+    "test": "jest",
+    "compile": "powershell scripts/compile",
+    "watch": "powershell scripts/watch",
+    "build-schema": "powershell scripts/build-schema",
+    "expand-macro": "powershell scripts/expand-macro"
   },
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@sosraciel-lamda/lam-manager": "^1.0.86"
+    "@sosraciel-lamda/lam-manager": "^1.0.86",
+    "@zwa73/js-utils": "^1.0.74",
+    "@zwa73/utils": "^1.0.280"
   }
 }

@@ -6,5 +6,5 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-    await server.start();
+    await server.stop();
 });

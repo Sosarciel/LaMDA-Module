@@ -1,14 +1,24 @@
 import { CredManager, LaMManager } from "@sosraciel-lamda/lam-manager";
 import { LaMManagerMockTool } from "@sosraciel-lamda/lam-manager/mock";
+import { UtilFT } from "@zwa73/utils";
 import path from 'pathe';
+import { CACHE_PATH } from "@/src/Constant";
 
-beforeAll(()=>{
+beforeAll(async ()=>{
+    const LaMServiceTablePath = path.join(CACHE_PATH,'LaMManager.json');
+    const CredServiceTablePath = path.join(CACHE_PATH,'CredManager.json');
+    const CredCategoryTablePath = path.join(CACHE_PATH,'CredCategory.json');
+
+    await UtilFT.writeJSONFile(LaMServiceTablePath,LaMManagerMockTool.MOCK_LAM_SERVICE_TABLE);
+    await UtilFT.writeJSONFile(CredServiceTablePath,LaMManagerMockTool.MOCK_CRED_SERVICE_TABLE);
+    await UtilFT.writeJSONFile(CredCategoryTablePath,LaMManagerMockTool.MOCK_CRED_CATEGORY_TABLE);
+
     LaMManager.initInject({
-        tablePath:path.join(LaMManagerMockTool.MOCK_PATH,'LaMService.json'),
+        tablePath:LaMServiceTablePath,
     });
     CredManager.initInject({
-        tablePath        :path.join(LaMManagerMockTool.MOCK_PATH,'CredService.json'),
-        categoryTablePath:path.join(LaMManagerMockTool.MOCK_PATH,'CredCategory.json'),
+        tablePath        :CredServiceTablePath,
+        categoryTablePath:CredCategoryTablePath,
     });
 })
 

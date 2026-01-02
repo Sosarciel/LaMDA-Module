@@ -1,9 +1,10 @@
-import { startServer, stopServer } from "@sosraciel-lamda/lam-manager/mock";
+import { LaMManagerMockServer } from "@sosraciel-lamda/lam-manager/mock";
 
+const server:LaMManagerMockServer = new LaMManagerMockServer(3000);
 beforeAll(async () => {
-    await startServer();
+    await server.start();
 });
 
 afterAll(async () => {
-    await stopServer();
+    await server.start();
 });

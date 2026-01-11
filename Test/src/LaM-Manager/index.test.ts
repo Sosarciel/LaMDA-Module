@@ -14,11 +14,11 @@ beforeAll(async ()=>{
     await UtilFT.writeJSONFile(CredCategoryTablePath,LaMManagerMockTool.MOCK_CRED_CATEGORY_TABLE);
 
     LaMManager.initInject({
-        tablePath:LaMServiceTablePath,
+        serviceTable :LaMServiceTablePath,
     });
     CredManager.initInject({
-        tablePath        :CredServiceTablePath,
-        categoryTablePath:CredCategoryTablePath,
+        serviceTable :CredServiceTablePath,
+        categoryTable:CredCategoryTablePath,
     });
 })
 

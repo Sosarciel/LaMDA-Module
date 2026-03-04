@@ -27,11 +27,11 @@ describe("LaMService", () => {
         const chatFn = async (instanceName:string,message:string) => {
             return LaMManager.chat.execute(instanceName,{
                 target:LaMManagerMockTool.MOCK_CHAR,
-                messages:{list:[{
+                messages:[{
                     content:message,
                     type:'chat',
                     senderName:LaMManagerMockTool.MOCK_USER,
-                }]},
+                }],
                 log_level:"debug",
                 n:1,
                 max_tokens:100,

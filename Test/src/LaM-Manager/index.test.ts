@@ -50,5 +50,9 @@ describe("LaMService", () => {
             const result = await chatFn("DeepseekChat","你好");
             expect(result.completed?.choices?.[0].content).toBe(LaMManagerMockTool.buildResp('DeepseekChat', "你好"));
         });
+        it("尝试与 Gemini3Pro 对话", async () => {
+            const result = await chatFn("Gemini3Pro","你好");
+            expect(result.completed?.choices?.[0].content).toBe(LaMManagerMockTool.buildResp('Gemini3Pro', "你好"));
+        });
     });
 });

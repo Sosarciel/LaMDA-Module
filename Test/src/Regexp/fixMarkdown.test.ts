@@ -35,7 +35,9 @@ const regex = (text:string)=> {
         const napcount = (str:string)=> str.match(new RegExp(ap,'g'))?.length ?? 0;
         if(napcount(text) % 2 != 0){
             const fixes = [
+                //孤立符号
                 () => text.replace(new RegExp(` ${ap} `, 'g'), " \\* "),
+                //乘法
                 () => text.replace(new RegExp(`([a-zA-Z0-9])${ap}([a-zA-Z0-9])`, 'g'), "$1\\*$2")
             ];
             for (const fix of fixes) {
@@ -63,8 +65,9 @@ const regex = (text:string)=> {
         });
 
         //修复不完整星号
-        //(^|[？！。；…])\* 一行开头或[？！。；…]后的星号 -- 不再确保[？！。；…]
-        // const stRegex = new RegExp(/((^|[？！。；…])\*[^*\n]+$)/, "gm");
+        //(^|[？！。；…])\* 一行开头或[？！。；…]后的星号 -- 新模型不再有此问题不再确保[？！。；…]
+        // *string -> *string*
+        // string* -> *string*
         const fixstart = ()=>text = text
             .replace(new RegExp(`(^${ap}([^*\\n]|${ta})+$)`,'gm'), `$1*`) //结尾前的1+n个非星号非换行字符
             .replace(new RegExp(`(^([^*\\n]|${ta})+${ap}$)`,'gm'), `*$1`);//从开头到结尾星号前的1+n个非星号非换行字符
@@ -111,10 +114,14 @@ const regex = (text:string)=> {
             text=text.replace(regex, "$1");
         });
 
-        //移除无效的动作符号 *string。* -> *string*
+        //移除无效的动作符号
+        //*string。* -> *string*
+        //*string*， -> *string*
         endsymbols.forEach(s=>{
-            const regex = new RegExp(`^${ap}(([^*\\n]|${ta})+)(${endsymbols.join('|')})${ap}$`, "gm");
-            text=text.replace(regex, `*$1*`);
+            const regex1 = new RegExp(`^${ap}(([^*\\n]|${ta})+)(${endsymbols.join('|')})${ap}$`, "gm");
+            text=text.replace(regex1, `*$1*`);
+            const regex2 = new RegExp(`^${ap}(([^*\\n]|${ta})+)${ap}(${endsymbols.join('|')})$`, "gm");
+            text=text.replace(regex2, `*$1*`);
         });
         return text;
 };

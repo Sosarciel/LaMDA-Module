@@ -74,6 +74,7 @@ const regex = (text:string)=> {
         const actRegex = new RegExp(`\\n?(${ap}([^*\\n]|${ta})+?${ap})\\n?`,'g');
         text = text.replace(actRegex, "\n$1\n").trim();
 
+        //动作换行后产生新行, 再次尝试修复
         fixstart();
         eachTrim();
 
@@ -104,7 +105,7 @@ const regex = (text:string)=> {
             text=text.replace(regex, `*$1*`);
         });
 
-        //删除整段引号动作星号 ^*"string"*$ -> ^string$
+        //删除整段引号动作星号, 视为描述 ^*"string"*$ -> ^string$
         quotes.forEach(([l,r])=>{
             const regex = new RegExp(`^${ap}${l}(([^*\\n${l+r}]|${ta})+)${r}${ap}$`, "gm");
             text=text.replace(regex, "$1");

@@ -117,12 +117,10 @@ const regex = (text:string)=> {
         //移除无效的动作符号
         //*string。* -> *string*
         //*string*， -> *string*
-        endsymbols.forEach(s=>{
-            const regex1 = new RegExp(`^${ap}(([^*\\n]|${ta})+)(${endsymbols.join('|')})${ap}$`, "gm");
-            text=text.replace(regex1, `*$1*`);
-            const regex2 = new RegExp(`^${ap}(([^*\\n]|${ta})+)${ap}(${endsymbols.join('|')})$`, "gm");
-            text=text.replace(regex2, `*$1*`);
-        });
+        const regex1 = new RegExp(`^${ap}(([^*\\n]|${ta})+)(${endsymbols.join('|')})${ap}$`, "gm");
+        text=text.replace(regex1, `*$1*`);
+        const regex2 = new RegExp(`^${ap}(([^*\\n]|${ta})+)${ap}(${endsymbols.join('|')})$`, "gm");
+        text=text.replace(regex2, `*$1*`);
         return text;
 };
 

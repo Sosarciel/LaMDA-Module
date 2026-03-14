@@ -82,10 +82,11 @@ const regex = (text:string)=> {
         eachTrim();
 
         //删除无效成对前引号 ^"string"$ -> ^string$
-        quotes.forEach(([l,r])=>{
+        const rmquotes = ()=>quotes.forEach(([l,r])=>{
             const regex = new RegExp(`^${l}([^\\n${l+r}]+)${r}$`, "gm");
             text=text.replace(regex, "$1");
         });
+        rmquotes();
         //删除星号内括号 *(string)* -> *string*
         brackets.forEach(([l,r])=>{
             const regex = new RegExp(`^${ap}${l}(([^*\\n${l+r}]|${ta})+)${r}${ap}$`, "gm");
@@ -121,6 +122,11 @@ const regex = (text:string)=> {
         text=text.replace(regex1, `*$1*`);
         const regex2 = new RegExp(`^${ap}(([^*\\n]|${ta})+)${ap}(${endsymbols.join('|')})$`, "gm");
         text=text.replace(regex2, `*$1*`);
+        //换行情况
+        const regex3 = new RegExp(`^${ap}(([^*\\n]|${ta})+)${ap}\n(${endsymbols.join('|')})`, "gm");
+        text=text.replace(regex3, `*$1*\n`);
+        //换行后可能产生新全引号行, 需要再次删除
+        rmquotes();
         return text;
 };
 
@@ -393,4 +399,148 @@ ASsISTANT: *motion1*
 desc5
 *motion6*`);
     });
+
+    // 边界情况测试
+    it('应处理空字符串', () => {
+        expect(regex('')).toEqual('');
+    });
+
+    it('应处理只有空白字符的输入', () => {
+        expect(regex('   \n\t\n   ')).toEqual('');
+    });
+
+    it('应处理只有换行符的输入', () => {
+        expect(regex('\n\n\n')).toEqual('');
+    });
+
+    // Gemini末尾总结移除测试
+    it('应移除Gemini末尾总结块', () => {
+        expect(regex(`*motion1*
+desc2
+
+---
+*既然已经了解了情况，我会继续帮助你*`)).toEqual(`*motion1*
+desc2`);
+    });
+
+    it('应移除Gemini末尾总结块（无星号）', () => {
+        expect(regex(`*motion1*
+desc2
+
+---
+既然已经了解了情况，我会继续帮助你`)).toEqual(`*motion1*
+desc2`);
+    });
+
+    // 多种括号混合测试
+    it('应处理多种括号混合', () => {
+        expect(regex(`*motion1*
+(desc2)【desc3】[desc4]
+*motion5*`)).toEqual(`*motion1*
+*desc2*
+*desc3*
+*desc4*
+*motion5*`);
+    });
+
+    // 嵌套引号测试
+    it('应处理嵌套引号', () => {
+        expect(regex(`"他说'你好'"
+*motion1*`)).toEqual(`他说'你好'
+*motion1*`);
+    });
+
+    // 特殊字符转义测试
+    it('应正确处理转义星号', () => {
+        expect(regex(`*motion1*
+这是转义\\*不是动作
+*motion2*`)).toEqual(`*motion1*
+这是转义\\*不是动作
+*motion2*`);
+    });
+
+    it('应正确处理多个转义星号', () => {
+        expect(regex(`*motion1*
+\\*\\*\\*
+*motion2*`)).toEqual(`*motion1*
+\\*\\*\\*
+*motion2*`);
+    });
+
+    // 超长动作文本测试
+    it('应处理超长动作文本', () => {
+        const longMotion = 'a'.repeat(1000);
+        expect(regex(`*${longMotion}*`)).toEqual(`*${longMotion}*`);
+    });
+
+    // 连续动作测试
+    it('应处理连续多个动作', () => {
+        expect(regex(`*motion1**motion2**motion3*`)).toEqual(`*motion1*
+*motion2*
+*motion3*`);
+    });
+
+    // 动作与标点混合测试
+    it('应正确处理动作与各种标点', () => {
+        expect(regex(`*motion1*，*motion2*。*motion3*；`)).toEqual(`*motion1*
+*motion2*
+*motion3*`);
+    });
+
+    // 只有动作星号的边界情况
+    it('应处理只有单个星号', () => {
+        expect(regex('*')).toEqual('');
+    });
+
+    it('应处理只有双星号', () => {
+        expect(regex('**')).toEqual('**');
+    });
+
+    // 中文标点测试
+    it('应正确处理中文标点', () => {
+        expect(regex(`*motion1*。"desc2"`)).toEqual(`*motion1*
+desc2`);
+    });
+
+    // 多行think块测试
+    it('应处理多行think块', () => {
+        expect(regex(`<think>
+思考内容1
+思考内容2
+</think>
+*motion1*`)).toEqual(`*motion1*`);
+    });
+
+    // 多个think块测试
+    it('应处理多个think块', () => {
+        expect(regex(`<think>思考1</think>
+*motion1*
+<think>思考2</think>
+*motion2*`)).toEqual(`*motion1*
+*motion2*`);
+    });
+
+    // 动作内包含特殊字符测试
+    it('应处理动作内包含特殊字符', () => {
+        expect(regex(`*motion@#$%^&*()`)).toEqual(`*motion@#$%^&*`);
+    });
+
+    // 只有引号的行测试
+    it('应删除只有引号的行', () => {
+        expect(regex(`*motion1*
+"
+"desc2"
+*motion3*`)).toEqual(`*motion1*
+desc2
+*motion3*`);
+    });
+
+    // 混合大小写ASSISTANT测试
+    it('应处理各种大小写的ASSISTANT前缀', () => {
+        expect(regex(`ASSISTANT: *motion1*
+assistant：*motion2*
+Assistant: *motion3*`)).toEqual(`*motion1*
+*motion2*
+*motion3*`);
+    })
 });

@@ -55,4 +55,43 @@ describe("LaMService", () => {
             expect(result.completed?.choices?.[0].content).toBe(LaMManagerMockTool.buildResp('Gemini3Pro', "你好"));
         });
     });
+
+    describe("InstructTask", () => {
+        const instructFn = async (instanceName: string, prompt: string, options?: {
+            suffix?: string;
+            prefix?: string;
+            max_tokens?: number;
+            temperature?: number;
+        }) => {
+            return LaMManager.instruct.execute(instanceName, {
+                prompt: prompt,
+                suffix: options?.suffix,
+                prefix: options?.prefix,
+                max_tokens: options?.max_tokens || 100,
+                temperature: options?.temperature || 0.7,
+                log_level: "debug",
+            });
+        }
+        it("尝试使用 OpenAIInstruct 生成文本", async () => {
+            const prompt = "写一个简短的介绍，介绍人工智能的发展历史";
+            const result = await instructFn("OpenAIInstruct", prompt);
+            expect(result.completed?.choices?.[0].content).toBe(LaMManagerMockTool.buildResp('OpenAIInstruct', prompt));
+        });
+        it("尝试使用 DeepseekFIM 进行代码补全", async () => {
+            const prompt = "def factorial(n):";
+            const suffix = "    return result";
+            const prefix = "    if n <= 1:\n        return 1\n    result = 1\n    for i in range(2, n+1):";
+            const result = await instructFn("DeepseekFIM", prompt, { suffix, prefix });
+            // DeepseekFIM 会将 prefix 合并到 prompt 中
+            const expectedPrompt = `${prompt}${prefix}`;
+            expect(result.completed?.choices?.[0].content).toBe(LaMManagerMockTool.buildResp('OpenAIInstruct', expectedPrompt));
+        });
+        it("尝试使用 DeepseekPrefixCompletion 进行前缀续写", async () => {
+            const prompt = "请续写以下代码";
+            const prefix = "function calculateSum(a, b) {";
+            const result = await instructFn("DeepseekPrefixCompletion", prompt, { prefix });
+            // DeepseekPrefixCompletion 使用 chat 端点，所以返回 DeepseekChat 的响应
+            expect(result.completed?.choices?.[0].content).toBe(LaMManagerMockTool.buildResp('DeepseekChat', prompt));
+        });
+    });
 });

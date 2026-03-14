@@ -132,7 +132,7 @@ const regex = (text:string)=> {
         //移除无效的动作符号
         //*string。* -> *string*
         //*string*， -> *string*
-        const regex1 = new RegExp(`^${ap}(([^*\\n]|${ta})+)(${endsymbols.join('|')})${ap}$`, "gm");
+        const regex1 = new RegExp(`^${ap}(([^*\\n]|${ta})+)(${[...endsymbols,':','：'].join('|')})${ap}$`, "gm");
         text=text.replace(regex1, `*$1*`);
         const regex2 = new RegExp(`^${ap}(([^*\\n]|${ta})+)${ap}(${endsymbols.join('|')})$`, "gm");
         text=text.replace(regex2, `*$1*`);
@@ -437,6 +437,20 @@ desc4！
 *motion6*
 *motion7*
 desc8！`)
+    });
+
+    it(`应处理1星号内尾随`,()=>{
+        expect(regex(`*motion1:*
+desc2`)).toEqual(`*motion1*
+desc2`)
+    });
+
+    it('应正确处理所有尾随句号与换行尾随句号', () => {
+        expect(regex(`*motion1*
+。"desc2"*motion3*。"desc4"`)).toEqual(`*motion1*
+desc2
+*motion3*
+desc4`);
     });
 
     //#region AI测试

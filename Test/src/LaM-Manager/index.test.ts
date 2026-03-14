@@ -40,19 +40,19 @@ describe("LaMService", () => {
         }
         it("尝试与 GPT35Chat 对话", async () => {
             const result = await chatFn("Chat_GPT35Chat","你好");
-            expect(result.completed?.choices?.[0].content).toBe(LaMManagerMockTool.buildResp('Chat_GPT35Chat', "你好"));
+            expect(result.completed?.choices?.[0].content).toBe(LaMManagerMockTool.buildResp('GPT35Chat', "你好"));
         });
         it("尝试与 GPT35Text 对话", async () => {
             const result = await chatFn("Chat_GPT35Text","你好");
-            expect(result.completed?.choices?.[0].content).toBe(LaMManagerMockTool.buildResp('Chat_GPT35Text', "你好"));
+            expect(result.completed?.choices?.[0].content).toBe(LaMManagerMockTool.buildResp('GPT35Text', "你好"));
         });
         it("尝试与 DeepseekChat 对话", async () => {
             const result = await chatFn("Chat_DeepseekChat","你好");
-            expect(result.completed?.choices?.[0].content).toBe(LaMManagerMockTool.buildResp('Chat_DeepseekChat', "你好"));
+            expect(result.completed?.choices?.[0].content).toBe(LaMManagerMockTool.buildResp('DeepseekChat', "你好"));
         });
         it("尝试与 Gemini3Pro 对话", async () => {
             const result = await chatFn("Chat_Gemini3Pro","你好");
-            expect(result.completed?.choices?.[0].content).toBe(LaMManagerMockTool.buildResp('Chat_Gemini3Pro', "你好"));
+            expect(result.completed?.choices?.[0].content).toBe(LaMManagerMockTool.buildResp('Gemini3Pro', "你好"));
         });
     });
 
@@ -75,7 +75,7 @@ describe("LaMService", () => {
         it("尝试使用 GPT35Text 生成文本", async () => {
             const prompt = "写一个简短的介绍，介绍人工智能的发展历史";
             const result = await instructFn("Instruct_GPT35Text", prompt);
-            expect(result.completed?.choices?.[0].content).toBe(LaMManagerMockTool.buildResp('Instruct_GPT35Text', prompt));
+            expect(result.completed?.choices?.[0].content).toBe(LaMManagerMockTool.buildResp('GPT35Text', prompt));
         });
         it("尝试使用 DeepseekText 进行代码补全", async () => {
             const prompt = "def factorial(n):";
@@ -84,14 +84,14 @@ describe("LaMService", () => {
             const result = await instructFn("Instruct_DeepseekText", prompt, { suffix, prefix });
             // 拼接 prompt 和 prefix
             const expectedPrompt = `${prompt}${prefix}`;
-            expect(result.completed?.choices?.[0].content).toBe(LaMManagerMockTool.buildResp('Instruct_DeepseekText', expectedPrompt));
+            expect(result.completed?.choices?.[0].content).toBe(LaMManagerMockTool.buildResp('DeepseekText', expectedPrompt));
         });
         it("尝试使用 DeepseekPrefixCompletion 进行前缀续写", async () => {
             const prompt = "请续写以下代码";
             const prefix = "function calculateSum(a, b) {";
-            const result = await instructFn("Instruct_DeepseekPrefixCompletion", prompt, { prefix });
+            const result = await instructFn("Instruct_DeepseekPrefix", prompt, { prefix });
             // DeepseekPrefixCompletion 使用 chat 端点，所以返回 DeepseekChat 的响应
-            expect(result.completed?.choices?.[0].content).toBe(LaMManagerMockTool.buildResp('Instruct_DeepseekPrefixCompletion', prompt));
+            expect(result.completed?.choices?.[0].content).toBe(LaMManagerMockTool.buildResp('DeepseekChat', prompt));
         });
     });
 });

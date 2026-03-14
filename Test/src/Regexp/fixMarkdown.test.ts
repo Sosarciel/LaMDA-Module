@@ -2,8 +2,11 @@ const regex = (text:string)=> {
         //移除think标签与特殊格式
         text = text.replace(/<think>[\s\S]*?<\/think>/g, "");
         text = text.replace(/\s*ASSISTANT(:|：)\s*/gi,'');
+
         //移除gemini末尾总结
-        text = text.replace(/\s*\n---\s*\*?\*?既然[\s\S]+/,'');
+        text = text.replace(/\s*\n(---|===)\s*\*?\*?([a-zA-Z]|既然|接下来|要不要|我可以为|你想)[\s\S]+/,'');
+
+
 
         //修复星号
         const brackets = [
@@ -74,20 +77,25 @@ const regex = (text:string)=> {
         fixstart();
 
         //确保动作换行
+        // *string**string* -> *string*\n*string*
         const actRegex = new RegExp(`\\n?(${ap}([^*\\n]|${ta})+?${ap})\\n?`,'g');
         text = text.replace(actRegex, "\n$1\n").trim();
 
         //动作换行后产生新行, 再次尝试修复
         fixstart();
+
+        //整行匹配前运行过可能产新行的操作时需确保eachTrim
         eachTrim();
 
-        //删除无效成对前引号 ^"string"$ -> ^string$
+        //删除无效成对前引号
+        // ^"string"$ -> ^string$
         const rmquotes = ()=>quotes.forEach(([l,r])=>{
             const regex = new RegExp(`^${l}([^\\n${l+r}]+)${r}$`, "gm");
             text=text.replace(regex, "$1");
         });
         rmquotes();
-        //删除星号内括号 *(string)* -> *string*
+        //删除星号内括号
+        // *(string)* -> *string*
         brackets.forEach(([l,r])=>{
             const regex = new RegExp(`^${ap}${l}(([^*\\n${l+r}]|${ta})+)${r}${ap}$`, "gm");
             text=text.replace(regex, `*$1*`);
@@ -109,11 +117,17 @@ const regex = (text:string)=> {
             text=text.replace(regex, `*$1*`);
         });
 
-        //删除整段引号动作星号, 视为描述 ^*"string"*$ -> ^string$
         quotes.forEach(([l,r])=>{
-            const regex = new RegExp(`^${ap}${l}(([^*\\n${l+r}]|${ta})+)${r}${ap}$`, "gm");
-            text=text.replace(regex, "$1");
+            //删除整段引号动作星号, 视为描述 ^*"string"*$ -> ^string$
+            const regex1 = new RegExp(`^${ap}${l}(([^*\\n${l+r}]|${ta})+)${r}${ap}$`, "gm");
+            text=text.replace(regex1, "$1");
+            //转换星号内引号发言 ^*string:"string"*$ -> ^*string*\nstring$
+            const regex2 = new RegExp(`^${ap}(([^*\\n]|${ta})+?)(:|：)${l}(([^*\\n${l+r}]|${ta})+)${r}${ap}$`, "gm");
+            text=text.replace(regex2, "*$1*\n$4");
         });
+
+        //整行匹配前运行过可能产新行的操作时需确保eachTrim
+        eachTrim();
 
         //移除无效的动作符号
         //*string。* -> *string*
@@ -122,11 +136,15 @@ const regex = (text:string)=> {
         text=text.replace(regex1, `*$1*`);
         const regex2 = new RegExp(`^${ap}(([^*\\n]|${ta})+)${ap}(${endsymbols.join('|')})$`, "gm");
         text=text.replace(regex2, `*$1*`);
-        //换行情况
+        //换行情况 *string*\n， -> *string*\n
         const regex3 = new RegExp(`^${ap}(([^*\\n]|${ta})+)${ap}\n(${endsymbols.join('|')})`, "gm");
         text=text.replace(regex3, `*$1*\n`);
-        //换行后可能产生新全引号行, 需要再次删除
+
+        //整行匹配前运行过可能产新行的操作时需确保eachTrim
+        eachTrim();
+        //换行后可能产生新完整引号描述 "string" 行, 需要再次删除
         rmquotes();
+
         return text;
 };
 
@@ -400,6 +418,28 @@ desc5
 *motion6*`);
     });
 
+
+    it(`应处理78星号内尾随`,()=>{
+        expect(regex(`*motion1*
+
+*motion2。*
+
+*motion3。*
+
+*“desc4！”*
+
+*motion6。*
+
+*motion7：“desc8！”*`)).toEqual(`*motion1*
+*motion2*
+*motion3*
+desc4！
+*motion6*
+*motion7*
+desc8！`)
+    });
+
+    //#region AI测试
     // 边界情况测试
     it('应处理空字符串', () => {
         expect(regex('')).toEqual('');
@@ -542,5 +582,6 @@ assistant：*motion2*
 Assistant: *motion3*`)).toEqual(`*motion1*
 *motion2*
 *motion3*`);
-    })
+    });
+    //#endregion
 });

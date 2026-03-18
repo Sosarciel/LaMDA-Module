@@ -1,8 +1,18 @@
 import { CredManager, LaMManager } from "@sosraciel-lamda/lam-manager";
-import { LaMManagerMockTool } from "@sosraciel-lamda/lam-manager/mock";
+import { LaMManagerMockServer, LaMManagerMockTool } from "@sosraciel-lamda/lam-manager/mock";
 import { UtilFT } from "@zwa73/utils";
 import path from 'pathe';
 import { CACHE_PATH } from "@/src/Constant";
+
+const server:LaMManagerMockServer = new LaMManagerMockServer(3000);
+
+beforeAll(async () => {
+    await server.start();
+});
+
+afterAll(async () => {
+    await server.stop();
+});
 
 beforeAll(async ()=>{
     const LaMServiceTablePath = path.join(CACHE_PATH,'LaMManager.json');
@@ -22,7 +32,7 @@ beforeAll(async ()=>{
     });
 })
 
-describe("LaMService", () => {
+describe("LaM-Manager", () => {
     describe("ChatTask", () => {
         const chatFn = async (instanceName:string,message:string) => {
             return LaMManager.chat.execute(instanceName,{

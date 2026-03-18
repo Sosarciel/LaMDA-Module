@@ -15,6 +15,10 @@ beforeAll(async ()=>{
     });
 });
 
+afterAll(async ()=>{
+    dbmgr.stop();
+})
+
 describe('PostgresSQL-Manager', () => {
     it('测试连接', async () => {
         const res = await dbmgr.client.sql`SELECT 1 as value;`;

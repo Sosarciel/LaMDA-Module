@@ -50,6 +50,22 @@ const createTestMessage = (conversationId: string, options?: {
     };
 };
 
+/**创建测试场景结构体 */
+const createTestScene = () => {
+    return {
+        define: "test_define",
+        memory: [],
+        name: "test_scene",
+        dialog: [
+            {
+                type: "chat" as const,
+                content: "Hello, how can I help you?",
+                sender_name: "Assistant"
+            }
+        ]
+    };
+};
+
 describe("Dialog-Domain 模块测试", () => {
     let manager: DBManager;
 
@@ -269,18 +285,7 @@ describe("Dialog-Domain 模块测试", () => {
     });
 
     test("8. 应成功使用ConversationLog创建和管理对话", async () => {
-        const testScene = {
-            define: "test_define",
-            memory: [],
-            name: "test_scene",
-            dialog: [
-                {
-                    type: "chat" as const,
-                    content: "Hello, how can I help you?",
-                    sender_name: "Assistant"
-                }
-            ]
-        };
+        const testScene = createTestScene();
 
         // 创建对话记录
         const conversationLog = await ConversationLog.create({ scene: testScene });
@@ -307,18 +312,7 @@ describe("Dialog-Domain 模块测试", () => {
 
     test("9. 应成功使用MessageLog创建和管理消息", async () => {
         // 先创建对话
-        const testScene = {
-            define: "test_define",
-            memory: [],
-            name: "test_scene",
-            dialog: [
-                {
-                    type: "chat" as const,
-                    content: "Hello, how can I help you?",
-                    sender_name: "Assistant"
-                }
-            ]
-        };
+        const testScene = createTestScene();
         const conversationLog = await ConversationLog.create({ scene: testScene });
         const conversationId = conversationLog.getConversationId();
 
@@ -349,25 +343,15 @@ describe("Dialog-Domain 模块测试", () => {
         const retrievedTranslation = messageLog.getTransContent("zh");
         expect(retrievedTranslation).toBe(testTranslation);
 
-        // 获取消息选择列表
+        // 获取消息选择列表（应为空，因为没有子消息）
         const messageChoiceList = await messageLog.getMessageChoiceList();
         expect(Array.isArray(messageChoiceList)).toBe(true);
+        expect(messageChoiceList.length).toBe(0);
     });
 
     test("10. 应成功获取消息选择列表", async () => {
         // 先创建对话
-        const testScene = {
-            define: "test_define",
-            memory: [],
-            name: "test_scene",
-            dialog: [
-                {
-                    type: "chat" as const,
-                    content: "Hello, how can I help you?",
-                    sender_name: "Assistant"
-                }
-            ]
-        };
+        const testScene = createTestScene();
         const conversationLog = await ConversationLog.create({ scene: testScene });
         const conversationId = conversationLog.getConversationId();
 
@@ -378,22 +362,14 @@ describe("Dialog-Domain 模块测试", () => {
         // 获取消息选择列表
         const messageChoiceList = await DialogStore.getMessageChoiceList(conversationId);
         expect(Array.isArray(messageChoiceList)).toBe(true);
+        // 验证消息选择列表包含创建的消息
+        const messageIds = messageChoiceList.map(msg => msg.data.message_id);
+        expect(messageIds).toContain(testMessage.data.message_id);
     });
 
     test("11. 应正确排序消息选择列表", async () => {
         // 先创建对话
-        const testScene = {
-            define: "test_define",
-            memory: [],
-            name: "test_scene",
-            dialog: [
-                {
-                    type: "chat" as const,
-                    content: "Hello, how can I help you?",
-                    sender_name: "Assistant"
-                }
-            ]
-        };
+        const testScene = createTestScene();
         const conversationLog = await ConversationLog.create({ scene: testScene });
         const conversationId = conversationLog.getConversationId();
 
@@ -410,20 +386,61 @@ describe("Dialog-Domain 模块测试", () => {
         expect(Array.isArray(messageChoiceList)).toBe(true);
         expect(messageChoiceList.length).toBeGreaterThanOrEqual(2);
 
-        // 检查消息是否按正确顺序排序
-        // 注意：具体排序逻辑取决于数据库实现，这里我们假设按创建时间排序
-        // 第一条消息应该在第二条消息之前
-        const firstMessageInList = messageChoiceList.find(msg => msg.data.message_id === firstMessage.data.message_id);
-        const secondMessageInList = messageChoiceList.find(msg => msg.data.message_id === secondMessage.data.message_id);
-        
-        expect(firstMessageInList).toBeDefined();
-        expect(secondMessageInList).toBeDefined();
-        
-        // 获取两条消息在列表中的索引
-        const firstIndex = messageChoiceList.indexOf(firstMessageInList!);
-        const secondIndex = messageChoiceList.indexOf(secondMessageInList!);
-        
-        // 验证第一条消息的索引小于第二条消息的索引（按创建时间排序）
+        // 提取消息ID列表
+        const messageIds = messageChoiceList.map(msg => msg.data.message_id);
+
+        // 验证消息选择列表包含创建的两条消息
+        expect(messageIds).toContain(firstMessage.data.message_id);
+        expect(messageIds).toContain(secondMessage.data.message_id);
+
+        // 检查消息是否按正确顺序排序（插入顺序）
+        const firstIndex = messageIds.indexOf(firstMessage.data.message_id);
+        const secondIndex = messageIds.indexOf(secondMessage.data.message_id);
+
+        // 验证第一条消息的索引小于第二条消息的索引（按插入顺序排序）
         expect(firstIndex).toBeLessThan(secondIndex);
+    });
+
+    test("12. 应成功使用DialogStore获取消息选择ID列表", async () => {
+        // 先创建对话
+        const testScene = createTestScene();
+        const conversationLog = await ConversationLog.create({ scene: testScene });
+        const conversationId = conversationLog.getConversationId();
+
+        // 创建消息
+        const testMessage = createTestMessage(conversationId, { content: "Test message for choice list" });
+        await DialogStore.setMessage(testMessage);
+
+        // 获取消息选择ID列表
+        const messageChoiceIdList = await DialogStore.getMessageChoiceIdList(conversationId);
+        expect(Array.isArray(messageChoiceIdList)).toBe(true);
+        expect(messageChoiceIdList.length).toBeGreaterThanOrEqual(1);
+        expect(messageChoiceIdList).toContain(testMessage.data.message_id);
+    });
+
+    test("13. 应成功使用DialogStore获取消息选择列表（带parentid）", async () => {
+        // 先创建对话
+        const testScene = createTestScene();
+        const conversationLog = await ConversationLog.create({ scene: testScene });
+        const conversationId = conversationLog.getConversationId();
+
+        // 创建父消息
+        const parentMessage = createTestMessage(conversationId, { content: "Parent message" });
+        await DialogStore.setMessage(parentMessage);
+
+        // 创建子消息
+        const childMessage = createTestMessage(conversationId, {
+            parent_message_id: parentMessage.data.message_id,
+            content: "Child message"
+        });
+        await DialogStore.setMessage(childMessage);
+
+        // 获取消息选择列表（带parentid）
+        const messageChoiceList = await DialogStore.getMessageChoiceList(conversationId, parentMessage.data.message_id);
+        expect(Array.isArray(messageChoiceList)).toBe(true);
+        expect(messageChoiceList.length).toBeGreaterThanOrEqual(1);
+        // 验证消息选择列表包含创建的子消息
+        const messageIds = messageChoiceList.map(msg => msg.data.message_id);
+        expect(messageIds).toContain(childMessage.data.message_id);
     });
 });

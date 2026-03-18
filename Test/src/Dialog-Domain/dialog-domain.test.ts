@@ -103,7 +103,7 @@ describe("Dialog-Domain 模块测试", () => {
                 // 关闭数据库连接
                 await manager.stop();
             }
-            
+
             // 清理缓存
             // 注意：由于DBCache是内部实现，我们通过访问其缓存池来清理
             // @ts-ignore 访问私有属性进行清理
@@ -359,7 +359,7 @@ describe("Dialog-Domain 模块测试", () => {
         const testMessage1 = createTestMessage(conversationId, { content: "First message" });
         const testMessage2 = createTestMessage(conversationId, { content: "Second message" });
         const testMessage3 = createTestMessage(conversationId, { content: "Third message" });
-        
+
         await DialogStore.setMessage(testMessage1);
         await DialogStore.setMessage(testMessage2);
         await DialogStore.setMessage(testMessage3);
@@ -367,7 +367,7 @@ describe("Dialog-Domain 模块测试", () => {
         // 获取消息选择列表
         const messageChoiceList = await DialogStore.getMessageChoiceList(conversationId);
         expect(Array.isArray(messageChoiceList)).toBe(true);
-        
+
         // 验证消息选择列表包含所有创建的消息，并且顺序正确
         const messageIds = messageChoiceList.map(msg => msg.data.message_id);
         expect(messageIds).toEqual([testMessage1.data.message_id, testMessage2.data.message_id, testMessage3.data.message_id]);
@@ -383,7 +383,7 @@ describe("Dialog-Domain 模块测试", () => {
         const firstMessage = createTestMessage(conversationId, { content: "First message" });
         const secondMessage = createTestMessage(conversationId, { content: "Second message" });
         const thirdMessage = createTestMessage(conversationId, { content: "Third message" });
-        
+
         await DialogStore.setMessage(firstMessage);
         await DialogStore.setMessage(secondMessage);
         await DialogStore.setMessage(thirdMessage);
@@ -395,7 +395,7 @@ describe("Dialog-Domain 模块测试", () => {
 
         // 提取消息ID列表
         const messageIds = messageChoiceList.map(msg => msg.data.message_id);
-        
+
         // 直接验证消息选择列表的完整内容和顺序（按插入顺序）
         expect(messageIds).toEqual([firstMessage.data.message_id, secondMessage.data.message_id, thirdMessage.data.message_id]);
     });
@@ -410,7 +410,7 @@ describe("Dialog-Domain 模块测试", () => {
         const testMessage1 = createTestMessage(conversationId, { content: "First message" });
         const testMessage2 = createTestMessage(conversationId, { content: "Second message" });
         const testMessage3 = createTestMessage(conversationId, { content: "Third message" });
-        
+
         await DialogStore.setMessage(testMessage1);
         await DialogStore.setMessage(testMessage2);
         await DialogStore.setMessage(testMessage3);
@@ -419,7 +419,7 @@ describe("Dialog-Domain 模块测试", () => {
         const messageChoiceIdList = await DialogStore.getMessageChoiceIdList(conversationId);
         expect(Array.isArray(messageChoiceIdList)).toBe(true);
         expect(messageChoiceIdList.length).toBe(3);
-        
+
         // 直接验证消息选择ID列表的完整内容和顺序（按插入顺序）
         expect(messageChoiceIdList).toEqual([testMessage1.data.message_id, testMessage2.data.message_id, testMessage3.data.message_id]);
     });
@@ -447,7 +447,7 @@ describe("Dialog-Domain 模块测试", () => {
             parent_message_id: parentMessage.data.message_id,
             content: "Child message 3"
         });
-        
+
         await DialogStore.setMessage(childMessage1);
         await DialogStore.setMessage(childMessage2);
         await DialogStore.setMessage(childMessage3);
@@ -456,7 +456,7 @@ describe("Dialog-Domain 模块测试", () => {
         const messageChoiceList = await DialogStore.getMessageChoiceList(conversationId, parentMessage.data.message_id);
         expect(Array.isArray(messageChoiceList)).toBe(true);
         expect(messageChoiceList.length).toBe(3);
-        
+
         // 直接验证消息选择列表的完整内容和顺序（按插入顺序）
         const messageIds = messageChoiceList.map(msg => msg.data.message_id);
         expect(messageIds).toEqual([childMessage1.data.message_id, childMessage2.data.message_id, childMessage3.data.message_id]);

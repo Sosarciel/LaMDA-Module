@@ -5,12 +5,53 @@ import { sleep, UtilFunc } from "@zwa73/utils";
 // 导入DBCache以访问缓存池
 import { DBCache } from "@sosraciel-lamda/dialog-domain/dist/DBCache";
 
+/**创建测试对话结构体 */
+const createTestConversation = (options?: {
+    conversation_id?: string;
+    background_info?: string;
+}): ConversationStruct => {
+    return {
+        data: {
+            conversation_id: options?.conversation_id || UtilFunc.genUUID(),
+            scene: {
+                define: "test_define",
+                memory: [],
+                name: "test_scene",
+                dialog: [
+                    {
+                        type: "chat" as const,
+                        content: "Hello, how can I help you?",
+                        sender_name: "Assistant"
+                    }
+                ]
+            },
+            ...(options?.background_info && { background_info: options.background_info })
+        }
+    };
+};
+
+/**创建测试消息结构体 */
+const createTestMessage = (conversationId: string, options?: {
+    parent_message_id?: string | null;
+    sender_id?: string;
+    sender_type?: "user" | "char";
+    content?: string;
+}): MessageStruct => {
+    return {
+        data: {
+            message_id: UtilFunc.genUUID(),
+            conversation_id: conversationId,
+            parent_message_id: options?.parent_message_id || null,
+            sender_id: options?.sender_id || "user",
+            sender_type: options?.sender_type || "user" as const,
+            content: options?.content || "Test message",
+            translate_content_table: {}
+        }
+    };
+};
+
 describe("Dialog-Domain 模块测试", () => {
     let manager: DBManager;
-    let testConversationId: string;
-    let testMessageId: string;
-    let testParentMessageId: string;
-    let testChildMessageId: string;
 
     beforeAll(async () => {
         // 创建数据库管理器
@@ -80,24 +121,7 @@ describe("Dialog-Domain 模块测试", () => {
     });
 
     test("2. 应成功创建和获取对话记录", async () => {
-        const testConversation: ConversationStruct = {
-            data: {
-                conversation_id: UtilFunc.genUUID(),
-                scene: {
-                    define: "test_define",
-                    memory: [],
-                    name: "test_scene",
-                    dialog: [
-                        {
-                            type: "chat" as const,
-                            content: "Hello, how can I help you?",
-                            sender_name: "Assistant"
-                        }
-                    ]
-                },
-                background_info: "Test background info"
-            }
-        };
+        const testConversation = createTestConversation({ background_info: "Test background info" });
 
         // 创建对话记录
         await DialogStore.setConversation(testConversation);
@@ -107,24 +131,15 @@ describe("Dialog-Domain 模块测试", () => {
         expect(retrievedConversation).toBeDefined();
         expect(retrievedConversation?.data.conversation_id).toBe(testConversation.data.conversation_id);
         expect(retrievedConversation?.data.background_info).toBe(testConversation.data.background_info);
-
-        // 保存对话ID用于后续测试
-        testConversationId = testConversation.data.conversation_id;
     });
 
     test("3. 应成功创建和获取消息记录", async () => {
+        // 先创建对话
+        const testConversation = createTestConversation();
+        await DialogStore.setConversation(testConversation);
+
         // 创建消息记录
-        const testMessage: MessageStruct = {
-            data: {
-                message_id: UtilFunc.genUUID(),
-                conversation_id: testConversationId,
-                parent_message_id: null,
-                sender_id: "user",
-                sender_type: "user" as const,
-                content: "I need help with my order",
-                translate_content_table: {}
-            }
-        };
+        const testMessage = createTestMessage(testConversation.data.conversation_id, { content: "I need help with my order" });
         await DialogStore.setMessage(testMessage);
 
         // 获取消息记录
@@ -132,88 +147,81 @@ describe("Dialog-Domain 模块测试", () => {
         expect(retrievedMessage).toBeDefined();
         expect(retrievedMessage?.data.message_id).toBe(testMessage.data.message_id);
         expect(retrievedMessage?.data.content).toBe(testMessage.data.content);
-
-        // 保存消息ID用于后续测试
-        testMessageId = testMessage.data.message_id;
     });
 
     test("4. 应成功创建消息树结构", async () => {
+        // 先创建对话
+        const testConversation = createTestConversation();
+        await DialogStore.setConversation(testConversation);
+
         // 创建根消息
-        const parentMessage: MessageStruct = {
-            data: {
-                message_id: UtilFunc.genUUID(),
-                conversation_id: testConversationId,
-                parent_message_id: null,
-                sender_id: "user",
-                sender_type: "user" as const,
-                content: "What's the weather today?",
-                translate_content_table: {}
-            }
-        };
+        const parentMessage = createTestMessage(testConversation.data.conversation_id, { content: "What's the weather today?" });
         await DialogStore.setMessage(parentMessage);
 
-        // 保存根消息ID
-        testParentMessageId = parentMessage.data.message_id;
-
         // 创建子消息
-        const childMessage: MessageStruct = {
-            data: {
-                message_id: UtilFunc.genUUID(),
-                conversation_id: testConversationId,
-                parent_message_id: testParentMessageId,
-                sender_id: "assistant",
-                sender_type: "user" as const,
-                content: "It's sunny today!",
-                translate_content_table: {}
-            }
-        };
+        const childMessage = createTestMessage(testConversation.data.conversation_id, {
+            parent_message_id: parentMessage.data.message_id,
+            sender_id: "assistant",
+            content: "It's sunny today!"
+        });
         await DialogStore.setMessage(childMessage);
 
-        // 保存子消息ID
-        testChildMessageId = childMessage.data.message_id;
-
         // 验证子消息是否存在
-        const retrievedChildMessage = await DialogStore.getMessage(testChildMessageId);
+        const retrievedChildMessage = await DialogStore.getMessage(childMessage.data.message_id);
         expect(retrievedChildMessage).toBeDefined();
-        expect(retrievedChildMessage?.data.parent_message_id).toBe(testParentMessageId);
+        expect(retrievedChildMessage?.data.parent_message_id).toBe(parentMessage.data.message_id);
     });
 
     test("5. 应成功测试消息树联动删除（删除根消息时删除枝消息）", async () => {
+        // 先创建对话
+        const testConversation = createTestConversation();
+        await DialogStore.setConversation(testConversation);
+
+        // 创建根消息
+        const parentMessage = createTestMessage(testConversation.data.conversation_id, { content: "What's the weather today?" });
+        await DialogStore.setMessage(parentMessage);
+
+        // 创建子消息
+        const childMessage = createTestMessage(testConversation.data.conversation_id, {
+            parent_message_id: parentMessage.data.message_id,
+            sender_id: "assistant",
+            content: "It's sunny today!"
+        });
+        await DialogStore.setMessage(childMessage);
+
         // 验证子消息存在
-        let childMessage = await DialogStore.getMessage(testChildMessageId);
-        expect(childMessage).toBeDefined();
+        let childMessageExists = await DialogStore.getMessage(childMessage.data.message_id);
+        expect(childMessageExists).toBeDefined();
 
         // 验证根消息存在
-        const parentMessage = await DialogStore.getMessage(testParentMessageId);
-        expect(parentMessage).toBeDefined();
+        const parentMessageExists = await DialogStore.getMessage(parentMessage.data.message_id);
+        expect(parentMessageExists).toBeDefined();
 
         // 执行删除根消息操作
-        await DialogStore.deleteMessage(testParentMessageId);
+        await DialogStore.deleteMessage(parentMessage.data.message_id);
 
         //等待联动删除副作用通知下发
         await sleep(500);
 
         // 验证根消息和子消息都已删除（由于触发器联动删除）
-        const deletedParentMessage = await DialogStore.getMessage(testParentMessageId);
+        const deletedParentMessage = await DialogStore.getMessage(parentMessage.data.message_id);
         expect(deletedParentMessage).toBeUndefined();
 
-        const deletedChildMessage = await DialogStore.getMessage(testChildMessageId);
+        const deletedChildMessage = await DialogStore.getMessage(childMessage.data.message_id);
         expect(deletedChildMessage).toBeUndefined();
     });
 
     test("6. 应成功测试对话联动删除（删除对话时删除所有相关消息）", async () => {
+        // 先创建对话
+        const testConversation = createTestConversation();
+        await DialogStore.setConversation(testConversation);
+
+        // 创建消息
+        const testMessage = createTestMessage(testConversation.data.conversation_id, { content: "I need help with my order" });
+        await DialogStore.setMessage(testMessage);
+
         // 创建新的消息用于测试
-        const newMessage: MessageStruct = {
-            data: {
-                message_id: UtilFunc.genUUID(),
-                conversation_id: testConversationId,
-                parent_message_id: null,
-                sender_id: "user",
-                sender_type: "user" as const,
-                content: "Test message for cascade delete",
-                translate_content_table: {}
-            }
-        };
+        const newMessage = createTestMessage(testConversation.data.conversation_id, { content: "Test message for cascade delete" });
         await DialogStore.setMessage(newMessage);
 
         // 验证消息存在
@@ -221,24 +229,24 @@ describe("Dialog-Domain 模块测试", () => {
         expect(message).toBeDefined();
 
         // 验证对话存在
-        const conversation = await DialogStore.getConversation(testConversationId);
+        const conversation = await DialogStore.getConversation(testConversation.data.conversation_id);
         expect(conversation).toBeDefined();
 
         // 执行删除对话操作
-        await DialogStore.deleteConversation(testConversationId);
+        await DialogStore.deleteConversation(testConversation.data.conversation_id);
 
         // 等待触发器执行
         await sleep(500);
 
         // 验证对话和所有相关消息都已删除（由于触发器联动删除）
-        const deletedConversation = await DialogStore.getConversation(testConversationId, { ignoreCache: true });
+        const deletedConversation = await DialogStore.getConversation(testConversation.data.conversation_id, { ignoreCache: true });
         expect(deletedConversation).toBeUndefined();
 
         const deletedMessage = await DialogStore.getMessage(newMessage.data.message_id, { ignoreCache: true });
         expect(deletedMessage).toBeUndefined();
 
         // 验证原始消息也已被删除
-        const originalMessage = await DialogStore.getMessage(testMessageId, { ignoreCache: true });
+        const originalMessage = await DialogStore.getMessage(testMessage.data.message_id, { ignoreCache: true });
         expect(originalMessage).toBeUndefined();
     });
 
@@ -247,37 +255,11 @@ describe("Dialog-Domain 模块测试", () => {
 
         await DialogStore.transaction(async (client) => {
             // 创建对话
-            const testConversation: ConversationStruct = {
-                data: {
-                    conversation_id: newConversationId,
-                    scene: {
-                        define: "test_define",
-                        memory: [],
-                        name: "test_scene",
-                        dialog: [
-                            {
-                                type: "chat" as const,
-                                content: "Hello, how can I help you?",
-                                sender_name: "Assistant"
-                            }
-                        ]
-                    }
-                }
-            };
+            const testConversation = createTestConversation({ conversation_id: newConversationId });
             await DialogStore.setConversation(testConversation, { client });
 
             // 创建消息
-            const testMessage: MessageStruct = {
-                data: {
-                    message_id: UtilFunc.genUUID(),
-                    conversation_id: newConversationId,
-                    parent_message_id: null,
-                    sender_id: "user",
-                    sender_type: "user" as const,
-                    content: "I need help with my order",
-                    translate_content_table: {}
-                }
-            };
+            const testMessage = createTestMessage(newConversationId, { content: "I need help with my order" });
             await DialogStore.setMessage(testMessage, { client });
         });
 
@@ -388,17 +370,7 @@ describe("Dialog-Domain 模块测试", () => {
         const conversationId = conversationLog.getConversationId();
 
         // 创建消息
-        const testMessage: MessageStruct = {
-            data: {
-                message_id: UtilFunc.genUUID(),
-                conversation_id: conversationId,
-                parent_message_id: null,
-                sender_id: "user",
-                sender_type: "user" as const,
-                content: "I need help with my order",
-                translate_content_table: {}
-            }
-        };
+        const testMessage = createTestMessage(conversationId, { content: "I need help with my order" });
         await DialogStore.setMessage(testMessage);
 
         // 获取消息选择列表
@@ -424,31 +396,11 @@ describe("Dialog-Domain 模块测试", () => {
         const conversationId = conversationLog.getConversationId();
 
         // 创建第一条消息
-        const firstMessage: MessageStruct = {
-            data: {
-                message_id: UtilFunc.genUUID(),
-                conversation_id: conversationId,
-                parent_message_id: null,
-                sender_id: "user",
-                sender_type: "user" as const,
-                content: "First message",
-                translate_content_table: {}
-            }
-        };
+        const firstMessage = createTestMessage(conversationId, { content: "First message" });
         await DialogStore.setMessage(firstMessage);
 
         // 创建第二条消息
-        const secondMessage: MessageStruct = {
-            data: {
-                message_id: UtilFunc.genUUID(),
-                conversation_id: conversationId,
-                parent_message_id: null,
-                sender_id: "user",
-                sender_type: "user" as const,
-                content: "Second message",
-                translate_content_table: {}
-            }
-        };
+        const secondMessage = createTestMessage(conversationId, { content: "Second message" });
         await DialogStore.setMessage(secondMessage);
 
         // 获取消息选择列表

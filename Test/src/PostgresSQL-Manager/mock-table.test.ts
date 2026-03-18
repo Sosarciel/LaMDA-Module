@@ -1,5 +1,5 @@
 import { DBManager } from "@sosraciel-lamda/postgresql-manager";
-import { TableInitializer, MockTableAccesser, MockCacheCoordinator, MockJsonDataCacheCoordinator, PostgreSQLMockTool, cache, jsonCache } from "@sosraciel-lamda/postgresql-manager/mock";
+import { TableInitializer, MockTableAccesser, MockCacheCoordinator, MockJsonDataCacheCoordinator, PostgreSQLMockTool, TestDBRow, cache, jsonCache } from "@sosraciel-lamda/postgresql-manager/mock";
 
 const { MOCK_TABLE_NAME, MOCK_ID_FIELD } = PostgreSQLMockTool;
 
@@ -64,17 +64,15 @@ describe("模拟表初始化器", () => {
 
     test("应使用注入的普通缓存协调器", async () => {
         // 创建访问器并注入缓存协调器
-        const accesser = new MockTableAccesser(manager);
+        const accesser = new MockTableAccesser<TestDBRow>(manager);
         accesser.injectCacheCoordinator(MockCacheCoordinator);
 
-        const testData = {
+        const testData: TestDBRow = {
             data: {
                 test_id: "injectedCacheTest",
-                name: "注入缓存测试",
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
+                name: "注入缓存测试"
             }
-        } as any;
+        };
 
         // 插入数据
         await accesser.insertOrUpdate(testData);
@@ -85,8 +83,8 @@ describe("模拟表初始化器", () => {
 
         // 获取数据
         const retrievedData = await accesser.getData("injectedCacheTest");
-        expect((retrievedData?.data as any).test_id).toBe("injectedCacheTest");
-        expect((retrievedData?.data as any).name).toBe("注入缓存测试");
+        expect(retrievedData?.data.test_id).toBe("injectedCacheTest");
+        expect(retrievedData?.data.name).toBe("注入缓存测试");
     });
 
     test("应使用注入的JSON数据缓存协调器", async () => {
@@ -94,17 +92,15 @@ describe("模拟表初始化器", () => {
         await MockJsonDataCacheCoordinator.inited;
 
         // 创建访问器并注入缓存协调器
-        const accesser = new MockTableAccesser(manager);
+        const accesser = new MockTableAccesser<TestDBRow>(manager);
         accesser.injectCacheCoordinator(MockJsonDataCacheCoordinator);
 
-        const testData = {
+        const testData: TestDBRow = {
             data: {
                 test_id: "jsonCacheTest",
-                name: "JSON缓存测试",
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
+                name: "JSON缓存测试"
             }
-        } as any;
+        };
 
         // 插入数据
         await accesser.insertOrUpdate(testData);
@@ -115,29 +111,27 @@ describe("模拟表初始化器", () => {
 
         // 获取数据
         const retrievedData = await accesser.getData("jsonCacheTest");
-        expect((retrievedData?.data as any).test_id).toBe("jsonCacheTest");
-        expect((retrievedData?.data as any).name).toBe("JSON缓存测试");
+        expect(retrievedData?.data.test_id).toBe("jsonCacheTest");
+        expect(retrievedData?.data.name).toBe("JSON缓存测试");
     });
 
     test("应通过数据库通知更新缓存", async () => {
         // 创建访问器并注入缓存协调器
-        const accesser = new MockTableAccesser(manager);
+        const accesser = new MockTableAccesser<TestDBRow>(manager);
         accesser.injectCacheCoordinator(MockCacheCoordinator);
 
         // 插入初始数据
-        const initialData = {
+        const initialData: TestDBRow = {
             data: {
                 test_id: "notifyTest",
-                name: "初始名称",
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
+                name: "初始名称"
             }
-        } as any;
+        };
         await accesser.insertOrUpdate(initialData);
 
         // 验证缓存
         expect(accesser.hasCache("notifyTest")).toBe(true);
-        expect((accesser.peekCache("notifyTest")?.data as any).name).toBe("初始名称");
+        expect(accesser.peekCache("notifyTest")?.data.name).toBe("初始名称");
 
         // 不通过访问器，直接用mgr发指令更新数据
         await manager.client.query(`
@@ -152,7 +146,7 @@ describe("模拟表初始化器", () => {
         // 验证缓存是否已更新
         const cachedData = accesser.peekCache("notifyTest");
         expect(cachedData).toBeDefined();
-        expect((cachedData?.data as any).name).toBe("更新后的名称");
+        expect(cachedData?.data.name).toBe("更新后的名称");
 
         // 不通过访问器，直接用mgr发指令删除数据
         await manager.client.query(`

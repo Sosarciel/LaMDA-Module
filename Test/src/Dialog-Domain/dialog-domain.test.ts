@@ -216,7 +216,7 @@ describe("Dialog-Domain 模块测试", () => {
         // 执行删除根消息操作
         await DialogStore.deleteMessage(parentMessage.data.message_id);
 
-        //等待联动删除副作用通知下发
+        // 等待联动删除副作用通知下发
         await sleep(500);
 
         // 验证根消息和子消息都已删除（由于触发器联动删除）
@@ -251,7 +251,7 @@ describe("Dialog-Domain 模块测试", () => {
         // 执行删除对话操作
         await DialogStore.deleteConversation(testConversation.data.conversation_id);
 
-        // 等待触发器执行
+        // 等待联动删除副作用通知下发
         await sleep(500);
 
         // 验证对话和所有相关消息都已删除（由于触发器联动删除）

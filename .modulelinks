@@ -7,6 +7,12 @@
 [submodule "Service-Manager/CommApi-Manager"]
 	path = Service-Manager/CommApi-Manager
 	url = https://github.com/Sosarciel/LaMDA-CommApi-Manager.git
+[submodule "Service-Manager/TTS-Manager"]
+	path = Service-Manager/TTS-Manager
+	url = https://github.com/Sosarciel/LaMDA-TTS-Manager.git
+[submodule "Service-Manager/Translation-Manager"]
+	path = Service-Manager/Translation-Manager
+	url = https://github.com/Sosarciel/LaMDA-Translation-Manager.git
 [submodule "CommPlatform-ProtoClient/OneBot11-ProtoClient"]
 	path = CommPlatform-ProtoClient/OneBot11-ProtoClient
 	url = https://github.com/Sosarciel/LaMDA-OneBot11-ProtoClient.git

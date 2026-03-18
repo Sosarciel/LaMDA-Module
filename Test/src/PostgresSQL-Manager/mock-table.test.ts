@@ -1,5 +1,7 @@
 import { DBManager } from "@sosraciel-lamda/postgresql-manager";
-import { TableInitializer, MockTableAccesser, MockCacheCoordinator, MockJsonDataCacheCoordinator, MOCK_TABLE_NAME, MOCK_ID_FIELD, cache, jsonCache } from "@sosraciel-lamda/postgresql-manager/mock";
+import { TableInitializer, MockTableAccesser, MockCacheCoordinator, MockJsonDataCacheCoordinator, PostgreSQLMockTool, cache, jsonCache } from "@sosraciel-lamda/postgresql-manager/mock";
+
+const { MOCK_TABLE_NAME, MOCK_ID_FIELD } = PostgreSQLMockTool;
 
 describe("模拟表初始化器", () => {
     let manager: DBManager;
@@ -35,7 +37,7 @@ describe("模拟表初始化器", () => {
         // 清理表
         try {
             if (manager) {
-                await TableInitializer.dropTable(manager.client, MOCK_TABLE_NAME);
+                await TableInitializer.dropTable(manager.client);
                 // 关闭数据库连接
                 await manager.stop();
             }
@@ -49,7 +51,7 @@ describe("模拟表初始化器", () => {
     }, 30000); // 增加超时时间
 
     test("应成功初始化表", async () => {
-        await TableInitializer.initTable(manager.client, MOCK_TABLE_NAME, MOCK_ID_FIELD);
+        await TableInitializer.initTable(manager.client);
         // 验证表是否存在
         const result = await manager.client.sql`
             SELECT table_name
@@ -58,34 +60,6 @@ describe("模拟表初始化器", () => {
             AND table_schema = 'public';
         `;
         expect(result.rowCount).toBe(1);
-    });
-
-    test("应使用默认缓存协调器", async () => {
-        const accesser = new MockTableAccesser(manager);
-        const testData = {
-            data: {
-                test_id: "defaultCacheTest",
-                name: "默认缓存测试",
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-            }
-        } as any;
-
-        // 插入数据
-        await accesser.insertOrUpdate(testData);
-
-        // 验证缓存是否存在
-        expect(accesser.hasCache("defaultCacheTest")).toBe(true);
-        expect(accesser.peekCache("defaultCacheTest")).toBeDefined();
-
-        // 获取数据
-        const retrievedData = await accesser.getData("defaultCacheTest");
-        expect((retrievedData?.data as any).test_id).toBe("defaultCacheTest");
-        expect((retrievedData?.data as any).name).toBe("默认缓存测试");
-
-        // 清除缓存
-        accesser.clearCache();
-        expect(accesser.hasCache("defaultCacheTest")).toBe(false);
     });
 
     test("应使用注入的普通缓存协调器", async () => {
@@ -146,8 +120,9 @@ describe("模拟表初始化器", () => {
     });
 
     test("应通过数据库通知更新缓存", async () => {
-        // 创建访问器
+        // 创建访问器并注入缓存协调器
         const accesser = new MockTableAccesser(manager);
+        accesser.injectCacheCoordinator(MockCacheCoordinator);
 
         // 插入初始数据
         const initialData = {

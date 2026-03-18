@@ -341,7 +341,9 @@ describe("Dialog-Domain 模块测试", () => {
 
         // 设置翻译内容
         const testTranslation = "我需要帮助处理我的订单";
+        console.log('设置')
         await messageLog.setTransContent("zh", testTranslation);
+        console.log('完成设置')
 
         // 获取翻译内容
         const retrievedTranslation = messageLog.getTransContent("zh");

@@ -105,10 +105,8 @@ describe("Dialog-Domain 模块测试", () => {
             }
 
             // 清理缓存
-            // 注意：由于DBCache是内部实现，我们通过访问其缓存池来清理
-            // 调用dispose方法清理缓存
-            // @ts-ignore 调用dispose方法
-            DBCache.cache.dispose();
+            // 使用DBCacheCoordinator的dispose方法清理缓存资源
+            DBCache.dispose();
 
         } catch (e) {
             // 忽略错误

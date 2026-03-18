@@ -5,8 +5,6 @@ const { MOCK_TABLE_NAME, MOCK_ID_FIELD } = PostgreSQLMockTool;
 
 describe("模拟表初始化器", () => {
     let manager: DBManager;
-    let cacheInstance: any;
-    let jsonCacheInstance: any;
     let mockCacheCoordinator: any;
     let mockJsonDataCacheCoordinator: any;
 
@@ -38,11 +36,9 @@ describe("模拟表初始化器", () => {
 
         // 创建缓存实例
         const { cache, coordinator } = createMockCacheCoordinator();
-        cacheInstance = cache;
         mockCacheCoordinator = coordinator;
 
         const { jsonCache, coordinator: jsonCoordinator } = createMockJsonDataCacheCoordinator();
-        jsonCacheInstance = jsonCache;
         mockJsonDataCacheCoordinator = jsonCoordinator;
     }, 30000); // 增加超时时间
 
@@ -55,9 +51,9 @@ describe("模拟表初始化器", () => {
                 await manager.stop();
             }
 
-            // 关闭缓存实例，清理TTL定时器
-            cacheInstance.dispose();
-            jsonCacheInstance.dispose();
+            // 关闭缓存协调器，清理TTL定时器
+            mockCacheCoordinator.dispose();
+            mockJsonDataCacheCoordinator.dispose();
         } catch (e) {
             // 忽略错误
         }

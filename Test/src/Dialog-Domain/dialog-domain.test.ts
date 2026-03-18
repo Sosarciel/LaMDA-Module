@@ -32,6 +32,7 @@ const createTestConversation = (options?: {
 
 /**创建测试消息结构体 */
 const createTestMessage = (conversationId: string, options?: {
+    message_id?: string;
     parent_message_id?: string | null;
     sender_id?: string;
     sender_type?: "user" | "char";
@@ -39,7 +40,7 @@ const createTestMessage = (conversationId: string, options?: {
 }): MessageStruct => {
     return {
         data: {
-            message_id: UtilFunc.genUUID(),
+            message_id: options?.message_id || UtilFunc.genUUID(),
             conversation_id: conversationId,
             parent_message_id: options?.parent_message_id || null,
             sender_id: options?.sender_id || "user",
@@ -456,5 +457,111 @@ describe("Dialog-Domain 模块测试", () => {
         // 直接验证消息选择列表的完整内容和顺序（按插入顺序）
         const messageIds = messageChoiceList.map(msg => msg.data.message_id);
         expect(messageIds).toEqual([childMessage1.data.message_id, childMessage2.data.message_id, childMessage3.data.message_id]);
+    });
+
+    test("14. 应成功测试对话记录的更新操作", async () => {
+        // 先创建对话
+        const testConversation = createTestConversation({ background_info: "Initial background" });
+        await DialogStore.setConversation(testConversation);
+
+        // 更新对话记录 - 使用新的结构体
+        const updatedConversation = createTestConversation({
+            conversation_id: testConversation.data.conversation_id,
+            background_info: "Updated background info"
+        });
+        await DialogStore.setConversation(updatedConversation);
+
+        // 获取更新后的对话记录
+        const retrievedConversation = await DialogStore.getConversation(testConversation.data.conversation_id);
+        expect(retrievedConversation).toBeDefined();
+        expect(retrievedConversation?.data.background_info).toBe("Updated background info");
+    });
+
+    test("15. 应成功测试消息记录的更新操作", async () => {
+        // 先创建对话
+        const testConversation = createTestConversation();
+        await DialogStore.setConversation(testConversation);
+
+        // 创建消息记录
+        const testMessage = createTestMessage(testConversation.data.conversation_id, { content: "Initial content" });
+        await DialogStore.setMessage(testMessage);
+
+        // 更新消息记录 - 使用新的结构体，保持相同的消息ID
+        const updatedMessage = createTestMessage(testConversation.data.conversation_id, {
+            message_id: testMessage.data.message_id,
+            parent_message_id: testMessage.data.parent_message_id,
+            content: "Updated content"
+        });
+        await DialogStore.setMessage(updatedMessage);
+
+        // 获取更新后的消息记录
+        const retrievedMessage = await DialogStore.getMessage(testMessage.data.message_id);
+        expect(retrievedMessage).toBeDefined();
+        expect(retrievedMessage?.data.content).toBe("Updated content");
+    });
+
+    test("16. 应成功测试缓存与数据库通知的同步（通过直接调用SQL）", async () => {
+        // 先创建对话
+        const testConversation = createTestConversation();
+        await DialogStore.setConversation(testConversation);
+
+        // 创建消息记录
+        const testMessage = createTestMessage(testConversation.data.conversation_id, { content: "Initial content" });
+        await DialogStore.setMessage(testMessage);
+
+        // 验证缓存
+        const cachedMessage = await DialogStore.getMessage(testMessage.data.message_id);
+        expect(cachedMessage).toBeDefined();
+        expect(cachedMessage?.data.content).toBe("Initial content");
+
+        // 不通过访问器，直接用mgr发指令更新数据
+        await manager.client.query(`
+            UPDATE dialog.message
+            SET data = jsonb_set(data, '{content}', to_jsonb('Updated via SQL'::text), true)
+            WHERE data->>'message_id' = '${testMessage.data.message_id}';
+        `);
+
+        // 等待通知处理
+        await sleep(500);
+
+        // 验证缓存是否已更新
+        const updatedCachedMessage = await DialogStore.getMessage(testMessage.data.message_id);
+        expect(updatedCachedMessage).toBeDefined();
+        expect(updatedCachedMessage?.data.content).toBe("Updated via SQL");
+    });
+
+    test("17. 应成功测试对话场景的设置与获取", async () => {
+        // 先创建对话
+        const testScene = createTestScene();
+        const conversationLog = await ConversationLog.create({ scene: testScene });
+        const conversationId = conversationLog.getConversationId();
+
+        // 获取初始场景
+        const initialScene = conversationLog.getScene();
+        expect(initialScene).toBeDefined();
+        expect(initialScene.name).toBe("test_scene");
+
+        // 创建新场景
+        const newScene = {
+            define: "new_test_define",
+            memory: [],
+            name: "new_test_scene",
+            dialog: [
+                {
+                    type: "chat" as const,
+                    content: "Hello, how can I help you today?",
+                    sender_name: "Assistant"
+                }
+            ]
+        };
+
+        // 设置新场景
+        await conversationLog.setScene(newScene);
+
+        // 获取更新后的场景
+        const updatedScene = conversationLog.getScene();
+        expect(updatedScene).toBeDefined();
+        expect(updatedScene.name).toBe("new_test_scene");
+        expect(updatedScene.define).toBe("new_test_define");
     });
 });

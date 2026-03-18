@@ -1,10 +1,14 @@
 import { DBManager } from "@sosraciel-lamda/postgresql-manager";
-import { TableInitializer, MockTableAccesser, MockCacheCoordinator, MockJsonDataCacheCoordinator, PostgreSQLMockTool, TestDBRow, cache, jsonCache } from "@sosraciel-lamda/postgresql-manager/mock";
+import { TableInitializer, MockTableAccesser, PostgreSQLMockTool, TestDBRow, createMockJsonDataCacheCoordinator, createMockCacheCoordinator } from "@sosraciel-lamda/postgresql-manager/mock";
 
 const { MOCK_TABLE_NAME, MOCK_ID_FIELD } = PostgreSQLMockTool;
 
 describe("模拟表初始化器", () => {
     let manager: DBManager;
+    let cacheInstance: any;
+    let jsonCacheInstance: any;
+    let mockCacheCoordinator: any;
+    let mockJsonDataCacheCoordinator: any;
 
     beforeAll(async () => {
         // 创建数据库管理器
@@ -31,6 +35,15 @@ describe("模拟表初始化器", () => {
         } catch (e) {
             // 忽略错误
         }
+
+        // 创建缓存实例
+        const { cache, coordinator } = createMockCacheCoordinator();
+        cacheInstance = cache;
+        mockCacheCoordinator = coordinator;
+
+        const { jsonCache, coordinator: jsonCoordinator } = createMockJsonDataCacheCoordinator();
+        jsonCacheInstance = jsonCache;
+        mockJsonDataCacheCoordinator = jsonCoordinator;
     }, 30000); // 增加超时时间
 
     afterAll(async () => {
@@ -43,8 +56,8 @@ describe("模拟表初始化器", () => {
             }
 
             // 关闭缓存实例，清理TTL定时器
-            cache.dispose();
-            jsonCache.dispose();
+            cacheInstance.dispose();
+            jsonCacheInstance.dispose();
         } catch (e) {
             // 忽略错误
         }
@@ -65,7 +78,7 @@ describe("模拟表初始化器", () => {
     test("应使用注入的普通缓存协调器", async () => {
         // 创建访问器并注入缓存协调器
         const accesser = new MockTableAccesser<TestDBRow>(manager);
-        accesser.injectCacheCoordinator(MockCacheCoordinator);
+        accesser.injectCacheCoordinator(mockCacheCoordinator);
 
         const testData: TestDBRow = {
             data: {
@@ -89,11 +102,11 @@ describe("模拟表初始化器", () => {
 
     test("应使用注入的JSON数据缓存协调器", async () => {
         // 等待初始化完成
-        await MockJsonDataCacheCoordinator.inited;
+        await mockJsonDataCacheCoordinator.inited;
 
         // 创建访问器并注入缓存协调器
         const accesser = new MockTableAccesser<TestDBRow>(manager);
-        accesser.injectCacheCoordinator(MockJsonDataCacheCoordinator);
+        accesser.injectCacheCoordinator(mockJsonDataCacheCoordinator);
 
         const testData: TestDBRow = {
             data: {
@@ -118,7 +131,7 @@ describe("模拟表初始化器", () => {
     test("应通过数据库通知更新缓存", async () => {
         // 创建访问器并注入缓存协调器
         const accesser = new MockTableAccesser<TestDBRow>(manager);
-        accesser.injectCacheCoordinator(MockCacheCoordinator);
+        accesser.injectCacheCoordinator(mockCacheCoordinator);
 
         // 插入初始数据
         const initialData: TestDBRow = {

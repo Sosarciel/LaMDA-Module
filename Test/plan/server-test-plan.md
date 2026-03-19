@@ -13,9 +13,69 @@
 3. **单元测试**：对纯函数和工具类进行单元测试
 4. **集成测试**：对模块间的协作进行集成测试（使用Mock数据）
 
-## 可剥离测试的模块
+## 已完成测试
 
-### 1. PermissionManager（权限管理器）
+### 1. CharProfile（角色档案） ✅
+
+**可测试性**：高 - 已拆分为独立模块
+
+**测试文件**: `Test/src/CharProfile-Domain/charprofile-domain.test.ts`
+
+**测试内容**：
+- [x] 角色存在性检查
+- [x] CharAccesser 实例创建
+- [x] 角色配置加载
+- [x] 角色基本信息获取
+- [x] LaM实例名获取
+- [x] 语音功能判断
+- [x] TTS配置获取
+- [x] 状态回复获取
+- [x] 术语替换
+- [x] 翻译后替换
+- [x] logit bias获取
+- [x] 场景获取
+- [x] 定义场景获取
+- [x] CharProfile初始化与角色助手获取
+- [x] 角色重载
+- [x] 常量定义验证
+
+---
+
+### 2. LaM-Manager 测试 ✅
+
+**测试文件**: `Test/src/LaM-Manager/index.test.ts`
+
+**测试内容**：
+- [x] ChatTask - GPT35Chat 对话
+- [x] ChatTask - GPT35Text 对话
+- [x] ChatTask - DeepseekChat 对话
+- [x] ChatTask - Gemini3Pro 对话
+- [x] InstructTask - GPT35Text 文本生成
+- [x] InstructTask - DeepseekText 代码补全
+- [x] InstructTask - DeepseekPrefixCompletion 前缀续写
+
+---
+
+### 3. Regexp (fixMarkdown) 测试 ✅
+
+**测试文件**: `Test/src/Regexp/fixMarkdown.test.ts`
+
+**测试内容**：
+- [x] 动作换行处理
+- [x] 引号处理
+- [x] 星号修复
+- [x] 括号处理
+- [x] think块移除
+- [x] ASSISTANT前缀移除
+- [x] Gemini末尾总结移除
+- [x] 转义星号处理
+- [x] 边界情况处理
+
+---
+
+## 待完成测试
+
+### 4. PermissionManager（权限管理器）
 
 **可测试性**：高 - 纯逻辑，无外部依赖
 
@@ -48,7 +108,9 @@ const pm = _PermissionManager.create({ table: testTable });
 const hasPermission = await pm.check({ roleset: "superadmin", node: "admin.delete" });
 ```
 
-### 2. CmdParser（命令解析器）
+---
+
+### 5. CmdParser（命令解析器）
 
 **可测试性**：高 - 纯函数，无外部依赖
 
@@ -68,192 +130,34 @@ expect(cmdObj.command).toBe("test");
 expect(cmdObj.args).toEqual(["test", "arg1", "arg2"]);
 ```
 
-### 3. TextProcesser（文本处理器）
-
-**可测试性**：中 - 可能依赖LaMChar模块
-
-**测试内容**：
-- [ ] 文本预处理
-- [ ] 文本后处理
-- [ ] 特殊字符处理
-- [ ] Markdown处理
-
-**测试方法**：
-```typescript
-// 测试文本处理
-const processedText = await TextProcesser.process("test text");
-expect(processedText).toBeDefined();
-```
-
-### 4. TranslationManager（翻译管理器）
-
-**可测试性**：中 - 依赖第三方API，需要Mock
-
-**测试内容**：
-- [ ] 翻译接口调用
-- [ ] 错误处理
-- [ ] 缓存机制
-
-**测试方法**：
-```typescript
-// Mock翻译API
-const mockTranslator = {
-    translate: jest.fn().mockResolvedValue("translated text")
-};
-
-// 测试翻译管理器
-const tm = new TranslationManager(mockTranslator);
-const result = await tm.translate("test text");
-expect(result).toBe("translated text");
-```
-
-### 5. CharProfile（角色档案）
-
-**可测试性**：中 - 依赖数据库，需要Mock
-
-**测试内容**：
-- [ ] 档案创建
-- [ ] 档案加载
-- [ ] 档案更新
-- [ ] 档案验证
-
-**测试方法**：
-```typescript
-// Mock数据库访问
-const mockDBAccesser = {
-    getData: jest.fn().mockResolvedValue({ /* test data */ }),
-    setData: jest.fn().mockResolvedValue(undefined)
-};
-
-// 测试角色档案
-const profile = new CharProfile(mockDBAccesser);
-await profile.load("test_char");
-```
+---
 
 ## 测试文件结构
 
 ```
 Test/
   src/
+    CharProfile-Domain/
+      charprofile-domain.test.ts  # 角色档案测试 ✅
+    LaM-Manager/
+      index.test.ts               # LaM管理器测试 ✅
+    Regexp/
+      fixMarkdown.test.ts         # 文本处理测试 ✅
     Server/
-      permission-manager.test.ts  # 权限管理器测试
-      cmd-parser.test.ts          # 命令解析器测试
-      text-processer.test.ts      # 文本处理器测试
-      translation-manager.test.ts # 翻译管理器测试
-      char-profile.test.ts        # 角色档案测试
+      permission-manager.test.ts  # 权限管理器测试 (待创建)
+      cmd-parser.test.ts          # 命令解析器测试 (待创建)
 ```
 
-## 测试步骤
+## 测试优先级
 
-### 阶段1：高优先级模块测试（1-2天）
+1. **高优先级**：PermissionManager、CmdParser（纯逻辑，无外部依赖）
+2. **中优先级**：其他可剥离模块
 
-1. **PermissionManager测试**
-   - 创建测试文件 `permission-manager.test.ts`
-   - 测试权限匹配、权重计算、继承关系
-   - 测试循环继承检测
-   - 测试权重冲突解决
+## 测试工具
 
-2. **CmdParser测试**
-   - 创建测试文件 `cmd-parser.test.ts`
-   - 测试命令解析、参数提取
-   - 测试各种边界情况
-
-### 阶段2：中优先级模块测试（1-2天）
-
-3. **TextProcesser测试**
-   - 创建测试文件 `text-processer.test.ts`
-   - 测试文本处理逻辑
-   - Mock依赖模块
-
-4. **TranslationManager测试**
-   - 创建测试文件 `translation-manager.test.ts`
-   - Mock第三方API
-   - 测试翻译功能和错误处理
-
-### 阶段3：集成测试（可选）
-
-5. **CharProfile测试**
-   - 创建测试文件 `char-profile.test.ts`
-   - Mock数据库访问
-   - 测试档案管理功能
-
-## 测试用例设计
-
-### PermissionManager测试用例
-
-```typescript
-describe("PermissionManager", () => {
-    test("应正确匹配权限节点", async () => {
-        const pm = _PermissionManager.create({ table: {
-            define: { admin: { segment: [{ node: "admin.*", weight: 10 }] } },
-            role: {},
-            rule: []
-        }});
-        
-        const hasPermission = await pm.check({ roleset: "admin", node: "admin.delete" });
-        expect(hasPermission).toBe(true);
-    });
-
-    test("应正确计算权重", async () => {
-        const pm = _PermissionManager.create({ table: {
-            define: {
-                positive: { segment: [{ node: "test", weight: 10 }] },
-                negative: { segment: [{ node: "test", weight: -5 }] }
-            },
-            role: {},
-            rule: []
-        }});
-        
-        const hasPermission = await pm.check({ roleset: ["positive", "negative"], node: "test" });
-        expect(hasPermission).toBe(true); // 10 + (-5) = 5 >= 1
-    });
-
-    test("应检测循环继承", async () => {
-        const pm = _PermissionManager.create({ table: {
-            define: {
-                a: { inherit: ["b"] },
-                b: { inherit: ["a"] }
-            },
-            role: {},
-            rule: []
-        }});
-        
-        // 不应该无限循环
-        const hasPermission = await pm.check({ roleset: "a", node: "test" });
-        expect(hasPermission).toBe(false);
-    });
-});
-```
-
-### CmdParser测试用例
-
-```typescript
-describe("CmdParser", () => {
-    test("应正确解析简单命令", () => {
-        const cmdObj = CmdParser.parseCmd("cmd:test;;");
-        expect(cmdObj.command).toBe("test");
-        expect(cmdObj.args).toEqual(["test"]);
-    });
-
-    test("应正确解析带参数的命令", () => {
-        const cmdObj = CmdParser.parseCmd("cmd:test arg1 arg2;;");
-        expect(cmdObj.command).toBe("test");
-        expect(cmdObj.args).toEqual(["test", "arg1", "arg2"]);
-        expect(cmdObj.rawArg).toBe("arg1 arg2");
-    });
-
-    test("应正确解析选项参数", () => {
-        const options = CmdParser.parseOption('key1="value1" key2="value2"');
-        expect(options.key1).toBe("value1");
-        expect(options.key2).toBe("value2");
-    });
-
-    test("应处理缺省命令", () => {
-        const cmdObj = CmdParser.parseCmd("普通消息");
-        expect(cmdObj.command).toBe("sendmessage");
-    });
-});
-```
+- **Jest**：测试框架
+- **Mock函数**：模拟外部依赖
+- **TypeScript**：类型安全
 
 ## 预期结果
 
@@ -268,25 +172,3 @@ describe("CmdParser", () => {
 2. **使用Mock对象**：对于依赖外部服务的模块，使用Mock对象替代
 3. **测试边界情况**：不仅要测试正常流程，还要测试异常情况
 4. **保持测试独立性**：每个测试用例应该独立，不依赖其他测试用例
-
-## 测试优先级
-
-1. **高优先级**：PermissionManager、CmdParser（纯逻辑，无外部依赖）
-2. **中优先级**：TextProcesser、TranslationManager（需要Mock）
-3. **低优先级**：CharProfile（需要Mock数据库）
-
-## 测试工具
-
-- **Jest**：测试框架
-- **Mock函数**：模拟外部依赖
-- **TypeScript**：类型安全
-
-## 测试报告
-
-测试完成后，应编写测试报告，包括：
-
-1. 测试概述
-2. 测试结果
-3. 发现的问题
-4. 改进建议
-5. 测试覆盖率

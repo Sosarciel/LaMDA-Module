@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "jest",
+    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "compile": "powershell scripts/compile",
     "watch": "powershell scripts/watch",
     "build-schema": "powershell scripts/build-schema",
@@ -18,6 +18,7 @@
     "@sosraciel-lamda/lam-manager": "^1.0.86",
     "@sosraciel-lamda/postgresql-manager": "^1.0.48",
     "@zwa73/js-utils": "^1.0.74",
-    "@zwa73/utils": "^1.0.280"
+    "@zwa73/utils": "^1.0.280",
+    "handlebars": "^4.7.8"
   }
 }

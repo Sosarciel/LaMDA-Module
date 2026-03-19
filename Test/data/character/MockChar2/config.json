@@ -1,0 +1,22 @@
+{
+	"name": "MockChar2",
+	"id": "MockChar2",
+	"default_user_name": "TestUser",
+	"status_reply_table": {
+		"未启动": "*MockChar2正在休眠*"
+	},
+	"term_map": {
+		"MockChar2": "モックキャラ2"
+	},
+	"term_map_after": {
+		"Mock2": "MockChar2"
+	},
+	"logit_bias_map": {
+		"MockChar2": 2
+	},
+	"tts_instance_name": "test-tts",
+	"tts_option": {
+		"speaker_id": "MockChar2"
+	},
+	"lam_instance_name": "test-lam"
+}

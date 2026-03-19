@@ -1,17 +1,75 @@
+import { CharProfileMockTool } from "@sosraciel-lamda/charprofile-domain/mock";
 import { CharProfile, CharAccesser, CharConstant } from "@sosraciel-lamda/charprofile-domain";
 import type { CharOption } from "@sosraciel-lamda/charprofile-domain";
+import fs from "fs";
 import path from "pathe";
 
-/**mock角色数据路径 */
-const MOCK_DATA_PATH = path.resolve(__dirname, "../../CharProfile-Domain/data/mock");
+/**测试数据目录 (注意：CharAccesser内部会拼接character，所以这里只需要到data层) */
+const TEST_DATA_DIR = path.resolve(__dirname, "../../data");
+
+/**确保测试数据目录存在并清理旧数据（幂等） */
+const ensureTestDataDir = async () => {
+    const charDir = path.join(TEST_DATA_DIR, "character");
+    // 删除旧数据
+    if (fs.existsSync(charDir)) {
+        await fs.promises.rm(charDir, { recursive: true });
+    }
+    // 创建目录
+    await fs.promises.mkdir(charDir, { recursive: true });
+};
+
+/**复制mock角色数据到测试目录 */
+const copyMockCharacterData = async (charId: string) => {
+    const sourceDir = CharProfileMockTool.getMockCharPath(charId as any);
+    const targetDir = path.join(TEST_DATA_DIR, "character", charId);
+    
+    // 确保目标目录存在
+    await fs.promises.mkdir(targetDir, { recursive: true });
+    
+    // 复制config.json
+    const configSource = CharProfileMockTool.getMockCharConfigPath(charId as any);
+    const configTarget = path.join(targetDir, "config.json");
+    await fs.promises.copyFile(configSource, configTarget);
+    
+    // 复制define.hbs
+    const defineSource = CharProfileMockTool.getMockCharDefinePath(charId as any);
+    const defineTarget = path.join(targetDir, "define.hbs");
+    await fs.promises.copyFile(defineSource, defineTarget);
+    
+    // 复制scenes目录
+    const scenesSource = CharProfileMockTool.getMockCharScenesPath(charId as any);
+    const scenesTarget = path.join(targetDir, "scenes");
+    if (fs.existsSync(scenesSource)) {
+        await fs.promises.mkdir(scenesTarget, { recursive: true });
+        const files = await fs.promises.readdir(scenesSource);
+        for (const file of files) {
+            await fs.promises.copyFile(
+                path.join(scenesSource, file),
+                path.join(scenesTarget, file)
+            );
+        }
+    }
+};
+
+/**准备所有测试数据 */
+const prepareAllTestData = async () => {
+    await ensureTestDataDir();
+    for (const charId of CharProfileMockTool.MOCK_CHAR_IDS) {
+        await copyMockCharacterData(charId);
+    }
+};
 
 /**创建测试角色选项 */
 const createTestCharOption = (charId: string): CharOption => ({
-    dataPath: MOCK_DATA_PATH,
+    dataPath: TEST_DATA_DIR,
     charId
 });
 
 describe("CharProfile-Domain 模块测试", () => {
+    beforeAll(async () => {
+        await prepareAllTestData();
+    }, 30000);
+
     describe("CharAccesser 测试", () => {
         test("1. 应成功检查角色是否存在", async () => {
             const exists = await CharAccesser.check(createTestCharOption("MockChar1"));
@@ -135,20 +193,20 @@ describe("CharProfile-Domain 模块测试", () => {
 
     describe("CharProfile 测试", () => {
         test("15. 应成功初始化CharProfile并获取角色助手", async () => {
-            CharProfile.initInject({ dataPath: MOCK_DATA_PATH });
+            CharProfile.initInject({ dataPath: TEST_DATA_DIR });
             const charHelper = await CharProfile.getCharHelper("MockChar1");
             expect(charHelper).toBeDefined();
             expect(charHelper?.getCharId()).toBe("MockChar1");
         });
 
         test("16. 应正确返回不存在角色", async () => {
-            CharProfile.initInject({ dataPath: MOCK_DATA_PATH });
+            CharProfile.initInject({ dataPath: TEST_DATA_DIR });
             const charHelper = await CharProfile.getCharHelper("NonExistentChar");
             expect(charHelper).toBeUndefined();
         });
 
         test("17. 应成功重载角色配置", async () => {
-            CharProfile.initInject({ dataPath: MOCK_DATA_PATH });
+            CharProfile.initInject({ dataPath: TEST_DATA_DIR });
             const charHelper = await CharProfile.getCharHelper("MockChar1");
             expect(charHelper).toBeDefined();
 

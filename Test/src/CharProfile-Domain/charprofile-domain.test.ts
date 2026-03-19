@@ -68,6 +68,8 @@ const createTestCharOption = (charId: string): CharOption => ({
 describe("CharProfile-Domain 模块测试", () => {
     beforeAll(async () => {
         await prepareAllTestData();
+        // 只初始化一次
+        CharProfile.initInject({ dataPath: TEST_DATA_DIR });
     }, 30000);
 
     describe("CharAccesser 测试", () => {
@@ -193,20 +195,17 @@ describe("CharProfile-Domain 模块测试", () => {
 
     describe("CharProfile 测试", () => {
         test("15. 应成功初始化CharProfile并获取角色助手", async () => {
-            CharProfile.initInject({ dataPath: TEST_DATA_DIR });
             const charHelper = await CharProfile.getCharHelper("MockChar1");
             expect(charHelper).toBeDefined();
             expect(charHelper?.getCharId()).toBe("MockChar1");
         });
 
         test("16. 应正确返回不存在角色", async () => {
-            CharProfile.initInject({ dataPath: TEST_DATA_DIR });
             const charHelper = await CharProfile.getCharHelper("NonExistentChar");
             expect(charHelper).toBeUndefined();
         });
 
         test("17. 应成功重载角色配置", async () => {
-            CharProfile.initInject({ dataPath: TEST_DATA_DIR });
             const charHelper = await CharProfile.getCharHelper("MockChar1");
             expect(charHelper).toBeDefined();
 

@@ -169,43 +169,92 @@ describe("CharProfile-Domain 模块测试", () => {
             expect(logitBias[1]).toEqual({ MockChar1: 1 });
         });
 
-        test("13. 应正确获取场景", async () => {
+        test("13. 应正确获取MockChar1场景", async () => {
             const accesser = await CharAccesser.create(createTestCharOption("MockChar1"));
             const config = await accesser.loadChar();
 
             const defaultScene = config.getScene("default");
-            expect(defaultScene).toBeDefined();
             expect(defaultScene.name).toBe("default");
-            expect(defaultScene.dialog).toBeDefined();
-            expect(Array.isArray(defaultScene.dialog)).toBe(true);
-            expect(defaultScene.dialog.length).toBeGreaterThan(0);
+            expect(defaultScene.define).toBe("");
+            expect(defaultScene.dialog).toEqual([
+                { type: "chat", sender_name: "MockChar1", content: "*greeting*\nHello, I am MockChar1, ready for testing." }
+            ]);
+            expect(defaultScene.memory).toEqual([]);
         });
 
-        test("14. 应正确获取定义场景", async () => {
+        test("14. 应正确获取MockChar1定义场景", async () => {
             const accesser = await CharAccesser.create(createTestCharOption("MockChar1"));
             const config = await accesser.loadChar();
 
             const define = config.getDefine();
-            expect(define).toBeDefined();
-            expect(define.define).toContain("Test AI");
-            expect(define.memory).toBeDefined();
-            expect(Array.isArray(define.memory)).toBe(true);
+            expect(define.name).toBe("define");
+            expect(define.define).toBe(
+                "Test AI MockChar1\n" +
+                "Age ageless\n" +
+                "Eyes blue\n" +
+                "Hair black\n" +
+                "Skin fair\n" +
+                "Height 160cm\n" +
+                "Characteristics test AI for unit testing\n"
+            );
+            expect(define.dialog).toEqual([]);
+            expect(define.memory).toEqual([
+                { type: "chat", sender_name: "MockChar1", content: "Hello, I am MockChar1." },
+                { type: "chat", sender_name: "Individual", content: "Nice to meet you." },
+                { type: "chat", sender_name: "MockChar1", content: "I am ready for testing." }
+            ]);
+        });
+
+        test("15. 应正确获取MockChar2场景", async () => {
+            const accesser = await CharAccesser.create(createTestCharOption("MockChar2"));
+            const config = await accesser.loadChar();
+
+            const defaultScene = config.getScene("default");
+            expect(defaultScene.name).toBe("default");
+            expect(defaultScene.define).toBe("");
+            expect(defaultScene.dialog).toEqual([
+                { type: "chat", sender_name: "MockChar2", content: "*waves hand*\nHi there! I am MockChar2 with TTS support." }
+            ]);
+            expect(defaultScene.memory).toEqual([]);
+        });
+
+        test("16. 应正确获取MockChar2定义场景", async () => {
+            const accesser = await CharAccesser.create(createTestCharOption("MockChar2"));
+            const config = await accesser.loadChar();
+
+            const define = config.getDefine();
+            expect(define.name).toBe("define");
+            expect(define.define).toBe(
+                "Test AI 2 MockChar2\n" +
+                "Age 100\n" +
+                "Eyes red\n" +
+                "Hair white\n" +
+                "Skin pale\n" +
+                "Height 150cm\n" +
+                "Characteristics second test AI with TTS support\n"
+            );
+            expect(define.dialog).toEqual([]);
+            expect(define.memory).toEqual([
+                { type: "chat", sender_name: "MockChar2", content: "I am MockChar2, the second test character." },
+                { type: "chat", sender_name: "Individual", content: "What can you do?" },
+                { type: "chat", sender_name: "MockChar2", content: "I can test TTS functionality." }
+            ]);
         });
     });
 
     describe("CharProfile 测试", () => {
-        test("15. 应成功初始化CharProfile并获取角色助手", async () => {
+        test("17. 应成功初始化CharProfile并获取角色助手", async () => {
             const charHelper = await CharProfile.getCharHelper("MockChar1");
             expect(charHelper).toBeDefined();
             expect(charHelper?.getCharId()).toBe("MockChar1");
         });
 
-        test("16. 应正确返回不存在角色", async () => {
+        test("18. 应正确返回不存在角色", async () => {
             const charHelper = await CharProfile.getCharHelper("NonExistentChar");
             expect(charHelper).toBeUndefined();
         });
 
-        test("17. 应成功重载角色配置", async () => {
+        test("19. 应成功重载角色配置", async () => {
             const charHelper = await CharProfile.getCharHelper("MockChar1");
             expect(charHelper).toBeDefined();
 
@@ -216,7 +265,7 @@ describe("CharProfile-Domain 模块测试", () => {
     });
 
     describe("CharConstant 测试", () => {
-        test("18. 应正确定义常量", () => {
+        test("20. 应正确定义常量", () => {
             expect(CharConstant.AUDIO_EXT).toBe(".flac");
             expect(CharConstant.CONFIG_EXT).toBe(".json");
             expect(CharConstant.DEFINE_EXT).toBe(".hbs");

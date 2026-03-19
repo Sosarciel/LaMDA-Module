@@ -22,3 +22,6 @@
 [submodule "Business-Domain/CharProfile-Domain"]
 	path = Business-Domain/CharProfile-Domain
 	url = https://github.com/Sosarciel/LaMDA-CharProfile-Domain.git
+[submodule "Common-Util/Text-Processor"]
+	path = Common-Util/Text-Processor
+	url = https://github.com/Sosarciel/LaMDA-Text-Processor.git

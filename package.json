@@ -9,6 +9,7 @@
         "./Service-Manager/Translation-Manager",
         "./Business-Domain/Dialog-Domain",
         "./Business-Domain/CharProfile-Domain",
+        "./Common-Util/Text-Processor",
         "./Test"
     ],
     "dependencies": {

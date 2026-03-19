@@ -19,3 +19,6 @@
 [submodule "CommPlatform-ProtoClient/KOOK-ProtoClient"]
 	path = CommPlatform-ProtoClient/KOOK-ProtoClient
 	url = https://github.com/Sosarciel/LaMDA-KOOK-ProtoClient.git
+[submodule "Business-Domain/CharProfile-Domain"]
+	path = Business-Domain/CharProfile-Domain
+	url = https://github.com/Sosarciel/LaMDA-CharProfile-Domain.git

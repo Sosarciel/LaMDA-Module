@@ -64,15 +64,18 @@ describe("LaM-Manager InstructTask DeepseekText Formatter", () => {
             }) as OpenAITextRequest;
 
             expect(result).toEqual({
+                echo: undefined,
+                logprobs: undefined,
+                stop: undefined,
+                suffix: undefined,
                 model: "deepseek-chat",
-                prompt: "请续写：",
+                prompt: "请续写：输出：",
                 max_tokens: 100,
                 temperature: 0.7,
                 top_p: 1,
                 presence_penalty: 0,
                 frequency_penalty: 0,
                 logit_bias: null,
-                prefix: "输出：",
             });
         });
 

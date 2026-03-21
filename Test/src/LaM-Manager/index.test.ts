@@ -47,66 +47,65 @@ describe("LaM-Manager 集成测试", () => {
             const moduleData = await getHttpModuleData(instanceName);
             const modelId = moduleData?.config?.id;
             
-            return LaMManager.chat.execute(instanceName, {
-                target: LaMManagerMockTool.MOCK_CHAR,
-                messages: [{
-                    content: message,
-                    type: 'chat',
-                    senderName: LaMManagerMockTool.MOCK_USER,
-                }],
-                log_level: "debug",
-                n: 1,
-                max_tokens: 100,
-                stop: ["\n"],
-            });
+            return {
+                result: await LaMManager.chat.execute(instanceName, {
+                    target: LaMManagerMockTool.MOCK_CHAR,
+                    messages: [{
+                        content: message,
+                        type: 'chat',
+                        senderName: LaMManagerMockTool.MOCK_USER,
+                    }],
+                    log_level: "debug",
+                    n: 1,
+                    max_tokens: 100,
+                    stop: ["\n"],
+                }),
+                modelId,
+            };
         };
 
         it("1.1 GPT35Chat应成功完成对话", async () => {
-            const moduleData = await getHttpModuleData("Chat_GPT35Chat");
-            expect(moduleData?.config?.id).toBe("gpt-3.5-turbo");
-            
-            const result = await chatFn("Chat_GPT35Chat", "你好");
+            const { result, modelId } = await chatFn("Chat_GPT35Chat", "你好");
+            const expectedContent = LaMManagerMockTool.buildMockResponseText(modelId!);
 
-            expect(result.completed).toBeDefined();
-            expect(result.completed?.vaild).toBe(true);
-            expect(result.completed?.choices).toHaveLength(1);
-            expect(result.completed?.choices?.[0]?.content).toBeDefined();
+            expect(modelId).toBe("gpt-3.5-turbo");
+            expect(result.completed).toEqual({
+                vaild: true,
+                choices: [{ content: expectedContent }],
+            });
         });
 
         it("1.2 GPT35Text应成功完成对话", async () => {
-            const moduleData = await getHttpModuleData("Chat_GPT35Text");
-            expect(moduleData?.config?.id).toBe("gpt-3.5-turbo-instruct");
-            
-            const result = await chatFn("Chat_GPT35Text", "你好");
+            const { result, modelId } = await chatFn("Chat_GPT35Text", "你好");
+            const expectedContent = LaMManagerMockTool.buildMockResponseText(modelId!);
 
-            expect(result.completed).toBeDefined();
-            expect(result.completed?.vaild).toBe(true);
-            expect(result.completed?.choices).toHaveLength(1);
-            expect(result.completed?.choices?.[0]?.content).toBeDefined();
+            expect(modelId).toBe("gpt-3.5-turbo-instruct");
+            expect(result.completed).toEqual({
+                vaild: true,
+                choices: [{ content: expectedContent }],
+            });
         });
 
         it("1.3 DeepseekChat应成功完成对话", async () => {
-            const moduleData = await getHttpModuleData("Chat_DeepseekChat");
-            expect(moduleData?.config?.id).toBe("deepseek-chat");
-            
-            const result = await chatFn("Chat_DeepseekChat", "你好");
+            const { result, modelId } = await chatFn("Chat_DeepseekChat", "你好");
+            const expectedContent = LaMManagerMockTool.buildMockResponseText(modelId!);
 
-            expect(result.completed).toBeDefined();
-            expect(result.completed?.vaild).toBe(true);
-            expect(result.completed?.choices).toHaveLength(1);
-            expect(result.completed?.choices?.[0]?.content).toBeDefined();
+            expect(modelId).toBe("deepseek-chat");
+            expect(result.completed).toEqual({
+                vaild: true,
+                choices: [{ content: expectedContent }],
+            });
         });
 
         it("1.4 Gemini3Pro应成功完成对话", async () => {
-            const moduleData = await getHttpModuleData("Chat_Gemini3Pro");
-            expect(moduleData?.config?.id).toBe("gemini-3-pro-preview");
-            
-            const result = await chatFn("Chat_Gemini3Pro", "你好");
+            const { result, modelId } = await chatFn("Chat_Gemini3Pro", "你好");
+            const expectedContent = LaMManagerMockTool.buildMockResponseText(modelId!);
 
-            expect(result.completed).toBeDefined();
-            expect(result.completed?.vaild).toBe(true);
-            expect(result.completed?.choices).toHaveLength(1);
-            expect(result.completed?.choices?.[0]?.content).toBeDefined();
+            expect(modelId).toBe("gemini-3-pro-preview");
+            expect(result.completed).toEqual({
+                vaild: true,
+                choices: [{ content: expectedContent }],
+            });
         });
     });
 
@@ -117,52 +116,55 @@ describe("LaM-Manager 集成测试", () => {
             max_tokens?: number;
             temperature?: number;
         }) => {
-            return LaMManager.instruct.execute(instanceName, {
-                prompt: prompt,
-                suffix: options?.suffix,
-                prefix: options?.prefix,
-                max_tokens: options?.max_tokens || 100,
-                temperature: options?.temperature || 0.7,
-                log_level: "debug",
-            });
+            const moduleData = await getHttpModuleData(instanceName);
+            const modelId = moduleData?.config?.id;
+
+            return {
+                result: await LaMManager.instruct.execute(instanceName, {
+                    prompt: prompt,
+                    suffix: options?.suffix,
+                    prefix: options?.prefix,
+                    max_tokens: options?.max_tokens || 100,
+                    temperature: options?.temperature || 0.7,
+                    log_level: "debug",
+                }),
+                modelId,
+            };
         };
 
         it("2.1 GPT35Text应成功完成指令", async () => {
-            const moduleData = await getHttpModuleData("Instruct_GPT35Text");
-            expect(moduleData?.config?.id).toBe("gpt-3.5-turbo-instruct");
-            
-            const result = await instructFn("Instruct_GPT35Text", "续写");
+            const { result, modelId } = await instructFn("Instruct_GPT35Text", "续写");
+            const expectedContent = LaMManagerMockTool.buildMockResponseText(modelId!);
 
-            expect(result.completed).toBeDefined();
-            expect(result.completed?.vaild).toBe(true);
-            expect(result.completed?.choices).toHaveLength(1);
-            expect(result.completed?.choices?.[0]?.content).toBeDefined();
+            expect(modelId).toBe("gpt-3.5-turbo-instruct");
+            expect(result.completed).toEqual({
+                vaild: true,
+                choices: [{ content: expectedContent }],
+            });
         });
 
         it("2.2 DeepseekText应成功完成指令", async () => {
-            const moduleData = await getHttpModuleData("Instruct_DeepseekText");
-            expect(moduleData?.config?.id).toBe("deepseek-chat");
-            
-            const result = await instructFn("Instruct_DeepseekText", "def hello():");
+            const { result, modelId } = await instructFn("Instruct_DeepseekText", "def hello():");
+            const expectedContent = LaMManagerMockTool.buildMockResponseText(modelId!);
 
-            expect(result.completed).toBeDefined();
-            expect(result.completed?.vaild).toBe(true);
-            expect(result.completed?.choices).toHaveLength(1);
-            expect(result.completed?.choices?.[0]?.content).toBeDefined();
+            expect(modelId).toBe("deepseek-chat");
+            expect(result.completed).toEqual({
+                vaild: true,
+                choices: [{ content: expectedContent }],
+            });
         });
 
         it("2.3 DeepseekPrefix应成功完成前缀续写", async () => {
-            const moduleData = await getHttpModuleData("Instruct_DeepseekPrefix");
-            expect(moduleData?.config?.id).toBe("deepseek-chat");
-            
-            const result = await instructFn("Instruct_DeepseekPrefix", "请续写", {
+            const { result, modelId } = await instructFn("Instruct_DeepseekPrefix", "请续写", {
                 prefix: "function test() {"
             });
+            const expectedContent = LaMManagerMockTool.buildMockResponseText(modelId!);
 
-            expect(result.completed).toBeDefined();
-            expect(result.completed?.vaild).toBe(true);
-            expect(result.completed?.choices).toHaveLength(1);
-            expect(result.completed?.choices?.[0]?.content).toBeDefined();
+            expect(modelId).toBe("deepseek-chat");
+            expect(result.completed).toEqual({
+                vaild: true,
+                choices: [{ content: expectedContent }],
+            });
         });
     });
 

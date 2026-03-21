@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
+    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --forceExit",
     "compile": "powershell scripts/compile",
     "watch": "powershell scripts/watch",
     "build-schema": "powershell scripts/build-schema",

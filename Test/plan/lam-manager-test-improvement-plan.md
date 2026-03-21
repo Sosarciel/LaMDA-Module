@@ -2,360 +2,482 @@
 
 ## 背景与问题
 
-### 当前架构痛点
+### 当前架构分析
 
-1. **Mock服务器过于硬编码**
-   - 每个模型需要单独的处理器文件（GPT35Chat.ts, DeepseekChat.ts等）
-   - 处理器逻辑高度相似，仅响应格式略有不同
-   - 添加新模型需要创建多个文件
+LaM-Manager 采用分层代理架构：
 
-2. **分发逻辑硬编码**
-   - `OpenAIRequester/index.ts` 中通过model字段匹配分发
-   - 违反开闭原则，扩展性差
-   - 添加新模型需要修改分发逻辑
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        LaMManager (Proxy代理层)                              │
+│   LaMManager.chat.execute("Chat_GPT35Chat", options)                        │
+│   → sm.invoke("Chat_GPT35Chat", "chat-execute", options)                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        HttpAPIModelDrive (驱动器)                            │
+│   构造时根据配置初始化:                                                        │
+│   • chatFormater = ChatTaskFormaterTable[config.chat_formater]              │
+│   • interactor   = InteractorTable[config.interactor]                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                    ┌─────────────────┴─────────────────┐
+                    ▼                                   ▼
+        ┌───────────────────────┐           ┌───────────────────────┐
+        │     Formatter层        │           │     Interactor层       │
+        │  格式化请求/响应        │           │  发送HTTP请求          │
+        │  • openai_chat        │           │  • openai             │
+        │  • openai_text        │           │  • gemini             │
+        │  • deepseek_chat      │           └───────────────────────┘
+        │  • google_chat        │
+        │  • deepseek_prefix    │
+        └───────────────────────┘
+```
 
-3. **测试与Mock强耦合**
-   - 测试用例直接依赖 `buildResp` 函数
-   - 测试逻辑与Mock实现绑定
-   - Mock响应变更会导致测试失败
+### 模型配置与代理映射
 
-4. **无法模拟复杂场景**
-   - 只支持成功响应
-   - 无法测试错误响应（4xx, 5xx）
-   - 无法测试网络超时、响应延迟
-   - 无法测试流式响应中断
+| 模型实例 | chat_formater | instruct_formater | interactor |
+|---------|---------------|-------------------|------------|
+| Chat_GPT35Chat | openai_chat | - | openai |
+| Chat_GPT35Text | openai_text | - | openai |
+| Chat_DeepseekChat | deepseek_chat | - | openai |
+| Chat_Gemini3Pro | google_chat | - | gemini |
+| Instruct_GPT35Text | openai_text | openai_text | openai |
+| Instruct_DeepseekText | openai_text | deepseek_text | openai |
+| Instruct_DeepseekPrefix | deepseek_chat | deepseek_prefix | openai |
+
+### 当前测试痛点
+
+**痛点1：测试职责不清**
+
+当前测试只验证最终输出是否等于 `buildResp` 结果：
+```typescript
+expect(result.completed?.choices?.[0].content).toBe(LaMManagerMockTool.buildResp('GPT35Chat', "你好"));
+```
+
+问题：
+- 无法区分是Formatter问题还是Interactor问题
+- 无法验证请求格式是否正确
+- 无法验证响应解析是否正确
+
+**痛点2：Mock响应过于简单**
+
+```typescript
+export const buildResp = (id:string,msg?:string)=>{
+    return `来自 ${id} 对 ${msg??"未定义消息"} 的响应`;
+};
+```
+
+问题：
+- 没有模拟真实的API响应结构
+- 无法测试Formatter的响应解析逻辑
+- 无法测试边界情况
+
+**痛点3：缺少分层测试**
+
+当前只有集成测试，缺少：
+- Formatter单元测试（验证请求格式化、响应解析）
+- Interactor单元测试（验证HTTP请求构建）
+- 配置映射测试（验证模型配置正确性）
+
+### 原计划的问题
+
+原计划试图通过"配置驱动Mock"来简化测试，但这忽略了核心问题：
+
+> **测试的核心目标是验证"代理组合的正确性"**，即验证特定模型配置是否正确映射到对应的Formatter和Interactor，以及这些组件是否正确工作。
+
+如果Mock响应是不确定的，就无法验证Formatter的解析是否正确。
 
 ## 改进目标
 
-1. **降低扩展成本** - 添加新模型从修改5+个文件降至修改1个配置
-2. **提高测试隔离性** - 每个测试可独立定义响应规则
-3. **支持复杂场景** - 错误、延迟、超时等场景
-4. **减少代码冗余** - 消除重复的处理器代码
+1. **分层测试** - 将测试分为单元测试、组件测试、集成测试三层
+2. **职责清晰** - 每层测试只验证特定职责
+3. **可追溯性** - 失败时能快速定位问题所在层级
+4. **真实模拟** - Mock响应符合真实API格式
 
-## 推荐方案：配置驱动 + 场景覆盖
+## 推荐方案：分层测试 + 真实格式Mock
 
-### 架构设计
+### 测试金字塔
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    MockConfig (配置层)                       │
-│  - 定义所有模型的默认响应规则                                  │
-│  - 支持响应模板和变量替换                                      │
-│  - 定义响应格式映射 (openai_chat/gemini/deepseek)             │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                 MockRegistry (注册层)                        │
-│  - 测试前注册特定场景的响应覆盖                                │
-│  - 支持错误响应、延迟、条件匹配                                │
-│  - 每个测试独立隔离                                           │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│              MockResponseGenerator (生成层)                  │
-│  - 优先查找Registry中的覆盖规则                               │
-│  - 回退到Config中的默认规则                                   │
-│  - 统一生成响应                                               │
-└─────────────────────────────────────────────────────────────┘
+                    ┌─────────────────────┐
+                    │     集成测试         │
+                    │  LaMManager + Mock   │
+                    │  验证完整流程         │
+                    │  [当前测试改进版]     │
+                    └─────────────────────┘
+                            ▲
+            ┌───────────────────────────────────┐
+            │           组件测试                 │
+            │  • Formatter测试（请求/响应格式化） │
+            │  • Interactor测试（HTTP请求构建）   │
+            │  • Drive测试（任务协调逻辑）        │
+            └───────────────────────────────────┘
+                            ▲
+    ┌─────────────────────────────────────────────────┐
+    │                  单元测试                        │
+    │  • buildMessage转换测试                         │
+    │  • formatResp解析测试                           │
+    │  • Token计算测试                                │
+    └─────────────────────────────────────────────────┘
 ```
 
-### 核心类型定义
+### 各层测试职责
 
+#### 1. 单元测试
+
+**职责**：验证Formatter内部函数的正确性
+
+**测试内容**：
+- `buildMessage`: 验证消息格式转换是否正确
+- `formatResp`: 验证响应解析是否正确
+- `computeTokenCount`: 验证Token计算是否正确
+
+**示例**：
 ```typescript
-// MockConfig.ts
-/**Mock响应配置 */
-export type MockModelConfig = {
-    /**模型标识 */
-    id: string;
-    /**交互器类型 */
-    interactor: 'openai' | 'gemini';
-    /**响应格式模板 */
-    responseFormat: 'openai_chat' | 'openai_text' | 'gemini' | 'deepseek_chat';
-    /**响应生成规则 */
-    responseRule: MockResponseRule;
-};
+describe("OpenAIChat Formatter Unit", () => {
+    describe("buildMessage", () => {
+        it("应正确转换聊天消息", () => {
+            const messages: LaMChatMessages = [
+                { type: 'chat', senderName: 'user', content: '你好' },
+                { type: 'chat', senderName: 'assistant', content: '你好！' },
+            ];
+            const result = OpenAIConversationChatTaskFormatter.buildMessage({
+                target: 'assistant',
+                messages,
+            });
+            
+            expect(result).toEqual([
+                { role: 'system', content: 'user:' },
+                { role: 'user', content: '你好' },
+                { role: 'system', content: 'assistant:' },
+                { role: 'assistant', content: '你好！' },
+            ]);
+        });
+    });
 
-/**响应生成规则 */
-export type MockResponseRule = {
-    /**响应类型 */
-    type: 'success' | 'error' | 'timeout';
-    /**延迟毫秒 */
-    delay?: number;
-    /**错误码 (type=error时) */
-    errorCode?: number;
-    /**错误消息 */
-    errorMessage?: string;
-    /**自定义响应生成器 */
-    customGenerator?: (request: MockRequest) => MockResponse;
-};
+    describe("formatResp", () => {
+        it("应正确解析OpenAI响应", () => {
+            const mockResp: AnyOpenAIChatLikeResponse = {
+                choices: [{
+                    index: 0,
+                    message: { role: 'assistant', content: '测试响应' },
+                    finish_reason: 'stop',
+                }],
+            };
+            
+            const result = OpenAIConversationChatTaskFormatter.formatResp(mockResp);
+            
+            expect(result.vaild).toBe(true);
+            expect(result.choices).toEqual([{ content: '测试响应' }]);
+        });
 
-/**场景覆盖规则 */
-export type MockScenarioOverride = {
-    /**匹配条件 */
-    match: {
-        model?: string;
-        instanceName?: string;
-        requestPattern?: RegExp;
-    };
-    /**覆盖的响应规则 */
-    responseRule: MockResponseRule;
-};
+        it("应正确处理空响应", () => {
+            const result = OpenAIConversationChatTaskFormatter.formatResp({ choices: [] });
+            expect(result.vaild).toBe(false);
+        });
+    });
+});
+```
 
-/**Mock请求信息 */
-export type MockRequest = {
-    model: string;
-    instanceName: string;
-    lastMessage: string;
-    fullRequest: unknown;
+#### 2. 组件测试
+
+**职责**：验证Formatter/Interactor作为整体组件的正确性
+
+**Formatter组件测试**：
+```typescript
+describe("Formatter Component", () => {
+    describe("OpenAIChat", () => {
+        it("应正确格式化请求参数", async () => {
+            const option: ChatTaskOption = {
+                messages: [{ type: 'chat', senderName: 'user', content: '你好' }],
+                max_tokens: 100,
+                temperature: 0.7,
+            };
+            
+            const result = await OpenAIConversationChatTaskFormatter.formatOption({
+                option,
+                modelId: 'gpt-3.5-turbo',
+                tokensizerType: 'cl100k_base',
+            });
+            
+            expect(result).toMatchObject({
+                model: 'gpt-3.5-turbo',
+                max_completion_tokens: 100,
+                temperature: 0.7,
+            });
+            expect(result?.messages).toBeDefined();
+        });
+    });
+
+    describe("Gemini", () => {
+        it("应正确处理think_budget参数", async () => {
+            const option: ChatTaskOption = {
+                messages: [{ type: 'chat', senderName: 'user', content: '你好' }],
+                think_budget: 'hig',
+            };
+            
+            const result = await GeminiChatTaskFormatter.formatOption({
+                option,
+                modelId: 'gemini-3-pro-preview',
+                tokensizerType: 'cl100k_base',
+            });
+            
+            // 验证Gemini特有的参数映射
+            expect(result?.generationConfig?.thinkingBudget).toBeDefined();
+        });
+    });
+});
+```
+
+**Interactor组件测试**：
+```typescript
+describe("Interactor Component", () => {
+    describe("OpenAI", () => {
+        it("应正确构建HTTP请求", async () => {
+            // 使用nock或类似工具模拟HTTP
+            const scope = nock('http://localhost:3000')
+                .post('/v1/chat/completions')
+                .reply(200, { choices: [{ message: { content: '响应' } }] });
+            
+            const result = await OpenAiPostTool.postLaM({
+                accountData: mockAccountData,
+                modelData: { endpoint: '/v1/chat/completions' },
+                postJson: { model: 'gpt-3.5-turbo', messages: [] },
+            });
+            
+            expect(scope.isDone()).toBe(true);
+            expect(result).toBeDefined();
+        });
+    });
+});
+```
+
+#### 3. 集成测试
+
+**职责**：验证完整流程，使用真实格式的Mock响应
+
+**改进的Mock响应**：
+```typescript
+// Mock响应应该符合真实API格式
+export const MockResponses = {
+    openai_chat: {
+        success: (modelId: string, message: string) => ({
+            id: `chatcmpl-${Date.now()}`,
+            object: 'chat.completion',
+            created: Date.now(),
+            model: modelId,
+            choices: [{
+                index: 0,
+                message: {
+                    role: 'assistant',
+                    content: `来自 ${modelId} 对 ${message} 的响应`,
+                },
+                finish_reason: 'stop',
+            }],
+            usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+        }),
+        error: (code: number, message: string) => ({
+            error: { message, type: 'api_error', code },
+        }),
+    },
+    gemini: {
+        success: (modelId: string, message: string) => ({
+            candidates: [{
+                content: {
+                    parts: [{ text: `来自 ${modelId} 对 ${message} 的响应` }],
+                    role: 'model',
+                },
+                finishReason: 'STOP',
+            }],
+            usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 20 },
+        }),
+    },
 };
+```
+
+**改进的Mock服务器**：
+```typescript
+// MockServer.ts 改进
+export class LaMManagerMockServer {
+    // ... 
+    
+    async handleRequest(path: string, data: any) {
+        // 根据路径和数据返回正确格式的响应
+        if (path.includes('/v1/chat/completions')) {
+            const modelId = data.model;
+            const lastMessage = data.messages?.slice(-1)[0]?.content || '';
+            return MockResponses.openai_chat.success(modelId, lastMessage);
+        }
+        if (path.includes('/v1beta/models')) {
+            const modelId = path.match(/models\/([^:]+)/)?.[1] || '';
+            return MockResponses.gemini.success(modelId, data.contents?.slice(-1)[0]?.parts?.[0]?.text || '');
+        }
+        // ...
+    }
+}
+```
+
+**改进的集成测试**：
+```typescript
+describe("LaM-Manager Integration", () => {
+    describe("ChatTask", () => {
+        it("GPT35Chat应正确完成对话", async () => {
+            const result = await chatFn("Chat_GPT35Chat", "你好");
+            
+            // 验证响应结构（而不是具体内容）
+            expect(result.completed).toBeDefined();
+            expect(result.completed?.choices).toHaveLength(1);
+            expect(result.completed?.choices?.[0]).toMatchObject({
+                content: expect.stringContaining('GPT35Chat'),
+            });
+        });
+
+        it("Gemini3Pro应正确完成对话", async () => {
+            const result = await chatFn("Chat_Gemini3Pro", "你好");
+            
+            // 验证Gemini特有的响应格式被正确解析
+            expect(result.completed?.choices?.[0].content).toBeDefined();
+        });
+    });
+
+    describe("InstructTask", () => {
+        it("DeepseekPrefix应正确处理前缀续写", async () => {
+            const result = await instructFn("Instruct_DeepseekPrefix", "续写", { prefix: "function test() {" });
+            
+            // 验证DeepseekPrefix特有的处理
+            expect(result.completed?.choices?.[0].content).toBeDefined();
+        });
+    });
+});
+```
+
+### 测试目录结构
+
+```
+LaMDA-Module/Test/src/LaM-Manager/
+├── Unit/                           # 单元测试
+│   ├── Formatter/
+│   │   ├── OpenAIChat.unit.test.ts
+│   │   ├── OpenAIText.unit.test.ts
+│   │   ├── Gemini.unit.test.ts
+│   │   └── Deepseek.unit.test.ts
+│   └── Interactor/
+│       └── RequestBuilder.unit.test.ts
+│
+├── Component/                      # 组件测试
+│   ├── Formatter/
+│   │   ├── ChatFormatter.component.test.ts
+│   │   └── InstructFormatter.component.test.ts
+│   └── Interactor/
+│       ├── OpenAIRequester.component.test.ts
+│       └── GeminiRequester.component.test.ts
+│
+├── Integration/                    # 集成测试
+│   ├── ChatTask.integration.test.ts
+│   ├── InstructTask.integration.test.ts
+│   └── ConfigMapping.integration.test.ts
+│
+└── index.test.ts                   # 原有测试（保留兼容）
 ```
 
 ## 实现步骤
 
-### 阶段1：创建新架构（不破坏现有代码）
+### 阶段1：创建单元测试基础设施
 
-- [ ] 创建 `src/Mock/Config/MockConfig.ts` - 定义配置类型
-- [ ] 创建 `src/Mock/Config/MockRegistry.ts` - 实现注册器
-- [ ] 创建 `src/Mock/Config/MockResponseGenerator.ts` - 实现响应生成器
-- [ ] 创建 `src/Mock/Config/index.ts` - 导出接口
-- [ ] 创建 `src/Mock/Config/DefaultConfig.ts` - 默认模型配置
+- [ ] 创建 `Unit/` 目录结构
+- [ ] 实现 `MockResponses` 响应模板
+- [ ] 编写 OpenAIChat Formatter 单元测试
+- [ ] 编写 Gemini Formatter 单元测试
+- [ ] 编写 Deepseek Formatter 单元测试
 
-### 阶段2：重构Mock服务器
+### 阶段2：创建组件测试
 
-- [ ] 修改 `MockServer.ts` 集成新的响应生成器
-- [ ] 重构 `OpenAIRequester/index.ts` 使用配置驱动
-- [ ] 重构 `GeminiRequester/index.ts` 使用配置驱动
-- [ ] 保持向后兼容，支持旧的处理器方式
+- [ ] 创建 `Component/` 目录结构
+- [ ] 编写 Formatter 组件测试（formatOption验证）
+- [ ] 编写 Interactor 组件测试（HTTP请求验证）
 
-### 阶段3：迁移现有配置
+### 阶段3：改进集成测试
 
-- [ ] 将 `MOCK_LAM_SERVICE_TABLE` 中的模型配置迁移到新格式
-- [ ] 创建默认响应生成器
-- [ ] 删除冗余的处理器文件（可选，保持向后兼容）
+- [ ] 改进 MockServer 使用真实格式响应
+- [ ] 改进测试断言（验证结构而非具体内容）
+- [ ] 添加配置映射测试
 
-### 阶段4：改进测试用例
+### 阶段4：清理与文档
 
-- [ ] 更新测试用例，移除对 `buildResp` 的直接依赖
-- [ ] 添加错误场景测试用例
-- [ ] 添加延迟场景测试用例
-- [ ] 添加超时场景测试用例
-- [ ] 验证所有测试通过
+- [ ] 移除或标记废弃原有测试中的冗余部分
+- [ ] 编写测试编写指南
+- [ ] 更新 CLAUDE.md
 
-## 文件结构变更
+## 测试编写指南
 
-### 新增文件
+### 原则
 
-```
-LaM-Manager/
-  src/
-    Mock/
-      Config/
-        MockConfig.ts           # 配置类型定义
-        MockRegistry.ts         # 注册器实现
-        MockResponseGenerator.ts # 响应生成器
-        DefaultConfig.ts        # 默认模型配置
-        index.ts                # 导出接口
-```
+1. **单元测试验证函数**：只验证单个函数的输入输出
+2. **组件测试验证协作**：验证组件间的数据流转
+3. **集成测试验证流程**：验证完整业务流程
 
-### 修改文件
-
-```
-LaM-Manager/
-  src/
-    Mock/
-      Server/
-        MockServer.ts           # 集成响应生成器
-        OpenAIRequester/
-          index.ts              # 使用配置驱动
-        GeminiRequester/
-          index.ts              # 使用配置驱动
-      Utils.ts                  # 保留兼容函数
-      index.ts                  # 导出新接口
-```
-
-### 测试文件
-
-```
-Test/
-  src/
-    LaM-Manager/
-      index.test.ts             # 基础功能测试
-      error-scenario.test.ts    # 错误场景测试（新增）
-      delay-scenario.test.ts    # 延迟场景测试（新增）
-```
-
-## 测试用例设计
-
-### 基础功能测试（使用默认配置）
+### 断言策略
 
 ```typescript
-describe("LaM-Manager ChatTask", () => {
-    it("尝试与 GPT35Chat 对话", async () => {
-        const result = await chatFn("Chat_GPT35Chat", "你好");
-        // 验证响应结构，不依赖具体实现
-        expect(result.completed?.choices?.[0]).toMatchObject({
-            role: "assistant",
-            finish_reason: "stop"
-        });
-        expect(result.completed?.choices?.[0].content).toContain("GPT35Chat");
-        expect(result.completed?.choices?.[0].content).toContain("你好");
-    });
+// ❌ 不推荐：断言具体内容
+expect(result.content).toBe('来自 GPT35Chat 对 你好 的响应');
+
+// ✅ 推荐：断言结构和特征
+expect(result).toMatchObject({
+    choices: expect.arrayContaining([
+        expect.objectContaining({ content: expect.stringContaining('GPT35Chat') })
+    ])
 });
 ```
 
-### 错误场景测试（使用注册覆盖）
+### Mock策略
 
 ```typescript
-describe("LaM-Manager Error Handling", () => {
-    let registry: MockRegistry;
+// ❌ 不推荐：简单字符串
+return `来自 ${id} 对 ${msg} 的响应`;
 
-    beforeEach(() => {
-        registry = MockRegistry.getInstance();
-        registry.clear();
-    });
-
-    afterEach(() => {
-        registry.clear();
-    });
-
-    it("处理API错误响应", async () => {
-        registry.register({
-            match: { model: 'gpt-3.5-turbo' },
-            responseRule: {
-                type: 'error',
-                errorCode: 429,
-                errorMessage: 'Rate limit exceeded'
-            }
-        });
-
-        await expect(chatFn("Chat_GPT35Chat", "你好"))
-            .rejects.toThrow('Rate limit exceeded');
-    });
-
-    it("处理响应延迟", async () => {
-        registry.register({
-            match: { model: 'gpt-3.5-turbo' },
-            responseRule: {
-                type: 'success',
-                delay: 100
-            }
-        });
-
-        const start = Date.now();
-        await chatFn("Chat_GPT35Chat", "你好");
-        const elapsed = Date.now() - start;
-
-        expect(elapsed).toBeGreaterThanOrEqual(100);
-    });
-
-    it("处理超时", async () => {
-        registry.register({
-            match: { model: 'gpt-3.5-turbo' },
-            responseRule: {
-                type: 'timeout'
-            }
-        });
-
-        await expect(chatFn("Chat_GPT35Chat", "你好"))
-            .rejects.toThrow('timeout');
-    });
-});
+// ✅ 推荐：真实格式
+return {
+    id: `chatcmpl-${Date.now()}`,
+    choices: [{
+        message: { role: 'assistant', content: `来自 ${id} 对 ${msg} 的响应` },
+        finish_reason: 'stop',
+    }],
+};
 ```
-
-### Instruct任务测试
-
-```typescript
-describe("LaM-Manager InstructTask", () => {
-    it("处理文本补全", async () => {
-        const result = await instructFn("Instruct_GPT35Text", "def factorial(n):");
-        expect(result.completed?.choices?.[0]).toBeDefined();
-        expect(result.completed?.choices?.[0].content).toContain("GPT35Text");
-    });
-
-    it("处理前缀补全", async () => {
-        registry.register({
-            match: { model: 'deepseek-chat' },
-            responseRule: {
-                type: 'success',
-                customGenerator: (req) => ({
-                    content: `补全: ${req.lastMessage}`,
-                    finish_reason: 'stop'
-                })
-            }
-        });
-
-        const result = await instructFn("Instruct_DeepseekPrefix", "请续写");
-        expect(result.completed?.choices?.[0].content).toContain("补全");
-    });
-});
-```
-
-## 向后兼容性
-
-### 保持现有API
-
-- `LaMManagerMockTool.buildResp()` 函数保留
-- `LaMManagerMockTool.MOCK_LAM_SERVICE_TABLE` 保留
-- 现有测试用例无需修改即可运行
-
-### 渐进迁移
-
-- 新测试使用注册覆盖模式
-- 旧测试可继续使用 `buildResp`
-- 逐步迁移到新架构
 
 ## 预期收益
 
 | 指标 | 改进前 | 改进后 |
 |------|--------|--------|
-| 添加新模型 | 修改5+个文件 | 修改1个配置 |
-| 测试场景 | 仅支持成功 | 支持错误/延迟/超时 |
-| Mock代码量 | ~300行 | ~120行（减少60%） |
-| 测试隔离性 | 全局共享 | 每个测试独立 |
-| 扩展性 | 硬编码分发 | 配置驱动 |
+| 问题定位 | 只知道测试失败 | 可定位到具体层级 |
+| 测试覆盖 | 仅集成测试 | 单元+组件+集成 |
+| Mock真实性 | 简单字符串 | 真实API格式 |
+| 可维护性 | 修改一处影响多处 | 分层隔离，修改影响小 |
+| 新模型添加 | 修改多个测试文件 | 添加单元测试+配置测试 |
 
 ## 风险与缓解
 
-### 风险1：破坏现有测试
+### 风险1：测试代码量增加
 
 **缓解措施**：
-- 保持向后兼容API
-- 渐进式迁移
-- 充分的回归测试
+- 使用测试工具函数减少重复代码
+- 优先编写高价值的测试
+- 渐进式添加测试
 
-### 风险2：学习成本
-
-**缓解措施**：
-- 提供详细文档和示例
-- 保持API简洁直观
-- 代码审查确保正确使用
-
-### 风险3：性能影响
+### 风险2：Mock响应与真实API不一致
 
 **缓解措施**：
-- 配置查找使用Map缓存
-- 注册器使用高效匹配算法
-- 性能基准测试
-
-## 时间规划
-
-| 阶段 | 预计时间 | 内容 |
-|------|----------|------|
-| 阶段1 | 1天 | 创建新架构 |
-| 阶段2 | 0.5天 | 重构Mock服务器 |
-| 阶段3 | 0.5天 | 迁移现有配置 |
-| 阶段4 | 1天 | 改进测试用例 |
-| **总计** | **3天** | |
+- 从真实API文档提取响应格式
+- 定期对照API文档验证Mock格式
+- 可选：添加E2E测试验证真实API
 
 ## 验收标准
 
-- [ ] 所有现有测试通过
-- [ ] 新增错误场景测试通过
-- [ ] 新增延迟场景测试通过
-- [ ] 新增超时场景测试通过
-- [ ] 添加新模型只需修改配置
-- [ ] 代码覆盖率不降低
+- [ ] 所有单元测试通过
+- [ ] 所有组件测试通过
+- [ ] 所有集成测试通过
+- [ ] 新增Formatter只需添加对应单元测试
+- [ ] Mock响应符合真实API格式
 - [ ] TypeScript类型检查通过
-- [ ] ESLint检查通过

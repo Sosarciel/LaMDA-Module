@@ -3,14 +3,14 @@ dist/**
 build/**
 
 ##Modules
-Service-Manager/LaM-Manager
-Service-Manager/PostgreSQL-Manager
-Service-Manager/CommApi-Manager
-Service-Manager/TTS-Manager
-Service-Manager/Translation-Manager
-CommPlatform-ProtoClient/OneBot11-ProtoClient
-CommPlatform-ProtoClient/KOOK-ProtoClient
-Business-Domain/Dialog-Domain
-Business-Domain/User-Domain
-Business-Domain/CharProfile-Domain
-Common-Utility/Text-Processor
+#Service-Manager/LaM-Manager
+#Service-Manager/PostgreSQL-Manager
+#Service-Manager/CommApi-Manager
+#Service-Manager/TTS-Manager
+#Service-Manager/Translation-Manager
+#CommPlatform-ProtoClient/OneBot11-ProtoClient
+#CommPlatform-ProtoClient/KOOK-ProtoClient
+#Business-Domain/Dialog-Domain
+#Business-Domain/User-Domain
+#Business-Domain/CharProfile-Domain
+#Common-Utility/Text-Processor

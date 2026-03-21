@@ -24,9 +24,9 @@ const createMockDeepseekResponse = (overrides: Partial<DeepseekResponse> = {}): 
     ...overrides,
 });
 
-describe("DeepseekPrefix Formatter", () => {
-    describe("formatResp", () => {
-        it("应正确解析Deepseek响应", () => {
+describe("LaM-Manager DeepseekPrefix Formatter", () => {
+    describe("1. formatResp 响应解析", () => {
+        it("1.1 应正确解析Deepseek响应", () => {
             const mockResp = createMockDeepseekResponse();
 
             const result = DeepseekPrefix.formatResp(mockResp);
@@ -37,7 +37,7 @@ describe("DeepseekPrefix Formatter", () => {
             });
         });
 
-        it("应正确处理空响应", () => {
+        it("1.2 应正确处理空响应", () => {
             const mockResp = createMockDeepseekResponse({ choices: [] });
             const result = DeepseekPrefix.formatResp(mockResp);
 
@@ -47,7 +47,7 @@ describe("DeepseekPrefix Formatter", () => {
             });
         });
 
-        it("应正确处理多选项响应", () => {
+        it("1.3 应正确处理多选项响应", () => {
             const mockResp = createMockDeepseekResponse({
                 choices: [
                     { index: 0, message: { role: "assistant", content: "选项1" }, finish_reason: "stop", logprobs: null },
@@ -63,7 +63,7 @@ describe("DeepseekPrefix Formatter", () => {
             });
         });
 
-        it("应保留无content的选项", () => {
+        it("1.4 应保留无content的选项", () => {
             const mockResp = createMockDeepseekResponse({
                 choices: [
                     { index: 0, message: { role: "assistant", content: "有效响应" }, finish_reason: "stop", logprobs: null },

@@ -1,9 +1,9 @@
 import { OpenAIConversationChatTaskFormatter, OpenAIThinkMap, OpenAIThinkMapHasNone } from "@sosraciel-lamda/lam-manager";
 import type { LaMChatMessages, OpenAIChatResponse, AnyOpenAIChatLikeResponse } from "@sosraciel-lamda/lam-manager";
 
-describe("OpenAIChat Formatter", () => {
-    describe("buildMessage", () => {
-        it("应正确转换聊天消息", () => {
+describe("LaM-Manager OpenAIChat Formatter", () => {
+    describe("1. buildMessage 消息构建", () => {
+        it("1.1 应正确转换聊天消息", () => {
             const messages: LaMChatMessages = [
                 { type: 'desc', content: '系统描述' },
                 { type: 'chat', senderName: 'user', content: '你好' },
@@ -23,7 +23,7 @@ describe("OpenAIChat Formatter", () => {
             ]);
         });
 
-        it("应正确处理hint提示", () => {
+        it("1.2 应正确处理hint提示", () => {
             const messages: LaMChatMessages = [
                 { type: 'chat', senderName: 'user', content: '你好' },
             ];
@@ -39,7 +39,7 @@ describe("OpenAIChat Formatter", () => {
             ]);
         });
 
-        it("应正确处理只有desc消息的情况", () => {
+        it("1.3 应正确处理只有desc消息的情况", () => {
             const messages: LaMChatMessages = [
                 { type: 'desc', content: '系统描述' },
             ];
@@ -53,7 +53,7 @@ describe("OpenAIChat Formatter", () => {
             ]);
         });
 
-        it("应正确处理多条desc消息", () => {
+        it("1.4 应正确处理多条desc消息", () => {
             const messages: LaMChatMessages = [
                 { type: 'desc', content: '系统描述1' },
                 { type: 'desc', content: '系统描述2' },
@@ -72,7 +72,7 @@ describe("OpenAIChat Formatter", () => {
             ]);
         });
 
-        it("应正确处理目标角色发送的消息", () => {
+        it("1.5 应正确处理目标角色发送的消息", () => {
             const messages: LaMChatMessages = [
                 { type: 'chat', senderName: 'assistant', content: '你好' },
             ];
@@ -88,8 +88,8 @@ describe("OpenAIChat Formatter", () => {
         });
     });
 
-    describe("formatResp", () => {
-        it("应正确解析OpenAI响应", () => {
+    describe("2. formatResp 响应解析", () => {
+        it("2.1 应正确解析OpenAI响应", () => {
             const mockResp: OpenAIChatResponse = {
                 id: "chatcmpl-test",
                 object: "chat.completion",
@@ -112,7 +112,7 @@ describe("OpenAIChat Formatter", () => {
             });
         });
 
-        it("应正确处理空响应", () => {
+        it("2.2 应正确处理空响应", () => {
             const mockResp: OpenAIChatResponse = {
                 id: "chatcmpl-test",
                 object: "chat.completion",
@@ -130,8 +130,8 @@ describe("OpenAIChat Formatter", () => {
             });
         });
 
-        it("应正确处理无效响应", () => {
-            const mockResp: AnyOpenAIChatLikeResponse = {} as AnyOpenAIChatLikeResponse;
+        it("2.3 应正确处理无效响应", () => {
+            const mockResp = {} as AnyOpenAIChatLikeResponse;
             const result = OpenAIConversationChatTaskFormatter.formatResp(mockResp);
 
             expect(result).toEqual({
@@ -140,7 +140,7 @@ describe("OpenAIChat Formatter", () => {
             });
         });
 
-        it("应正确处理多选项响应", () => {
+        it("2.4 应正确处理多选项响应", () => {
             const mockResp: OpenAIChatResponse = {
                 id: "chatcmpl-test",
                 object: "chat.completion",
@@ -162,7 +162,7 @@ describe("OpenAIChat Formatter", () => {
             });
         });
 
-        it("应过滤掉无content的选项", () => {
+        it("2.5 应过滤掉无content的选项", () => {
             const mockResp: OpenAIChatResponse = {
                 id: "chatcmpl-test",
                 object: "chat.completion",
@@ -185,8 +185,8 @@ describe("OpenAIChat Formatter", () => {
         });
     });
 
-    describe("OpenAIThinkMap", () => {
-        it("应正确映射推理预算", () => {
+    describe("3. OpenAIThinkMap 推理预算映射", () => {
+        it("3.1 应正确映射推理预算", () => {
             expect(OpenAIThinkMap.non).toBe('minimal');
             expect(OpenAIThinkMap.hig).toBe('high');
             expect(OpenAIThinkMap.mid).toBe('medium');
@@ -196,8 +196,8 @@ describe("OpenAIChat Formatter", () => {
         });
     });
 
-    describe("OpenAIThinkMapHasNone", () => {
-        it("应正确映射推理预算(支持none)", () => {
+    describe("4. OpenAIThinkMapHasNone 推理预算映射(支持none)", () => {
+        it("4.1 应正确映射推理预算(支持none)", () => {
             expect(OpenAIThinkMapHasNone.non).toBe('none');
             expect(OpenAIThinkMapHasNone.hig).toBe('high');
             expect(OpenAIThinkMapHasNone.mid).toBe('medium');

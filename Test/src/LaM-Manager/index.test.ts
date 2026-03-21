@@ -4,6 +4,15 @@ import { UtilFT } from "@zwa73/utils";
 import path from 'pathe';
 import { CACHE_PATH } from "@/src/Constant";
 
+
+const getHttpModuleData = async (instanceName:string)=>{
+    const sm = await LaMManager.sm.getService(instanceName);
+    const data = sm?.instance.getData();
+    if(data!=null && 'config' in data )
+        return data;
+    return null;
+}
+
 const server: LaMManagerMockServer = new LaMManagerMockServer(3000);
 
 beforeAll(async () => {
@@ -32,8 +41,8 @@ beforeAll(async () => {
     });
 });
 
-describe("LaM-Manager Integration", () => {
-    describe("ChatTask", () => {
+describe("LaM-Manager 集成测试", () => {
+    describe("1. ChatTask 聊天任务", () => {
         const chatFn = async (instanceName: string, message: string) => {
             return LaMManager.chat.execute(instanceName, {
                 target: LaMManagerMockTool.MOCK_CHAR,
@@ -49,17 +58,16 @@ describe("LaM-Manager Integration", () => {
             });
         };
 
-        it("GPT35Chat应成功完成对话", async () => {
+        it("1.1 GPT35Chat应成功完成对话", async () => {
             const result = await chatFn("Chat_GPT35Chat", "你好");
 
-            // 验证响应结构（集成测试只验证流程正确性）
             expect(result.completed).toBeDefined();
             expect(result.completed?.vaild).toBe(true);
             expect(result.completed?.choices).toHaveLength(1);
             expect(result.completed?.choices?.[0]?.content).toBeDefined();
         });
 
-        it("GPT35Text应成功完成对话", async () => {
+        it("1.2 GPT35Text应成功完成对话", async () => {
             const result = await chatFn("Chat_GPT35Text", "你好");
 
             expect(result.completed).toBeDefined();
@@ -68,7 +76,7 @@ describe("LaM-Manager Integration", () => {
             expect(result.completed?.choices?.[0]?.content).toBeDefined();
         });
 
-        it("DeepseekChat应成功完成对话", async () => {
+        it("1.3 DeepseekChat应成功完成对话", async () => {
             const result = await chatFn("Chat_DeepseekChat", "你好");
 
             expect(result.completed).toBeDefined();
@@ -77,7 +85,7 @@ describe("LaM-Manager Integration", () => {
             expect(result.completed?.choices?.[0]?.content).toBeDefined();
         });
 
-        it("Gemini3Pro应成功完成对话", async () => {
+        it("1.4 Gemini3Pro应成功完成对话", async () => {
             const result = await chatFn("Chat_Gemini3Pro", "你好");
 
             expect(result.completed).toBeDefined();
@@ -87,7 +95,7 @@ describe("LaM-Manager Integration", () => {
         });
     });
 
-    describe("InstructTask", () => {
+    describe("2. InstructTask 指令任务", () => {
         const instructFn = async (instanceName: string, prompt: string, options?: {
             suffix?: string;
             prefix?: string;
@@ -104,7 +112,7 @@ describe("LaM-Manager Integration", () => {
             });
         };
 
-        it("GPT35Text应成功完成指令", async () => {
+        it("2.1 GPT35Text应成功完成指令", async () => {
             const result = await instructFn("Instruct_GPT35Text", "续写");
 
             expect(result.completed).toBeDefined();
@@ -113,7 +121,7 @@ describe("LaM-Manager Integration", () => {
             expect(result.completed?.choices?.[0]?.content).toBeDefined();
         });
 
-        it("DeepseekText应成功完成指令", async () => {
+        it("2.2 DeepseekText应成功完成指令", async () => {
             const result = await instructFn("Instruct_DeepseekText", "def hello():");
 
             expect(result.completed).toBeDefined();
@@ -122,7 +130,7 @@ describe("LaM-Manager Integration", () => {
             expect(result.completed?.choices?.[0]?.content).toBeDefined();
         });
 
-        it("DeepseekPrefix应成功完成前缀续写", async () => {
+        it("2.3 DeepseekPrefix应成功完成前缀续写", async () => {
             const result = await instructFn("Instruct_DeepseekPrefix", "请续写", {
                 prefix: "function test() {"
             });
@@ -134,15 +142,14 @@ describe("LaM-Manager Integration", () => {
         });
     });
 
-    describe("Error Handling", () => {
-        it("应正确处理无效实例名", async () => {
+    describe("3. ErrorHandling 错误处理", () => {
+        it("3.1 应正确处理无效实例名", async () => {
             const result = await LaMManager.chat.execute("InvalidInstance", {
                 target: "assistant",
                 messages: [{ type: 'chat', senderName: 'user', content: 'test' }],
                 max_tokens: 100,
             });
 
-            // 无效实例应返回空结果
             expect(result.completed).toBeUndefined();
         });
     });

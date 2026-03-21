@@ -1,9 +1,9 @@
 import { GeminiChatTaskFormatter, GeminiThinkMap, transGeminiThinkBudget, combineHint } from "@sosraciel-lamda/lam-manager";
 import type { LaMChatMessages, ChatTaskOption, GeminiResponse } from "@sosraciel-lamda/lam-manager";
 
-describe("Gemini Formatter", () => {
-    describe("buildMessage", () => {
-        it("应正确转换聊天消息", () => {
+describe("LaM-Manager Gemini Formatter", () => {
+    describe("1. buildMessage 消息构建", () => {
+        it("1.1 应正确转换聊天消息", () => {
             const messages: LaMChatMessages = [
                 { type: 'desc', content: '系统描述' },
                 { type: 'chat', senderName: 'user', content: '你好' },
@@ -20,7 +20,7 @@ describe("Gemini Formatter", () => {
             expect(result.message[0].parts[0].text).toBe('user:');
         });
 
-        it("应正确处理hint提示", () => {
+        it("1.2 应正确处理hint提示", () => {
             const messages: LaMChatMessages = [
                 { type: 'chat', senderName: 'user', content: '你好' },
             ];
@@ -34,7 +34,7 @@ describe("Gemini Formatter", () => {
             expect(lastPart.text).toContain('(继续)');
         });
 
-        it("应正确处理只有desc消息的情况", () => {
+        it("1.3 应正确处理只有desc消息的情况", () => {
             const messages: LaMChatMessages = [
                 { type: 'desc', content: '系统描述' },
             ];
@@ -48,8 +48,8 @@ describe("Gemini Formatter", () => {
         });
     });
 
-    describe("formatResp", () => {
-        it("应正确解析Gemini响应", () => {
+    describe("2. formatResp 响应解析", () => {
+        it("2.1 应正确解析Gemini响应", () => {
             const mockResp = {
                 candidates: [{
                     content: {
@@ -78,7 +78,7 @@ describe("Gemini Formatter", () => {
             });
         });
 
-        it("应正确处理空响应", () => {
+        it("2.2 应正确处理空响应", () => {
             const mockResp = {
                 candidates: [],
                 usageMetadata: {
@@ -99,7 +99,7 @@ describe("Gemini Formatter", () => {
             });
         });
 
-        it("应过滤掉思考内容", () => {
+        it("2.3 应过滤掉思考内容", () => {
             const mockResp = {
                 candidates: [{
                     content: {
@@ -131,7 +131,7 @@ describe("Gemini Formatter", () => {
             });
         });
 
-        it("应正确处理多候选响应", () => {
+        it("2.4 应正确处理多候选响应", () => {
             const mockResp = {
                 candidates: [
                     {
@@ -165,8 +165,8 @@ describe("Gemini Formatter", () => {
         });
     });
 
-    describe("GeminiThinkMap", () => {
-        it("应正确映射推理预算", () => {
+    describe("3. GeminiThinkMap 推理预算映射", () => {
+        it("3.1 应正确映射推理预算", () => {
             expect(GeminiThinkMap.non).toBe(128);
             expect(GeminiThinkMap.hig).toBe(1024);
             expect(GeminiThinkMap.mid).toBe(512);
@@ -176,16 +176,16 @@ describe("Gemini Formatter", () => {
         });
     });
 
-    describe("transGeminiThinkBudget", () => {
-        it("应正确转换think_budget参数", () => {
+    describe("4. transGeminiThinkBudget 推理预算转换", () => {
+        it("4.1 应正确转换think_budget参数", () => {
             expect(transGeminiThinkBudget('gemini-3-pro', 'hig')).toBe(1024);
             expect(transGeminiThinkBudget('gemini-3-pro', 'mid')).toBe(512);
             expect(transGeminiThinkBudget('gemini-3-pro', undefined)).toBeUndefined();
         });
     });
 
-    describe("combineHint", () => {
-        it("gemini-3-pro应添加think_budget限制提示", () => {
+    describe("5. combineHint 提示组合", () => {
+        it("5.1 gemini-3-pro应添加think_budget限制提示", () => {
             const opt: ChatTaskOption = {
                 target: 'assistant',
                 messages: [],
@@ -195,7 +195,7 @@ describe("Gemini Formatter", () => {
             expect(result).toContain('limit_thought_tokens_to_under_1024_words');
         });
 
-        it("其他模型不应添加think_budget限制提示", () => {
+        it("5.2 其他模型不应添加think_budget限制提示", () => {
             const opt: ChatTaskOption = {
                 target: 'assistant',
                 messages: [],
@@ -205,7 +205,7 @@ describe("Gemini Formatter", () => {
             expect(result).toBeUndefined();
         });
 
-        it("无think_budget时不应添加提示", () => {
+        it("5.3 无think_budget时不应添加提示", () => {
             const opt: ChatTaskOption = {
                 target: 'assistant',
                 messages: [],

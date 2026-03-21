@@ -3,13 +3,12 @@ import { TableInitializer, MockTableAccesser, PostgreSQLMockTool, TestDBRow, cre
 
 const { MOCK_TABLE_NAME, MOCK_ID_FIELD } = PostgreSQLMockTool;
 
-describe("模拟表初始化器", () => {
+describe("PostgresSQL-Manager 模拟表测试", () => {
     let manager: DBManager;
     let mockCacheCoordinator: any;
     let mockJsonDataCacheCoordinator: any;
 
     beforeAll(async () => {
-        // 创建数据库管理器
         manager = await DBManager.create({
             port: 5433,
             user: "postgres",
@@ -19,154 +18,131 @@ describe("模拟表初始化器", () => {
             idleTimeoutMillis: 1000 * 30,
         });
 
-        // 测试数据库连接
         const result = await manager.client.query("SELECT 1");
         expect(result.rowCount).toBe(1);
 
-        // 清理可能存在的测试表和函数
         try {
-            // 删除表
             await manager.client.query(`DROP TABLE IF EXISTS ${MOCK_TABLE_NAME};`);
-            // 删除相关函数
             await manager.client.query(`DROP FUNCTION IF EXISTS func__${MOCK_TABLE_NAME}__before_insert_or_update();`);
             await manager.client.query(`DROP FUNCTION IF EXISTS set_${MOCK_TABLE_NAME}(text);`);
         } catch (e) {
-            // 忽略错误
         }
 
-        // 创建缓存实例
         const { cache, coordinator } = createMockCacheCoordinator();
         mockCacheCoordinator = coordinator;
 
         const { jsonCache, coordinator: jsonCoordinator } = createMockJsonDataCacheCoordinator();
         mockJsonDataCacheCoordinator = jsonCoordinator;
-    }, 30000); // 增加超时时间
+    }, 30000);
 
     afterAll(async () => {
-        // 清理表
         try {
             if (manager) {
                 await TableInitializer.dropTable(manager.client);
-                // 关闭数据库连接
                 await manager.stop();
             }
 
-            // 关闭缓存协调器，清理TTL定时器
             mockCacheCoordinator.dispose();
             mockJsonDataCacheCoordinator.dispose();
         } catch (e) {
-            // 忽略错误
         }
-    }, 30000); // 增加超时时间
+    }, 30000);
 
-    test("应成功初始化表", async () => {
-        await TableInitializer.initTable(manager.client);
-        // 验证表是否存在
-        const result = await manager.client.sql`
-            SELECT table_name
-            FROM information_schema.tables
-            WHERE table_name = ${MOCK_TABLE_NAME}
-            AND table_schema = 'public';
-        `;
-        expect(result.rowCount).toBe(1);
+    describe("1. 表初始化", () => {
+        it("1.1 应成功初始化表", async () => {
+            await TableInitializer.initTable(manager.client);
+            const result = await manager.client.sql`
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_name = ${MOCK_TABLE_NAME}
+                AND table_schema = 'public';
+            `;
+            expect(result.rowCount).toBe(1);
+        });
     });
 
-    test("应使用注入的普通缓存协调器", async () => {
-        // 创建访问器并注入缓存协调器
-        const accesser = new MockTableAccesser<TestDBRow>(manager);
-        accesser.injectCacheCoordinator(mockCacheCoordinator);
+    describe("2. 缓存协调器", () => {
+        it("2.1 应使用注入的普通缓存协调器", async () => {
+            const accesser = new MockTableAccesser<TestDBRow>(manager);
+            accesser.injectCacheCoordinator(mockCacheCoordinator);
 
-        const testData: TestDBRow = {
-            data: {
-                test_id: "injectedCacheTest",
-                name: "注入缓存测试"
-            }
-        };
+            const testData: TestDBRow = {
+                data: {
+                    test_id: "injectedCacheTest",
+                    name: "注入缓存测试"
+                }
+            };
 
-        // 插入数据
-        await accesser.insertOrUpdate(testData);
+            await accesser.insertOrUpdate(testData);
 
-        // 验证缓存是否存在
-        expect(accesser.hasCache("injectedCacheTest")).toBe(true);
-        expect(accesser.peekCache("injectedCacheTest")).toBeDefined();
+            expect(accesser.hasCache("injectedCacheTest")).toBe(true);
+            expect(accesser.peekCache("injectedCacheTest")).toBeDefined();
 
-        // 获取数据
-        const retrievedData = await accesser.getData("injectedCacheTest");
-        expect(retrievedData?.data.test_id).toBe("injectedCacheTest");
-        expect(retrievedData?.data.name).toBe("注入缓存测试");
+            const retrievedData = await accesser.getData("injectedCacheTest");
+            expect(retrievedData?.data.test_id).toBe("injectedCacheTest");
+            expect(retrievedData?.data.name).toBe("注入缓存测试");
+        });
+
+        it("2.2 应使用注入的JSON数据缓存协调器", async () => {
+            await mockJsonDataCacheCoordinator.inited;
+
+            const accesser = new MockTableAccesser<TestDBRow>(manager);
+            accesser.injectCacheCoordinator(mockJsonDataCacheCoordinator);
+
+            const testData: TestDBRow = {
+                data: {
+                    test_id: "jsonCacheTest",
+                    name: "JSON缓存测试"
+                }
+            };
+
+            await accesser.insertOrUpdate(testData);
+
+            expect(accesser.hasCache("jsonCacheTest")).toBe(true);
+            expect(accesser.peekCache("jsonCacheTest")).toBeDefined();
+
+            const retrievedData = await accesser.getData("jsonCacheTest");
+            expect(retrievedData?.data.test_id).toBe("jsonCacheTest");
+            expect(retrievedData?.data.name).toBe("JSON缓存测试");
+        });
     });
 
-    test("应使用注入的JSON数据缓存协调器", async () => {
-        // 等待初始化完成
-        await mockJsonDataCacheCoordinator.inited;
+    describe("3. 数据库通知", () => {
+        it("3.1 应通过数据库通知更新缓存", async () => {
+            const accesser = new MockTableAccesser<TestDBRow>(manager);
+            accesser.injectCacheCoordinator(mockCacheCoordinator);
 
-        // 创建访问器并注入缓存协调器
-        const accesser = new MockTableAccesser<TestDBRow>(manager);
-        accesser.injectCacheCoordinator(mockJsonDataCacheCoordinator);
+            const initialData: TestDBRow = {
+                data: {
+                    test_id: "notifyTest",
+                    name: "初始名称"
+                }
+            };
+            await accesser.insertOrUpdate(initialData);
 
-        const testData: TestDBRow = {
-            data: {
-                test_id: "jsonCacheTest",
-                name: "JSON缓存测试"
-            }
-        };
+            expect(accesser.hasCache("notifyTest")).toBe(true);
+            expect(accesser.peekCache("notifyTest")?.data.name).toBe("初始名称");
 
-        // 插入数据
-        await accesser.insertOrUpdate(testData);
+            await manager.client.query(`
+                UPDATE ${MOCK_TABLE_NAME}
+                SET data = jsonb_set(data, '{name}', to_jsonb('更新后的名称'::text), true)
+                WHERE data->>'${MOCK_ID_FIELD}' = 'notifyTest';
+            `);
 
-        // 验证缓存是否存在
-        expect(accesser.hasCache("jsonCacheTest")).toBe(true);
-        expect(accesser.peekCache("jsonCacheTest")).toBeDefined();
+            await new Promise(resolve => setTimeout(resolve, 1000));
 
-        // 获取数据
-        const retrievedData = await accesser.getData("jsonCacheTest");
-        expect(retrievedData?.data.test_id).toBe("jsonCacheTest");
-        expect(retrievedData?.data.name).toBe("JSON缓存测试");
-    });
+            const cachedData = accesser.peekCache("notifyTest");
+            expect(cachedData).toBeDefined();
+            expect(cachedData?.data.name).toBe("更新后的名称");
 
-    test("应通过数据库通知更新缓存", async () => {
-        // 创建访问器并注入缓存协调器
-        const accesser = new MockTableAccesser<TestDBRow>(manager);
-        accesser.injectCacheCoordinator(mockCacheCoordinator);
+            await manager.client.query(`
+                DELETE FROM ${MOCK_TABLE_NAME}
+                WHERE data->>'${MOCK_ID_FIELD}' = 'notifyTest';
+            `);
 
-        // 插入初始数据
-        const initialData: TestDBRow = {
-            data: {
-                test_id: "notifyTest",
-                name: "初始名称"
-            }
-        };
-        await accesser.insertOrUpdate(initialData);
+            await new Promise(resolve => setTimeout(resolve, 1000));
 
-        // 验证缓存
-        expect(accesser.hasCache("notifyTest")).toBe(true);
-        expect(accesser.peekCache("notifyTest")?.data.name).toBe("初始名称");
-
-        // 不通过访问器，直接用mgr发指令更新数据
-        await manager.client.query(`
-            UPDATE ${MOCK_TABLE_NAME}
-            SET data = jsonb_set(data, '{name}', to_jsonb('更新后的名称'::text), true)
-            WHERE data->>'${MOCK_ID_FIELD}' = 'notifyTest';
-        `);
-
-        // 等待通知处理
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        // 验证缓存是否已更新
-        const cachedData = accesser.peekCache("notifyTest");
-        expect(cachedData).toBeDefined();
-        expect(cachedData?.data.name).toBe("更新后的名称");
-
-        // 不通过访问器，直接用mgr发指令删除数据
-        await manager.client.query(`
-            DELETE FROM ${MOCK_TABLE_NAME}
-            WHERE data->>'${MOCK_ID_FIELD}' = 'notifyTest';
-        `);
-
-        // 等待通知处理
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        // 验证缓存是否已删除
-        expect(accesser.hasCache("notifyTest")).toBe(false);
+            expect(accesser.hasCache("notifyTest")).toBe(false);
+        });
     });
 });

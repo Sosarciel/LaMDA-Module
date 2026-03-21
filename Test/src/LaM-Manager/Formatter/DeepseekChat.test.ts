@@ -24,9 +24,9 @@ const createMockDeepseekResponse = (overrides: Partial<DeepseekResponse> = {}): 
     ...overrides,
 });
 
-describe("DeepseekChat Formatter", () => {
-    describe("buildMessage", () => {
-        it("应正确转换聊天消息", () => {
+describe("LaM-Manager DeepseekChat Formatter", () => {
+    describe("1. buildMessage 消息构建", () => {
+        it("1.1 应正确转换聊天消息", () => {
             const messages: LaMChatMessages = [
                 { type: 'desc', content: '系统描述' },
                 { type: 'chat', senderName: 'user', content: '你好' },
@@ -46,7 +46,7 @@ describe("DeepseekChat Formatter", () => {
             ]);
         });
 
-        it("应正确处理hint提示", () => {
+        it("1.2 应正确处理hint提示", () => {
             const messages: LaMChatMessages = [
                 { type: 'chat', senderName: 'user', content: '你好' },
             ];
@@ -62,7 +62,7 @@ describe("DeepseekChat Formatter", () => {
             ]);
         });
 
-        it("应正确处理只有desc消息的情况", () => {
+        it("1.3 应正确处理只有desc消息的情况", () => {
             const messages: LaMChatMessages = [
                 { type: 'desc', content: '系统描述' },
             ];
@@ -76,7 +76,7 @@ describe("DeepseekChat Formatter", () => {
             ]);
         });
 
-        it("应正确处理多条desc消息", () => {
+        it("1.4 应正确处理多条desc消息", () => {
             const messages: LaMChatMessages = [
                 { type: 'desc', content: '系统描述1' },
                 { type: 'desc', content: '系统描述2' },
@@ -95,7 +95,7 @@ describe("DeepseekChat Formatter", () => {
             ]);
         });
 
-        it("应正确处理目标角色发送的消息", () => {
+        it("1.5 应正确处理目标角色发送的消息", () => {
             const messages: LaMChatMessages = [
                 { type: 'chat', senderName: 'assistant', content: '你好' },
             ];
@@ -111,8 +111,8 @@ describe("DeepseekChat Formatter", () => {
         });
     });
 
-    describe("formatResp", () => {
-        it("应正确解析Deepseek响应", () => {
+    describe("2. formatResp 响应解析", () => {
+        it("2.1 应正确解析Deepseek响应", () => {
             const mockResp = createMockDeepseekResponse();
 
             const result = DeepseekChatTaskFormatter.formatResp(mockResp);
@@ -123,7 +123,7 @@ describe("DeepseekChat Formatter", () => {
             });
         });
 
-        it("应正确处理空响应", () => {
+        it("2.2 应正确处理空响应", () => {
             const mockResp = createMockDeepseekResponse({ choices: [] });
             const result = DeepseekChatTaskFormatter.formatResp(mockResp);
 
@@ -133,7 +133,7 @@ describe("DeepseekChat Formatter", () => {
             });
         });
 
-        it("应正确处理无效响应", () => {
+        it("2.3 应正确处理无效响应", () => {
             const mockResp = createMockDeepseekResponse({ choices: undefined as unknown as [] });
             const result = DeepseekChatTaskFormatter.formatResp(mockResp);
 
@@ -143,7 +143,7 @@ describe("DeepseekChat Formatter", () => {
             });
         });
 
-        it("应正确处理多选项响应", () => {
+        it("2.4 应正确处理多选项响应", () => {
             const mockResp = createMockDeepseekResponse({
                 choices: [
                     { index: 0, message: { role: "assistant", content: "选项1" }, finish_reason: "stop", logprobs: null },
@@ -159,7 +159,7 @@ describe("DeepseekChat Formatter", () => {
             });
         });
 
-        it("应过滤掉无content的选项", () => {
+        it("2.5 应过滤掉无content的选项", () => {
             const mockResp = createMockDeepseekResponse({
                 choices: [
                     { index: 0, message: { role: "assistant", content: "有效响应" }, finish_reason: "stop", logprobs: null },

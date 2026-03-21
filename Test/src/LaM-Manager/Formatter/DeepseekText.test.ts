@@ -16,9 +16,9 @@ const createMockOpenAITextResponse = (overrides: Partial<OpenAITextResponse> = {
     ...overrides,
 });
 
-describe("DeepseekText Formatter", () => {
-    describe("formatResp (继承自OpenAIInstructBase)", () => {
-        it("应正确解析文本响应", () => {
+describe("LaM-Manager DeepseekText Formatter", () => {
+    describe("1. formatResp 响应解析", () => {
+        it("1.1 应正确解析文本响应", () => {
             const mockResp = createMockOpenAITextResponse();
 
             const result = OpenAIInstructBase.formatResp(mockResp);
@@ -29,7 +29,7 @@ describe("DeepseekText Formatter", () => {
             });
         });
 
-        it("应正确处理空响应", () => {
+        it("1.2 应正确处理空响应", () => {
             const mockResp = createMockOpenAITextResponse({ choices: [] });
             const result = OpenAIInstructBase.formatResp(mockResp);
 
@@ -39,7 +39,7 @@ describe("DeepseekText Formatter", () => {
             });
         });
 
-        it("应正确处理无效响应", () => {
+        it("1.3 应正确处理无效响应", () => {
             const mockResp = {} as OpenAITextResponse;
             const result = OpenAIInstructBase.formatResp(mockResp);
 
@@ -49,7 +49,7 @@ describe("DeepseekText Formatter", () => {
             });
         });
 
-        it("应正确处理多选项响应", () => {
+        it("1.4 应正确处理多选项响应", () => {
             const mockResp = createMockOpenAITextResponse({
                 choices: [
                     { index: 0, text: "选项1", finish_reason: "stop", logprobs: null },
@@ -65,7 +65,7 @@ describe("DeepseekText Formatter", () => {
             });
         });
 
-        it("应过滤掉无text的选项", () => {
+        it("1.5 应过滤掉无text的选项", () => {
             const mockResp = createMockOpenAITextResponse({
                 choices: [
                     { index: 0, text: "有效响应", finish_reason: "stop", logprobs: null },

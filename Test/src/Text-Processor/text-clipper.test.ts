@@ -85,8 +85,8 @@ describe('TextClipper', () => {
         describe('1.4 边界情况', () => {
             it('1.4.1 应处理只有换行符的文本', () => {
                 const result = clipMessage({ text: '\n\n\n', maxLength: 100 });
-                // 只有换行符的文本会返回包含换行的片段
-                expect(result.length).toBe(1);
+                // 只有换行符的文本会返回包含换行的片段, 但会被trim
+                expect(result.length).toBe(0);
             });
 
             it('1.4.2 应处理超长无分隔符文本', () => {

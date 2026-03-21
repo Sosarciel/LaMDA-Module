@@ -212,7 +212,7 @@ describe("LaM-Manager ChatTask Gemini Formatter", () => {
             });
             const result = combineHint("gemini-3-pro", option);
 
-            expect(result).toBe("请继续\n(limit_thought_tokens_to_under_1024_words)");
+            expect(result).toBe("请继续(limit_thought_tokens_to_under_1024_words)");
         });
 
         it("4.3 combineHint应为gemini-2.5-pro添加思考限制提示", () => {

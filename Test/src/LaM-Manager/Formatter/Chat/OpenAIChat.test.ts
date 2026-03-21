@@ -51,8 +51,8 @@ describe("LaM-Manager ChatTask OpenAIChat Formatter", () => {
                     { role: "system", content: "user:" },
                     { role: "user", content: "你好" },
                     { role: "system", content: "assistant:" },
-                    { role: "assistant", content: "你好！" },
-                    { role: "system", content: "assistant: (继续)" },
+                    { role: "assistant", content: "你好！ (继续)" },
+                    { role: "system", content: "assistant:" },
                 ],
                 max_completion_tokens: 100,
                 temperature: 1,
@@ -61,6 +61,8 @@ describe("LaM-Manager ChatTask OpenAIChat Formatter", () => {
                 presence_penalty: 0,
                 frequency_penalty: 0,
                 logit_bias: null,
+                reasoning_effort: undefined,
+                stop: undefined,
             });
         });
 

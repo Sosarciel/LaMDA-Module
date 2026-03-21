@@ -44,6 +44,9 @@ beforeAll(async () => {
 describe("LaM-Manager 集成测试", () => {
     describe("1. ChatTask 聊天任务", () => {
         const chatFn = async (instanceName: string, message: string) => {
+            const moduleData = await getHttpModuleData(instanceName);
+            const modelId = moduleData?.config?.id;
+            
             return LaMManager.chat.execute(instanceName, {
                 target: LaMManagerMockTool.MOCK_CHAR,
                 messages: [{
@@ -59,6 +62,9 @@ describe("LaM-Manager 集成测试", () => {
         };
 
         it("1.1 GPT35Chat应成功完成对话", async () => {
+            const moduleData = await getHttpModuleData("Chat_GPT35Chat");
+            expect(moduleData?.config?.id).toBe("gpt-3.5-turbo");
+            
             const result = await chatFn("Chat_GPT35Chat", "你好");
 
             expect(result.completed).toBeDefined();
@@ -68,6 +74,9 @@ describe("LaM-Manager 集成测试", () => {
         });
 
         it("1.2 GPT35Text应成功完成对话", async () => {
+            const moduleData = await getHttpModuleData("Chat_GPT35Text");
+            expect(moduleData?.config?.id).toBe("gpt-3.5-turbo-instruct");
+            
             const result = await chatFn("Chat_GPT35Text", "你好");
 
             expect(result.completed).toBeDefined();
@@ -77,6 +86,9 @@ describe("LaM-Manager 集成测试", () => {
         });
 
         it("1.3 DeepseekChat应成功完成对话", async () => {
+            const moduleData = await getHttpModuleData("Chat_DeepseekChat");
+            expect(moduleData?.config?.id).toBe("deepseek-chat");
+            
             const result = await chatFn("Chat_DeepseekChat", "你好");
 
             expect(result.completed).toBeDefined();
@@ -86,6 +98,9 @@ describe("LaM-Manager 集成测试", () => {
         });
 
         it("1.4 Gemini3Pro应成功完成对话", async () => {
+            const moduleData = await getHttpModuleData("Chat_Gemini3Pro");
+            expect(moduleData?.config?.id).toBe("gemini-3-pro-preview");
+            
             const result = await chatFn("Chat_Gemini3Pro", "你好");
 
             expect(result.completed).toBeDefined();
@@ -113,6 +128,9 @@ describe("LaM-Manager 集成测试", () => {
         };
 
         it("2.1 GPT35Text应成功完成指令", async () => {
+            const moduleData = await getHttpModuleData("Instruct_GPT35Text");
+            expect(moduleData?.config?.id).toBe("gpt-3.5-turbo-instruct");
+            
             const result = await instructFn("Instruct_GPT35Text", "续写");
 
             expect(result.completed).toBeDefined();
@@ -122,6 +140,9 @@ describe("LaM-Manager 集成测试", () => {
         });
 
         it("2.2 DeepseekText应成功完成指令", async () => {
+            const moduleData = await getHttpModuleData("Instruct_DeepseekText");
+            expect(moduleData?.config?.id).toBe("deepseek-chat");
+            
             const result = await instructFn("Instruct_DeepseekText", "def hello():");
 
             expect(result.completed).toBeDefined();
@@ -131,6 +152,9 @@ describe("LaM-Manager 集成测试", () => {
         });
 
         it("2.3 DeepseekPrefix应成功完成前缀续写", async () => {
+            const moduleData = await getHttpModuleData("Instruct_DeepseekPrefix");
+            expect(moduleData?.config?.id).toBe("deepseek-chat");
+            
             const result = await instructFn("Instruct_DeepseekPrefix", "请续写", {
                 prefix: "function test() {"
             });

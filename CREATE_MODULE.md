@@ -50,7 +50,7 @@ cp -r template <分类目录>/<新模块名>
     url = https://github.com/Sosarciel/LaMDA-<模块名>.git
 ```
 
-**LaMDA-Module/.gitignore** (如需忽略):
+**LaMDA-Module/.git/info/exclude** (multrepo忽略子模块):
 ```
 <分类目录>/<模块名>/
 ```

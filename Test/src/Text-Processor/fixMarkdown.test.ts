@@ -1,5 +1,6 @@
 import { TextFormatter } from "@sosraciel-lamda/text-processor";
 
+//const regex = (text:string)=> createMarkdownFixPipe().process(TextFormatter.clearFormat(text));
 const regex = (text:string)=> TextFormatter.fixMarkdown(TextFormatter.clearFormat(text));
 
 describe('regex', () => {

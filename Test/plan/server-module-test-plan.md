@@ -1,84 +1,24 @@
 # Server 模块测试计划
 
-## 测试目标
-
-基于 `server/plan/module-split-plan.md` 的模块拆分计划，制定详细的测试策略，确保拆分前后功能正确性。
-
-## 测试策略
-
-### 总体策略
-1. **拆分前测试**：在拆分前编写测试，确保现有功能正确
-2. **拆分中测试**：拆分过程中持续测试，确保功能不变
-3. **拆分后测试**：拆分后验证模块独立性
-
-### 测试优先级
-1. **高优先级**：即将拆分的模块（PermissionManager、CmdParser）
-2. **中优先级**：后续拆分的模块（TTSManager、TranslationManager）
-3. **低优先级**：不拆分的模块
-
 ## 已完成测试
 
-### 1. CharProfile-Domain 测试 ✅
+### CharProfile-Domain ✅
+- 测试文件: `Test/src/CharProfile-Domain/charprofile-domain.test.ts`
+- 内容: 角色档案管理功能测试
 
-**测试文件**: `Test/src/CharProfile-Domain/charprofile-domain.test.ts`
+### LaM-Manager ✅
+- 测试文件: `Test/src/LaM-Manager/index.test.ts`, `Test/src/LaM-Manager/Formatter/**/*.test.ts`
+- 内容: LaM管理器集成测试和Formatter单元测试
 
-**测试内容**:
-- [x] 角色存在性检查
-- [x] CharAccesser 实例创建
-- [x] 角色配置加载
-- [x] 角色基本信息获取
-- [x] LaM实例名获取
-- [x] 语音功能判断
-- [x] TTS配置获取
-- [x] 状态回复获取
-- [x] 术语替换
-- [x] 翻译后替换
-- [x] logit bias获取
-- [x] 场景获取
-- [x] 定义场景获取
-- [x] CharProfile初始化与角色助手获取
-- [x] 角色重载
-- [x] 常量定义验证
-
----
-
-### 2. LaM-Manager 测试 ✅
-
-**测试文件**: `Test/src/LaM-Manager/index.test.ts`
-
-**测试内容**:
-- [x] ChatTask - GPT35Chat 对话
-- [x] ChatTask - GPT35Text 对话
-- [x] ChatTask - DeepseekChat 对话
-- [x] ChatTask - Gemini3Pro 对话
-- [x] InstructTask - GPT35Text 文本生成
-- [x] InstructTask - DeepseekText 代码补全
-- [x] InstructTask - DeepseekPrefixCompletion 前缀续写
-
----
-
-### 3. Regexp (fixMarkdown) 测试 ✅
-
-**测试文件**: `Test/src/Regexp/fixMarkdown.test.ts`
-
-**测试内容**:
-- [x] 动作换行处理
-- [x] 引号处理
-- [x] 星号修复
-- [x] 括号处理
-- [x] think块移除
-- [x] ASSISTANT前缀移除
-- [x] Gemini末尾总结移除
-- [x] 转义星号处理
-- [x] 边界情况处理
+### Text-Processor ✅
+- 测试文件: `Test/src/Text-Processor/*.test.ts`
+- 内容: fixMarkdown, text-clipper, cmd-parser 测试
 
 ---
 
 ## 待完成测试
 
-### 4. PermissionManager 测试
-
-**测试文件**: `Test/src/Server/permission-manager.test.ts` (待创建)
+### PermissionManager
 
 **测试用例**:
 - [ ] 权限节点匹配测试
@@ -87,19 +27,23 @@
 - [ ] 循环继承检测测试
 - [ ] 角色集过滤测试
 
----
+**测试方法**:
+```typescript
+const testTable = {
+    define: {
+        admin: { segment: [{ node: "admin.*", weight: 10 }] },
+        user: { segment: [{ node: "user.*", weight: 5 }] }
+    },
+    role: {
+        superadmin: { inherit: ["admin"], segment: [{ node: "*", weight: 100 }] },
+        normaluser: { inherit: ["user"] }
+    },
+    rule: []
+};
 
-### 5. CmdParser 测试
-
-**测试文件**: `Test/src/Server/cmd-parser.test.ts` (待创建)
-
-**测试用例**:
-- [ ] 命令前缀识别测试
-- [ ] 命令后缀识别测试
-- [ ] 命令分割测试
-- [ ] 参数解析测试
-- [ ] 主参数提取测试
-- [ ] 完整命令解析测试
+const pm = _PermissionManager.create({ table: testTable });
+const hasPermission = await pm.check({ roleset: "superadmin", node: "admin.delete" });
+```
 
 ---
 
@@ -109,45 +53,20 @@
 Test/
   src/
     CharProfile-Domain/
-      charprofile-domain.test.ts  # 角色档案测试 ✅
+      charprofile-domain.test.ts  ✅
     LaM-Manager/
-      index.test.ts               # LaM管理器测试 ✅
-    Regexp/
-      fixMarkdown.test.ts         # 文本处理测试 ✅
+      index.test.ts               ✅
+      Formatter/**/*.test.ts      ✅
+    Text-Processor/
+      fixMarkdown.test.ts         ✅
+      text-clipper.test.ts        ✅
+      cmd-parser.test.ts          ✅
     Server/
-      permission-manager.test.ts  # 权限管理器测试 (待创建)
-      cmd-parser.test.ts          # 命令解析器测试 (待创建)
+      permission-manager.test.ts  (待创建)
 ```
-
-## 测试工具
-
-- **Jest**: 测试框架
-- **Mock 函数**: 模拟外部依赖
-- **TypeScript**: 类型安全
-
-## 测试执行
-
-```bash
-# 运行所有测试
-npm run test
-
-# 运行特定模块测试
-npx jest src/CharProfile-Domain/charprofile-domain.test.ts
-npx jest src/LaM-Manager/index.test.ts
-npx jest src/Regexp/fixMarkdown.test.ts
-```
-
-## 测试覆盖率目标
-
-- CharProfile-Domain: ✅ 已完成
-- LaM-Manager: ✅ 已完成
-- Regexp: ✅ 已完成
-- PermissionManager: 待测试
-- CmdParser: 待测试
 
 ## 注意事项
 
-1. **Mock 外部依赖**：所有测试应 Mock 外部依赖，确保测试独立性
-2. **测试边界情况**：不仅要测试正常流程，还要测试异常情况
-3. **保持测试简单**：每个测试用例应只测试一个功能点
-4. **及时更新测试**：代码修改后应及时更新相关测试
+1. **不要在真实环境测试**：所有测试都应在Test项目中进行
+2. **使用Mock对象**：对于依赖外部服务的模块，使用Mock对象替代
+3. **测试边界情况**：不仅要测试正常流程，还要测试异常情况

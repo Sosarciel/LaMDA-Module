@@ -16,11 +16,16 @@ describe("LaM-Manager InstructTask DeepseekText Formatter", () => {
                 tokensizerType: "deepseek",
             }) as OpenAITextRequest;
 
-            expect(result).toBeDefined();
-            expect(result.model).toBe("deepseek-chat");
-            expect(result.prompt).toBeDefined();
-            expect(result.max_tokens).toBe(100);
-            expect(result.temperature).toBe(0.7);
+            expect(result).toEqual({
+                model: "deepseek-chat",
+                prompt: "请续写：",
+                max_tokens: 100,
+                temperature: 0.7,
+                top_p: 1,
+                presence_penalty: 0,
+                frequency_penalty: 0,
+                logit_bias: null,
+            });
         });
 
         it("1.2 应正确处理suffix参数(FIM模式)", async () => {
@@ -34,8 +39,17 @@ describe("LaM-Manager InstructTask DeepseekText Formatter", () => {
                 tokensizerType: "deepseek",
             }) as OpenAITextRequest;
 
-            expect(result).toBeDefined();
-            expect(result.suffix).toBe("\n    return 'world'");
+            expect(result).toEqual({
+                model: "deepseek-chat",
+                prompt: "def hello():",
+                max_tokens: 100,
+                temperature: 0.7,
+                top_p: 1,
+                presence_penalty: 0,
+                frequency_penalty: 0,
+                logit_bias: null,
+                suffix: "\n    return 'world'",
+            });
         });
 
         it("1.3 应正确处理prefix参数", async () => {
@@ -49,7 +63,17 @@ describe("LaM-Manager InstructTask DeepseekText Formatter", () => {
                 tokensizerType: "deepseek",
             }) as OpenAITextRequest;
 
-            expect(result).toBeDefined();
+            expect(result).toEqual({
+                model: "deepseek-chat",
+                prompt: "请续写：",
+                max_tokens: 100,
+                temperature: 0.7,
+                top_p: 1,
+                presence_penalty: 0,
+                frequency_penalty: 0,
+                logit_bias: null,
+                prefix: "输出：",
+            });
         });
 
         it("1.4 应正确处理stop参数", async () => {
@@ -63,8 +87,17 @@ describe("LaM-Manager InstructTask DeepseekText Formatter", () => {
                 tokensizerType: "deepseek",
             }) as OpenAITextRequest;
 
-            expect(result).toBeDefined();
-            expect(result.stop).toEqual(["\n"]);
+            expect(result).toEqual({
+                model: "deepseek-chat",
+                prompt: "请续写：",
+                max_tokens: 100,
+                temperature: 0.7,
+                top_p: 1,
+                presence_penalty: 0,
+                frequency_penalty: 0,
+                logit_bias: null,
+                stop: ["\n"],
+            });
         });
 
         it("1.5 应对空prompt返回undefined", async () => {
@@ -103,8 +136,13 @@ describe("LaM-Manager InstructTask DeepseekText Formatter", () => {
             const mockResp = MockResponseFactory.createOpenAITextResponse();
             const result = formatter.formatResp(mockResp);
 
-            expect(result.vaild).toBe(true);
-            expect(result.choices.length).toBeGreaterThan(0);
+            expect(result).toEqual({
+                vaild: true,
+                choices: [
+                    { content: "您好，有什么需要帮助的吗？" },
+                    { content: "您好，有什么需要帮助的吗？" },
+                ],
+            });
         });
 
         it("2.2 应正确处理空响应", () => {

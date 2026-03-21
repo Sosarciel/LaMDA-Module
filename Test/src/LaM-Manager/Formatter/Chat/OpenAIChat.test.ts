@@ -14,12 +14,24 @@ describe("LaM-Manager ChatTask OpenAIChat Formatter", () => {
                 tokensizerType: "cl100k_base",
             }) as OpenAIChatRequest;
 
-            expect(result).toBeDefined();
-            expect(result.model).toBe("gpt-3.5-turbo");
-            expect(result.messages).toBeDefined();
-            expect(result.messages?.length).toBeGreaterThan(0);
-            expect(result.max_completion_tokens).toBe(100);
-            expect(result.temperature).toBe(1);
+            expect(result).toEqual({
+                model: "gpt-3.5-turbo",
+                messages: [
+                    { role: "system", content: "系统描述" },
+                    { role: "system", content: "user:" },
+                    { role: "user", content: "你好" },
+                    { role: "system", content: "assistant:" },
+                    { role: "assistant", content: "你好！" },
+                    { role: "system", content: "assistant:" },
+                ],
+                max_completion_tokens: 100,
+                temperature: 1,
+                top_p: 1,
+                n: 1,
+                presence_penalty: 0,
+                frequency_penalty: 0,
+                logit_bias: null,
+            });
         });
 
         it("1.2 应正确处理hint提示", async () => {
@@ -32,12 +44,24 @@ describe("LaM-Manager ChatTask OpenAIChat Formatter", () => {
                 tokensizerType: "cl100k_base",
             }) as OpenAIChatRequest;
 
-            expect(result).toBeDefined();
-            expect(result.messages).toBeDefined();
-            const hasHint = result.messages!.some(m => 
-                typeof m.content === 'string' && m.content.includes("(继续)")
-            );
-            expect(hasHint).toBe(true);
+            expect(result).toEqual({
+                model: "gpt-3.5-turbo",
+                messages: [
+                    { role: "system", content: "系统描述" },
+                    { role: "system", content: "user:" },
+                    { role: "user", content: "你好" },
+                    { role: "system", content: "assistant:" },
+                    { role: "assistant", content: "你好！" },
+                    { role: "system", content: "assistant: (继续)" },
+                ],
+                max_completion_tokens: 100,
+                temperature: 1,
+                top_p: 1,
+                n: 1,
+                presence_penalty: 0,
+                frequency_penalty: 0,
+                logit_bias: null,
+            });
         });
 
         it("1.3 应正确处理think_budget参数", async () => {
@@ -50,8 +74,25 @@ describe("LaM-Manager ChatTask OpenAIChat Formatter", () => {
                 tokensizerType: "cl100k_base",
             }) as OpenAIChatRequest;
 
-            expect(result).toBeDefined();
-            expect(result.reasoning_effort).toBe(OpenAIThinkMap["hig"]);
+            expect(result).toEqual({
+                model: "gpt-3.5-turbo",
+                messages: [
+                    { role: "system", content: "系统描述" },
+                    { role: "system", content: "user:" },
+                    { role: "user", content: "你好" },
+                    { role: "system", content: "assistant:" },
+                    { role: "assistant", content: "你好！" },
+                    { role: "system", content: "assistant:" },
+                ],
+                max_completion_tokens: 100,
+                temperature: 1,
+                top_p: 1,
+                n: 1,
+                presence_penalty: 0,
+                frequency_penalty: 0,
+                logit_bias: null,
+                reasoning_effort: OpenAIThinkMap["hig"],
+            });
         });
 
         it("1.4 应正确处理GPT-5及以上版本的think_budget", async () => {
@@ -64,8 +105,25 @@ describe("LaM-Manager ChatTask OpenAIChat Formatter", () => {
                 tokensizerType: "cl100k_base",
             }) as OpenAIChatRequest;
 
-            expect(result).toBeDefined();
-            expect(result.reasoning_effort).toBe("minimal");
+            expect(result).toEqual({
+                model: "gpt-5-chat",
+                messages: [
+                    { role: "system", content: "系统描述" },
+                    { role: "system", content: "user:" },
+                    { role: "user", content: "你好" },
+                    { role: "system", content: "assistant:" },
+                    { role: "assistant", content: "你好！" },
+                    { role: "system", content: "assistant:" },
+                ],
+                max_completion_tokens: 100,
+                temperature: 1,
+                top_p: 1,
+                n: 1,
+                presence_penalty: 0,
+                frequency_penalty: 0,
+                logit_bias: null,
+                reasoning_effort: "minimal",
+            });
         });
 
         it("1.5 应对o系列模型禁用stop参数", async () => {
@@ -78,8 +136,24 @@ describe("LaM-Manager ChatTask OpenAIChat Formatter", () => {
                 tokensizerType: "cl100k_base",
             }) as OpenAIChatRequest;
 
-            expect(result).toBeDefined();
-            expect(result.stop).toBeUndefined();
+            expect(result).toEqual({
+                model: "o1-preview",
+                messages: [
+                    { role: "system", content: "系统描述" },
+                    { role: "system", content: "user:" },
+                    { role: "user", content: "你好" },
+                    { role: "system", content: "assistant:" },
+                    { role: "assistant", content: "你好！" },
+                    { role: "system", content: "assistant:" },
+                ],
+                max_completion_tokens: 100,
+                temperature: 1,
+                top_p: 1,
+                n: 1,
+                presence_penalty: 0,
+                frequency_penalty: 0,
+                logit_bias: null,
+            });
         });
 
         it("1.6 应对o系列模型禁用presence_penalty和frequency_penalty", async () => {
@@ -93,9 +167,22 @@ describe("LaM-Manager ChatTask OpenAIChat Formatter", () => {
                 tokensizerType: "cl100k_base",
             }) as OpenAIChatRequest;
 
-            expect(result).toBeDefined();
-            expect(result.presence_penalty).toBeUndefined();
-            expect(result.frequency_penalty).toBeUndefined();
+            expect(result).toEqual({
+                model: "o1-preview",
+                messages: [
+                    { role: "system", content: "系统描述" },
+                    { role: "system", content: "user:" },
+                    { role: "user", content: "你好" },
+                    { role: "system", content: "assistant:" },
+                    { role: "assistant", content: "你好！" },
+                    { role: "system", content: "assistant:" },
+                ],
+                max_completion_tokens: 100,
+                temperature: 1,
+                top_p: 1,
+                n: 1,
+                logit_bias: null,
+            });
         });
 
         it("1.7 应对空messages返回undefined", async () => {
@@ -157,8 +244,12 @@ describe("LaM-Manager ChatTask OpenAIChat Formatter", () => {
                 messages,
                 hint: ' (继续)',
             });
+            console.log(result);
 
-            expect(result[result.length - 1].content).toContain('(继续)');
+            expect(result).toEqual([
+                { role: 'system', content: 'user:' },
+                { role: 'user', content: '你好 (继续)' },
+            ]);
         });
     });
 
@@ -167,8 +258,13 @@ describe("LaM-Manager ChatTask OpenAIChat Formatter", () => {
             const mockResp = MockResponseFactory.createOpenAIChatResponse();
             const result = formatter.formatResp(mockResp);
 
-            expect(result.vaild).toBe(true);
-            expect(result.choices.length).toBeGreaterThan(0);
+            expect(result).toEqual({
+                vaild: true,
+                choices: [
+                    { content: "您好，有什么需要帮助的吗？" },
+                    { content: "您好，有什么需要帮助的吗？" },
+                ],
+            });
         });
 
         it("3.2 应正确处理空响应", () => {

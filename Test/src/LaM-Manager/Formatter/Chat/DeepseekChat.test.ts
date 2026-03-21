@@ -14,12 +14,22 @@ describe("LaM-Manager ChatTask DeepseekChat Formatter", () => {
                 tokensizerType: "deepseek",
             }) as DeepseekRequest;
 
-            expect(result).toBeDefined();
-            expect(result.model).toBe("deepseek-chat");
-            expect(result.messages).toBeDefined();
-            expect(result.messages!.length).toBeGreaterThan(0);
-            expect(result.max_tokens).toBe(100);
-            expect(result.temperature).toBe(1);
+            expect(result).toEqual({
+                model: "deepseek-chat",
+                messages: [
+                    { role: "system", content: "系统描述" },
+                    { role: "system", content: "user:" },
+                    { role: "user", content: "你好" },
+                    { role: "system", content: "assistant:" },
+                    { role: "assistant", content: "你好！" },
+                    { role: "system", content: "assistant:" },
+                ],
+                max_tokens: 100,
+                temperature: 1,
+                top_p: 1,
+                presence_penalty: 0,
+                frequency_penalty: 0,
+            });
         });
 
         it("1.2 应正确处理hint提示", async () => {
@@ -32,12 +42,23 @@ describe("LaM-Manager ChatTask DeepseekChat Formatter", () => {
                 tokensizerType: "deepseek",
             }) as DeepseekRequest;
 
-            expect(result).toBeDefined();
-            expect(result.messages).toBeDefined();
-            const hasHint = result.messages!.some(m => 
-                typeof m.content === 'string' && m.content.includes("(继续)")
-            );
-            expect(hasHint).toBe(true);
+            expect(result).toEqual({
+                model: "deepseek-chat",
+                messages: [
+                    { role: "system", content: "系统描述" },
+                    { role: "system", content: "user:" },
+                    { role: "user", content: "你好" },
+                    { role: "system", content: "assistant:" },
+                    { role: "assistant", content: "你好！ (继续)" },
+                    { role: "system", content: "assistant:" },
+                ],
+                max_tokens: 100,
+                temperature: 1,
+                top_p: 1,
+                presence_penalty: 0,
+                frequency_penalty: 0,
+                stop:undefined
+            });
         });
 
         it("1.3 应正确处理stop参数", async () => {
@@ -50,8 +71,23 @@ describe("LaM-Manager ChatTask DeepseekChat Formatter", () => {
                 tokensizerType: "deepseek",
             }) as DeepseekRequest;
 
-            expect(result).toBeDefined();
-            expect(result.stop).toEqual(["\n"]);
+            expect(result).toEqual({
+                model: "deepseek-chat",
+                messages: [
+                    { role: "system", content: "系统描述" },
+                    { role: "system", content: "user:" },
+                    { role: "user", content: "你好" },
+                    { role: "system", content: "assistant:" },
+                    { role: "assistant", content: "你好！" },
+                    { role: "system", content: "assistant:" },
+                ],
+                max_tokens: 100,
+                temperature: 1,
+                top_p: 1,
+                presence_penalty: 0,
+                frequency_penalty: 0,
+                stop: ["\n"],
+            });
         });
 
         it("1.4 应正确处理presence_penalty和frequency_penalty", async () => {
@@ -65,9 +101,22 @@ describe("LaM-Manager ChatTask DeepseekChat Formatter", () => {
                 tokensizerType: "deepseek",
             }) as DeepseekRequest;
 
-            expect(result).toBeDefined();
-            expect(result.presence_penalty).toBe(0.5);
-            expect(result.frequency_penalty).toBe(0.3);
+            expect(result).toEqual({
+                model: "deepseek-chat",
+                messages: [
+                    { role: "system", content: "系统描述" },
+                    { role: "system", content: "user:" },
+                    { role: "user", content: "你好" },
+                    { role: "system", content: "assistant:" },
+                    { role: "assistant", content: "你好！" },
+                    { role: "system", content: "assistant:" },
+                ],
+                max_tokens: 100,
+                temperature: 1,
+                top_p: 1,
+                presence_penalty: 0.5,
+                frequency_penalty: 0.3,
+            });
         });
 
         it("1.5 应对空messages返回undefined", async () => {
@@ -126,8 +175,10 @@ describe("LaM-Manager ChatTask DeepseekChat Formatter", () => {
             const mockResp = MockResponseFactory.createDeepseekResponse();
             const result = formatter.formatResp(mockResp);
 
-            expect(result.vaild).toBe(true);
-            expect(result.choices.length).toBeGreaterThan(0);
+            expect(result).toEqual({
+                vaild: true,
+                choices: [{ content: "你好，有什么需要帮助的吗？" }],
+            });
         });
 
         it("3.2 应正确处理空响应", () => {

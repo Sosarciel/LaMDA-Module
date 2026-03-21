@@ -14,12 +14,15 @@ describe("LaM-Manager ChatTask DeepseekText Formatter", () => {
                 tokensizerType: "deepseek",
             }) as OpenAITextRequest;
 
-            expect(result).toBeDefined();
-            expect(result.model).toBe("deepseek-chat");
-            expect(result.prompt).toBeDefined();
-            expect(typeof result.prompt).toBe("string");
-            expect(result.max_tokens).toBe(100);
-            expect(result.temperature).toBe(1);
+            expect(result).toEqual({
+                model: "deepseek-chat",
+                prompt: "系统描述\nuser:你好\nassistant:你好！\nassistant:",
+                max_tokens: 100,
+                temperature: 1,
+                top_p: 1,
+                presence_penalty: 0,
+                frequency_penalty: 0,
+            });
         });
 
         it("1.2 应正确处理hint提示", async () => {
@@ -32,8 +35,15 @@ describe("LaM-Manager ChatTask DeepseekText Formatter", () => {
                 tokensizerType: "deepseek",
             }) as OpenAITextRequest;
 
-            expect(result).toBeDefined();
-            expect(result.prompt).toContain("(继续)");
+            expect(result).toEqual({
+                model: "deepseek-chat",
+                prompt: "系统描述\nuser:你好\nassistant:你好！ (继续)\nassistant:",
+                max_tokens: 100,
+                temperature: 1,
+                top_p: 1,
+                presence_penalty: 0,
+                frequency_penalty: 0,
+            });
         });
 
         it("1.3 应正确处理stop参数", async () => {
@@ -46,8 +56,16 @@ describe("LaM-Manager ChatTask DeepseekText Formatter", () => {
                 tokensizerType: "deepseek",
             }) as OpenAITextRequest;
 
-            expect(result).toBeDefined();
-            expect(result.stop).toEqual(["\n"]);
+            expect(result).toEqual({
+                model: "deepseek-chat",
+                prompt: "系统描述\nuser:你好\nassistant:你好！\nassistant:",
+                max_tokens: 100,
+                temperature: 1,
+                top_p: 1,
+                presence_penalty: 0,
+                frequency_penalty: 0,
+                stop: ["\n"],
+            });
         });
 
         it("1.4 应对空messages返回undefined", async () => {
@@ -90,8 +108,7 @@ describe("LaM-Manager ChatTask DeepseekText Formatter", () => {
                 messages,
             });
 
-            expect(result).toContain('系统描述');
-            expect(result).toContain('user:你好');
+            expect(result).toBe("系统描述\nuser:你好");
         });
     });
 
@@ -100,8 +117,13 @@ describe("LaM-Manager ChatTask DeepseekText Formatter", () => {
             const mockResp = MockResponseFactory.createOpenAITextResponse();
             const result = formatter.formatResp(mockResp);
 
-            expect(result.vaild).toBe(true);
-            expect(result.choices.length).toBeGreaterThan(0);
+            expect(result).toEqual({
+                vaild: true,
+                choices: [
+                    { content: "您好，有什么需要帮助的吗？" },
+                    { content: "您好，有什么需要帮助的吗？" },
+                ],
+            });
         });
 
         it("3.2 应正确处理空响应", () => {

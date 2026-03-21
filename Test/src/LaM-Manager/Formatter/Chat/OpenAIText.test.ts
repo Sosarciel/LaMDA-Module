@@ -14,12 +14,17 @@ describe("LaM-Manager ChatTask OpenAIText Formatter", () => {
                 tokensizerType: "cl100k_base",
             }) as OpenAITextRequest;
 
-            expect(result).toBeDefined();
-            expect(result.model).toBe("gpt-3.5-turbo-instruct");
-            expect(result.prompt).toBeDefined();
-            expect(typeof result.prompt).toBe("string");
-            expect(result.max_tokens).toBe(100);
-            expect(result.temperature).toBe(1);
+            expect(result).toEqual({
+                model: "gpt-3.5-turbo-instruct",
+                prompt: "系统描述\nuser:你好\nassistant:你好！\nassistant:",
+                max_tokens: 100,
+                temperature: 1,
+                top_p: 1,
+                n: 1,
+                presence_penalty: 0,
+                frequency_penalty: 0,
+                logit_bias: null,
+            });
         });
 
         it("1.2 应正确处理hint提示", async () => {
@@ -32,8 +37,17 @@ describe("LaM-Manager ChatTask OpenAIText Formatter", () => {
                 tokensizerType: "cl100k_base",
             }) as OpenAITextRequest;
 
-            expect(result).toBeDefined();
-            expect(result.prompt).toContain("(继续)");
+            expect(result).toEqual({
+                model: "gpt-3.5-turbo-instruct",
+                prompt: "系统描述\nuser:你好\nassistant:你好！ (继续)\nassistant:",
+                max_tokens: 100,
+                temperature: 1,
+                top_p: 1,
+                n: 1,
+                presence_penalty: 0,
+                frequency_penalty: 0,
+                logit_bias: null,
+            });
         });
 
         it("1.3 应正确处理stop参数", async () => {
@@ -46,8 +60,18 @@ describe("LaM-Manager ChatTask OpenAIText Formatter", () => {
                 tokensizerType: "cl100k_base",
             }) as OpenAITextRequest;
 
-            expect(result).toBeDefined();
-            expect(result.stop).toEqual(["\n", "END"]);
+            expect(result).toEqual({
+                model: "gpt-3.5-turbo-instruct",
+                prompt: "系统描述\nuser:你好\nassistant:你好！\nassistant:",
+                max_tokens: 100,
+                temperature: 1,
+                top_p: 1,
+                n: 1,
+                presence_penalty: 0,
+                frequency_penalty: 0,
+                logit_bias: null,
+                stop: ["\n", "END"],
+            });
         });
 
         it("1.4 应对空messages返回undefined", async () => {
@@ -91,9 +115,7 @@ describe("LaM-Manager ChatTask OpenAIText Formatter", () => {
                 messages,
             });
 
-            expect(result).toContain('系统描述');
-            expect(result).toContain('user:你好');
-            expect(result).toContain('assistant:你好！');
+            expect(result).toBe("系统描述\nuser:你好\nassistant:你好！");
         });
 
         it("2.2 应正确处理只有desc消息的情况", () => {
@@ -125,8 +147,13 @@ describe("LaM-Manager ChatTask OpenAIText Formatter", () => {
             const mockResp = MockResponseFactory.createOpenAITextResponse();
             const result = formatter.formatResp(mockResp);
 
-            expect(result.vaild).toBe(true);
-            expect(result.choices.length).toBeGreaterThan(0);
+            expect(result).toEqual({
+                vaild: true,
+                choices: [
+                    { content: "您好，有什么需要帮助的吗？" },
+                    { content: "您好，有什么需要帮助的吗？" },
+                ],
+            });
         });
 
         it("4.2 应正确处理空响应", () => {

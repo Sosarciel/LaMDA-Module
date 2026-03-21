@@ -16,11 +16,17 @@ describe("LaM-Manager InstructTask OpenAIText Formatter", () => {
                 tokensizerType: "cl100k_base",
             }) as OpenAITextRequest;
 
-            expect(result).toBeDefined();
-            expect(result.model).toBe("gpt-3.5-turbo-instruct");
-            expect(result.prompt).toBeDefined();
-            expect(result.max_tokens).toBe(100);
-            expect(result.temperature).toBe(0.7);
+            expect(result).toEqual({
+                model: "gpt-3.5-turbo-instruct",
+                prompt: "请续写：",
+                max_tokens: 100,
+                temperature: 0.7,
+                top_p: 1,
+                n: 1,
+                presence_penalty: 0,
+                frequency_penalty: 0,
+                logit_bias: null,
+            });
         });
 
         it("1.2 应正确处理suffix参数", async () => {
@@ -34,8 +40,18 @@ describe("LaM-Manager InstructTask OpenAIText Formatter", () => {
                 tokensizerType: "cl100k_base",
             }) as OpenAITextRequest;
 
-            expect(result).toBeDefined();
-            expect(result.suffix).toBe("\n    return 'world'");
+            expect(result).toEqual({
+                model: "gpt-3.5-turbo-instruct",
+                prompt: "def hello():",
+                max_tokens: 100,
+                temperature: 0.7,
+                top_p: 1,
+                n: 1,
+                presence_penalty: 0,
+                frequency_penalty: 0,
+                logit_bias: null,
+                suffix: "\n    return 'world'",
+            });
         });
 
         it("1.3 应正确处理stop参数", async () => {
@@ -49,8 +65,18 @@ describe("LaM-Manager InstructTask OpenAIText Formatter", () => {
                 tokensizerType: "cl100k_base",
             }) as OpenAITextRequest;
 
-            expect(result).toBeDefined();
-            expect(result.stop).toEqual(["\n", "END"]);
+            expect(result).toEqual({
+                model: "gpt-3.5-turbo-instruct",
+                prompt: "请续写：",
+                max_tokens: 100,
+                temperature: 0.7,
+                top_p: 1,
+                n: 1,
+                presence_penalty: 0,
+                frequency_penalty: 0,
+                logit_bias: null,
+                stop: ["\n", "END"],
+            });
         });
 
         it("1.4 应正确处理logprobs参数", async () => {
@@ -64,8 +90,18 @@ describe("LaM-Manager InstructTask OpenAIText Formatter", () => {
                 tokensizerType: "cl100k_base",
             }) as OpenAITextRequest;
 
-            expect(result).toBeDefined();
-            expect(result.logprobs).toBe(5);
+            expect(result).toEqual({
+                model: "gpt-3.5-turbo-instruct",
+                prompt: "请续写：",
+                max_tokens: 100,
+                temperature: 0.7,
+                top_p: 1,
+                n: 1,
+                presence_penalty: 0,
+                frequency_penalty: 0,
+                logit_bias: null,
+                logprobs: 5,
+            });
         });
 
         it("1.5 应正确处理echo参数", async () => {
@@ -79,8 +115,18 @@ describe("LaM-Manager InstructTask OpenAIText Formatter", () => {
                 tokensizerType: "cl100k_base",
             }) as OpenAITextRequest;
 
-            expect(result).toBeDefined();
-            expect(result.echo).toBe(true);
+            expect(result).toEqual({
+                model: "gpt-3.5-turbo-instruct",
+                prompt: "请续写：",
+                max_tokens: 100,
+                temperature: 0.7,
+                top_p: 1,
+                n: 1,
+                presence_penalty: 0,
+                frequency_penalty: 0,
+                logit_bias: null,
+                echo: true,
+            });
         });
 
         it("1.6 应对空prompt返回undefined", async () => {
@@ -102,8 +148,13 @@ describe("LaM-Manager InstructTask OpenAIText Formatter", () => {
             const mockResp = MockResponseFactory.createOpenAITextResponse();
             const result = formatter.formatResp(mockResp);
 
-            expect(result.vaild).toBe(true);
-            expect(result.choices.length).toBeGreaterThan(0);
+            expect(result).toEqual({
+                vaild: true,
+                choices: [
+                    { content: "您好，有什么需要帮助的吗？" },
+                    { content: "您好，有什么需要帮助的吗？" },
+                ],
+            });
         });
 
         it("2.2 应正确处理空响应", () => {

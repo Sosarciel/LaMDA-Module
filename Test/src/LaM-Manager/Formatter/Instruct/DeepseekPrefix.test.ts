@@ -16,11 +16,18 @@ describe("LaM-Manager InstructTask DeepseekPrefix Formatter", () => {
                 tokensizerType: "deepseek",
             }) as DeepseekRequest;
 
-            expect(result).toBeDefined();
-            expect(result.model).toBe("deepseek-chat");
-            expect(result.messages).toBeDefined();
-            expect(result.max_tokens).toBe(100);
-            expect(result.temperature).toBe(0.7);
+            expect(result).toEqual({
+                model: "deepseek-chat",
+                messages: [
+                    { role: "user", content: "请续写：" },
+                    { role: "assistant", content: "", prefix: true },
+                ],
+                max_tokens: 100,
+                temperature: 0.7,
+                top_p: 1,
+                presence_penalty: 0,
+                frequency_penalty: 0,
+            });
         });
 
         it("1.2 应正确处理prefix参数作为用户消息", async () => {
@@ -34,11 +41,18 @@ describe("LaM-Manager InstructTask DeepseekPrefix Formatter", () => {
                 tokensizerType: "deepseek",
             }) as DeepseekRequest;
 
-            expect(result).toBeDefined();
-            expect(result.messages).toBeDefined();
-            const lastMessage = result.messages![result.messages!.length - 1];
-            expect(lastMessage.role).toBe("assistant");
-            expect(lastMessage.content).toContain("用户输入前缀");
+            expect(result).toEqual({
+                model: "deepseek-chat",
+                messages: [
+                    { role: "user", content: "系统提示内容" },
+                    { role: "assistant", content: "用户输入前缀", prefix: true },
+                ],
+                max_tokens: 100,
+                temperature: 0.7,
+                top_p: 1,
+                presence_penalty: 0,
+                frequency_penalty: 0,
+            });
         });
 
         it("1.3 应正确处理stop参数", async () => {
@@ -52,8 +66,19 @@ describe("LaM-Manager InstructTask DeepseekPrefix Formatter", () => {
                 tokensizerType: "deepseek",
             }) as DeepseekRequest;
 
-            expect(result).toBeDefined();
-            expect(result.stop).toEqual(["\n"]);
+            expect(result).toEqual({
+                model: "deepseek-chat",
+                messages: [
+                    { role: "user", content: "请续写：" },
+                    { role: "assistant", content: "", prefix: true },
+                ],
+                max_tokens: 100,
+                temperature: 0.7,
+                top_p: 1,
+                presence_penalty: 0,
+                frequency_penalty: 0,
+                stop: ["\n"],
+            });
         });
 
         it("1.4 应对空prompt返回undefined", async () => {
@@ -92,16 +117,20 @@ describe("LaM-Manager InstructTask DeepseekPrefix Formatter", () => {
             const mockResp = MockResponseFactory.createDeepseekResponse();
             const result = formatter.formatResp(mockResp);
 
-            expect(result.vaild).toBe(true);
-            expect(result.choices.length).toBeGreaterThan(0);
+            expect(result).toEqual({
+                vaild: true,
+                choices: [{ content: "你好，有什么需要帮助的吗？" }],
+            });
         });
 
         it("2.2 应正确处理空响应", () => {
             const mockResp = MockResponseFactory.createDeepseekResponse({ choices: [] });
             const result = formatter.formatResp(mockResp);
 
-            expect(result.vaild).toBe(true);
-            expect(result.choices).toEqual([]);
+            expect(result).toEqual({
+                vaild: true,
+                choices: [],
+            });
         });
 
         it("2.3 应正确处理多选项响应", () => {

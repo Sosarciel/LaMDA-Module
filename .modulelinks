@@ -13,6 +13,9 @@
 [submodule "Service-Manager/Translation-Manager"]
 	path = Service-Manager/Translation-Manager
 	url = https://github.com/Sosarciel/LaMDA-Translation-Manager.git
+[submodule "Service-Manager/KnowledgeBase-Manager"]
+	path = Service-Manager/KnowledgeBase-Manager
+	url = https://github.com/Sosarciel/LaMDA-KnowledgeBase-Manager.git
 [submodule "CommPlatform-ProtoClient/OneBot11-ProtoClient"]
 	path = CommPlatform-ProtoClient/OneBot11-ProtoClient
 	url = https://github.com/Sosarciel/LaMDA-OneBot11-ProtoClient.git

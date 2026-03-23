@@ -45,24 +45,6 @@ foreach ($submodule in $submodules) {
         Write-Host "  -> 正在克隆..." -ForegroundColor Cyan
         git clone --depth=1 $url $path
     }
-
-    # === 2. 本地 Exclude 配置逻辑 ===
-    # 强制在路径后加斜杠，代表忽略整个目录
-    $ignoreRule = "$path/"
-
-    # 构造正则，防止路径本身含有特殊符号导致匹配失败。同时兼容带斜杠和不带斜杠的历史写入。
-    $patternWithSlash = "^$([regex]::Escape($ignoreRule))$"
-    $patternNoSlash = "^$([regex]::Escape($path))$"
-
-    $isExcluded = Select-String -Path $excludePath -Pattern $patternWithSlash -Quiet
-    $isExcludedNoSlash = Select-String -Path $excludePath -Pattern $patternNoSlash -Quiet
-
-    if (-Not $isExcluded -and -Not $isExcludedNoSlash) {
-        Write-Host "  -> 正在将 $path 追加到 .git/info/exclude" -ForegroundColor Cyan
-        Add-Content -Path $excludePath -Value $ignoreRule -Encoding UTF8
-    } else {
-        Write-Host "  -> 已存在 exclude 规则，跳过写入。" -ForegroundColor DarkGray
-    }
 }
 
-Write-Host "`n所有模块初始化与忽略配置完毕！" -ForegroundColor Green
+Write-Host "`n所有模块初始化完毕！" -ForegroundColor Green

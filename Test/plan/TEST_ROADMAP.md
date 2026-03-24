@@ -1,3 +1,6 @@
+---
+aliases: [LaMDA-Module 测试路线图]
+---
 # LaMDA-Module 测试路线图
 
 ## 概述

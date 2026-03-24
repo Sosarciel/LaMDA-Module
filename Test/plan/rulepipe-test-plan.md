@@ -1,3 +1,6 @@
+---
+aliases: [RulePipe 改进与测试计划]
+---
 # RulePipe 改进与测试计划
 
 ## 一、当前状态分析

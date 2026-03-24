@@ -1,3 +1,6 @@
+---
+aliases: [TTS-Manager 与 Translation-Manager 测试计划]
+---
 # TTS-Manager 与 Translation-Manager 测试计划
 
 ## 模块分析

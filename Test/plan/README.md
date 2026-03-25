@@ -11,7 +11,7 @@ aliases: [Test 测试计划索引]
 ```base
 filters:
   and:
-    - file.path.startsWith("LaMDA-Module/Test/plan")
+    - file.folder == "LaMDA-Module/Test/plan"
     - file.name != "README"
 views:
   - type: table

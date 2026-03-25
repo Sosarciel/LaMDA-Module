@@ -7,6 +7,7 @@
         "./Service-Manager/CommApi-Manager",
         "./Service-Manager/TTS-Manager",
         "./Service-Manager/Translation-Manager",
+        "./Service-Manager/KnowledgeBase-Manager",
         "./Business-Domain/Dialog-Domain",
         "./Business-Domain/CharProfile-Domain",
         "./Common-Utility/Text-Processor",

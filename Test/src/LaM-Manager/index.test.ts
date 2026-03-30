@@ -2,7 +2,7 @@ import { CredManager, LaMManager } from "@sosraciel-lamda/lam-manager";
 import { LaMManagerMockServer, LaMManagerMockTool } from "@sosraciel-lamda/lam-manager/mock";
 import { UtilFT } from "@zwa73/utils";
 import path from 'pathe';
-import { CACHE_PATH } from "@/src/Constant";
+import { CACHE_PATH, LAM_PORT } from "@/src/Constant";
 
 
 const getHttpModuleData = async (instanceName:string)=>{
@@ -13,7 +13,10 @@ const getHttpModuleData = async (instanceName:string)=>{
     return null;
 }
 
-const server: LaMManagerMockServer = new LaMManagerMockServer(3000);
+/** Mock 服务配置表 (使用自定义端口) */
+const MOCK_CRED_CATEGORY_TABLE = LaMManagerMockTool.getMockCredCategoryTable(LAM_PORT);
+
+const server: LaMManagerMockServer = new LaMManagerMockServer(LAM_PORT);
 
 beforeAll(async () => {
     await server.start();
@@ -30,7 +33,7 @@ beforeAll(async () => {
 
     await UtilFT.writeJSONFile(LaMServiceTablePath, LaMManagerMockTool.MOCK_LAM_SERVICE_TABLE);
     await UtilFT.writeJSONFile(CredServiceTablePath, LaMManagerMockTool.MOCK_CRED_SERVICE_TABLE);
-    await UtilFT.writeJSONFile(CredCategoryTablePath, LaMManagerMockTool.MOCK_CRED_CATEGORY_TABLE);
+    await UtilFT.writeJSONFile(CredCategoryTablePath, MOCK_CRED_CATEGORY_TABLE);
 
     LaMManager.initInject({
         serviceTable: LaMServiceTablePath,

@@ -10,19 +10,21 @@ import { KBMockServer } from "@sosraciel-lamda/knowledgebase-manager/mock";
 import {
     KBMockTool
 } from "@sosraciel-lamda/knowledgebase-manager/mock";
-import { CACHE_PATH } from "@/src/Constant";
+import { CACHE_PATH, KB_PORT } from "@/src/Constant";
+
 
 const {
     MOCK_KNOWLEDGE_BASE,
     MOCK_DOCUMENT,
     MOCK_SEGMENT,
-    MOCK_KB_SERVICE_TABLE,
-    MOCK_PORT,
 } = KBMockTool;
+
+/** Mock 服务配置表 (使用自定义端口) */
+const MOCK_KB_SERVICE_TABLE = KBMockTool.getMockKBServiceTable(KB_PORT);
 
 // #region 测试套件
 
-const server = new KBMockServer(MOCK_PORT);
+const server = new KBMockServer(KB_PORT);
 
 beforeAll(async () => {
     await server.start();

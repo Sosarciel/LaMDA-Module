@@ -1,6 +1,6 @@
 import { DBManager } from "@sosraciel-lamda/postgresql-manager";
 import { TableInitializer, MockTableAccesser, PostgreSQLMockTool, TestDBRow, createMockJsonDataCacheCoordinator, createMockCacheCoordinator } from "@sosraciel-lamda/postgresql-manager/mock";
-import { PG_PORT } from "../Constant";
+import { PG_PORT } from "@/src/Constant";
 
 const { MOCK_TABLE_NAME, MOCK_ID_FIELD } = PostgreSQLMockTool;
 

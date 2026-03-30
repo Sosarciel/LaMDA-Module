@@ -1,5 +1,6 @@
 import { DBManager } from "@sosraciel-lamda/postgresql-manager";
 import { TableInitializer, MockTableAccesser, PostgreSQLMockTool, TestDBRow, createMockJsonDataCacheCoordinator, createMockCacheCoordinator } from "@sosraciel-lamda/postgresql-manager/mock";
+import { PG_PORT } from "../Constant";
 
 const { MOCK_TABLE_NAME, MOCK_ID_FIELD } = PostgreSQLMockTool;
 
@@ -10,7 +11,7 @@ describe("PostgresSQL-Manager 模拟表测试", () => {
 
     beforeAll(async () => {
         manager = await DBManager.create({
-            port: 5433,
+            port: PG_PORT,
             user: "postgres",
             database: "postgres",
             host: "localhost",

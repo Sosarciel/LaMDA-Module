@@ -11,6 +11,7 @@
         "./Business-Domain/Dialog-Domain",
         "./Business-Domain/CharProfile-Domain",
         "./Common-Utility/Text-Processor",
+        "./Data-Store/Dialog-Store",
         "./Test"
     ],
     "dependencies": {

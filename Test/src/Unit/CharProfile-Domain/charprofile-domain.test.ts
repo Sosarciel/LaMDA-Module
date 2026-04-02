@@ -3,13 +3,12 @@ import { CharProfile, CharAccesser, CharConstant } from "@sosraciel-lamda/charpr
 import type { CharOption } from "@sosraciel-lamda/charprofile-domain";
 import fs from "fs";
 import path from "pathe";
+import { DATA_PATH } from "@/src/Constant";
 
-/**测试数据目录 (注意：CharAccesser内部会拼接character，所以这里只需要到data层) */
-const TEST_DATA_DIR = path.resolve(__dirname, "../../data");
 
 /**确保测试数据目录存在并清理旧数据（幂等） */
 const ensureTestDataDir = async () => {
-    const charDir = path.join(TEST_DATA_DIR, "character");
+    const charDir = path.join(DATA_PATH, "character");
     // 删除旧数据
     if (fs.existsSync(charDir)) {
         await fs.promises.rm(charDir, { recursive: true });
@@ -21,7 +20,7 @@ const ensureTestDataDir = async () => {
 /**复制mock角色数据到测试目录 */
 const copyMockCharacterData = async (charId: string) => {
     const sourceDir = CharProfileMockTool.getMockCharPath(charId as any);
-    const targetDir = path.join(TEST_DATA_DIR, "character", charId);
+    const targetDir = path.join(DATA_PATH, "character", charId);
     
     // 确保目标目录存在
     await fs.promises.mkdir(targetDir, { recursive: true });
@@ -61,7 +60,7 @@ const prepareAllTestData = async () => {
 
 /**创建测试角色选项 */
 const createTestCharOption = (charId: string): CharOption => ({
-    dataPath: TEST_DATA_DIR,
+    dataPath: DATA_PATH,
     charId
 });
 
@@ -69,7 +68,7 @@ describe("CharProfile-Domain 模块测试", () => {
     beforeAll(async () => {
         await prepareAllTestData();
         // 只初始化一次
-        CharProfile.initInject({ dataPath: TEST_DATA_DIR });
+        CharProfile.initInject({ dataPath: DATA_PATH });
     }, 30000);
 
     describe("CharAccesser 测试", () => {

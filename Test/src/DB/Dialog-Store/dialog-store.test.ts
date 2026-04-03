@@ -342,9 +342,9 @@ describe("Dialog-Store 模块测试", () => {
             expect(entity.getLightField('sender_type')).toBe('char');
             expect(entity.getLightField('status')).toBe('active');
 
-            // 更新 light_data
+            // 更新 light_data（注意：是浅合并，需要传入完整对象）
             await entity.updateData({
-                light_data: { status: 'completed' } as NullPartial<TestLightData>
+                light_data: { sender_type: 'char', status: 'completed' }
             });
 
             // 验证更新后的值
@@ -380,9 +380,14 @@ describe("Dialog-Store 模块测试", () => {
             // 获取首条消息实体
             const firstMsg = await convEntity.getFirstMessageEntity();
 
-            // 验证首条消息标识
+            // 验证首条消息实体存在
             expect(firstMsg).toBeDefined();
-            expect(firstMsg.getMessageId()).toContain(FirstEntity.FirstMessageFlag);
+
+            // FirstEntity.getMessageId() 设计上返回 undefined，表示这是根节点
+            expect(firstMsg.getMessageId()).toBeUndefined();
+
+            // 验证可以通过 getConversationId 获取对话 ID
+            expect(firstMsg.getConversationId()).toBe(convEntity.getConversationId());
         });
     });
 

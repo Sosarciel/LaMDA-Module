@@ -377,6 +377,10 @@ describe("Dialog-Store 模块测试", () => {
                 light_data: {}
             });
 
+            // 验证 getFirstMessageId 返回包含 flag 的真实 ID
+            const firstMessageId = convEntity.getFirstMessageId();
+            expect(firstMessageId).toContain(FirstEntity.FirstMessageFlag);
+
             // 获取首条消息实体
             const firstMsg = await convEntity.getFirstMessageEntity();
 
@@ -388,6 +392,11 @@ describe("Dialog-Store 模块测试", () => {
 
             // 验证可以通过 getConversationId 获取对话 ID
             expect(firstMsg.getConversationId()).toBe(convEntity.getConversationId());
+
+            // 验证 FirstEntity 被写入数据库
+            const dbFirstMsg = await DialogStore.getMessage(firstMessageId);
+            expect(dbFirstMsg).toBeDefined();
+            expect(dbFirstMsg?.data.message_id).toBe(firstMessageId);
         });
     });
 

@@ -134,7 +134,7 @@ describe("Dialog-Store 模块测试", () => {
     });
 
     describe("light_data/heavy_data 缓存同步测试", () => {
-        test("4. 应正确处理 light_data 的增量更新", async () => {
+        test("4. 应正确处理 light_data 的更新", async () => {
             const testConversation = createTestConversation<TestLightData, TestHeavyData>({
                 light_data: { sender_type: 'user', status: 'active' }
             });
@@ -147,27 +147,26 @@ describe("Dialog-Store 模块测试", () => {
 
             const updatedConversation = createTestConversation<TestLightData, TestHeavyData>({
                 conversation_id: testConversation.data.conversation_id,
-                light_data: { status: 'inactive' }
+                light_data: { sender_type: 'char', status: 'inactive' }
             });
             await DialogStore.setConversation(updatedConversation);
 
             await sleep(100);
 
             cachedData = DBCache.peekCache(cacheKey) as ConversationStruct<TestLightData, TestHeavyData> | undefined;
-            expect((cachedData?.data.light_data as TestLightData)?.sender_type).toBe('user');
+            expect((cachedData?.data.light_data as TestLightData)?.sender_type).toBe('char');
             expect((cachedData?.data.light_data as TestLightData)?.status).toBe('inactive');
         });
 
-        test("5. 应正确处理 heavy_data 的增量更新", async () => {
+        test("5. 应正确处理 heavy_data 的更新", async () => {
             const testConversation = createTestConversation<TestLightData, TestHeavyData>({
-                heavy_data: { translate_content_table: { en: 'Hello' }, metadata: { key: 'value' } }
+                heavy_data: { translate_content_table: { en: 'Hello' } }
             });
             await DialogStore.setConversation(testConversation);
 
             const cacheKey = DBCacheKH.getConversationKey(testConversation.data.conversation_id);
             let cachedData = DBCache.peekCache(cacheKey) as ConversationStruct<TestLightData, TestHeavyData> | undefined;
             expect((cachedData?.data.heavy_data as TestHeavyData)?.translate_content_table?.en).toBe('Hello');
-            expect((cachedData?.data.heavy_data as TestHeavyData)?.metadata?.key).toBe('value');
 
             const updatedConversation = createTestConversation<TestLightData, TestHeavyData>({
                 conversation_id: testConversation.data.conversation_id,
@@ -178,9 +177,8 @@ describe("Dialog-Store 模块测试", () => {
             await sleep(100);
 
             cachedData = DBCache.peekCache(cacheKey) as ConversationStruct<TestLightData, TestHeavyData> | undefined;
-            expect((cachedData?.data.heavy_data as TestHeavyData)?.translate_content_table?.en).toBe('Hello');
             expect((cachedData?.data.heavy_data as TestHeavyData)?.translate_content_table?.zh).toBe('你好');
-            expect((cachedData?.data.heavy_data as TestHeavyData)?.metadata?.key).toBe('value');
+            expect((cachedData?.data.heavy_data as TestHeavyData)?.translate_content_table?.en).toBeUndefined();
         });
 
         test("6. 应正确处理 light_data 字段删除（设为 null）", async () => {

@@ -15,6 +15,7 @@
   "dependencies": {
     "@sosraciel-lamda/charprofile-domain": "^1.0.0",
     "@sosraciel-lamda/dialog-domain": "^1.0.0",
+    "@sosraciel-lamda/dialog-store": "^1.0.0",
     "@sosraciel-lamda/lam-manager": "^1.0.86",
     "@sosraciel-lamda/postgresql-manager": "^1.0.48",
     "@sosraciel-lamda/text-processor": "^1.0.0",

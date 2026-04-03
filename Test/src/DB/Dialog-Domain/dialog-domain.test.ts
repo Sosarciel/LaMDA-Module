@@ -4,6 +4,7 @@ import type { ConversationStruct, MessageStruct } from "@sosraciel-lamda/dialog-
 import { sleep, UtilFunc } from "@zwa73/utils";
 // 导入DBCache以访问缓存池
 import { DBCache } from "@sosraciel-lamda/dialog-domain/dist/DBCache";
+import { PG_PORT } from "@/src/Constant";
 
 /**创建测试对话结构体 */
 const createTestConversation = (options?: {
@@ -73,7 +74,7 @@ describe("Dialog-Domain 模块测试", () => {
     beforeAll(async () => {
         // 创建数据库管理器
         manager = await DBManager.create({
-            port: 5433,
+            port: PG_PORT,
             user: "postgres",
             database: "postgres",
             host: "localhost",

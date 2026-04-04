@@ -1,6 +1,6 @@
-import { DBManager, UtilDB } from "@sosraciel-lamda/postgresql-manager";
+import { DBManager } from "@sosraciel-lamda/postgresql-manager";
 import { DialogStore } from "@sosraciel-lamda/dialog-store";
-import type { ConversationStruct, MessageStruct, NullPartial } from "@sosraciel-lamda/dialog-store";
+import type { ConversationStruct, MessageStruct } from "@sosraciel-lamda/dialog-store";
 import { ConversationEntity, FirstEntity } from "@sosraciel-lamda/dialog-store";
 import { sleep, UtilFunc, type JObject } from "@zwa73/utils";
 import { DBCache, DBCacheKH } from "@sosraciel-lamda/dialog-store/dist/DBCache";
@@ -22,8 +22,8 @@ type TestHeavyData = {
 const createTestConversation = <TLight extends JObject = {}, THeavy extends JObject = {}>(
     options?: {
         conversation_id?: string;
-        light_data?: NullPartial<TLight>;
-        heavy_data?: NullPartial<THeavy>;
+        light_data?: Partial<TLight>;
+        heavy_data?: Partial<THeavy>;
     }
 ): ConversationStruct<TLight, THeavy> => {
     return {
@@ -43,8 +43,8 @@ const createTestMessage = <TLight extends JObject = {}, THeavy extends JObject =
         parent_message_id?: string | null;
         sender_id?: string;
         content?: string;
-        light_data?: NullPartial<TLight>;
-        heavy_data?: NullPartial<THeavy>;
+        light_data?: Partial<TLight>;
+        heavy_data?: Partial<THeavy>;
     }
 ): MessageStruct<TLight, THeavy> => {
     return {

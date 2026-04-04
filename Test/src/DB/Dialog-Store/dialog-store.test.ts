@@ -558,11 +558,8 @@ describe("Dialog-Store 模块测试", () => {
             // 等待 SQL 触发器生成的 created_at 同步到缓存
             await sleep(100);
 
-            // 获取初始 created_at（使用 ignoreCache 确保获取数据库中的数据）
-            const initialData = await DialogStore.getConversation(
-                testConversation.data.conversation_id,
-                { ignoreCache: true }
-            );
+            // 获取初始 created_at
+            const initialData = await DialogStore.getConversation(testConversation.data.conversation_id);
             const initialCreatedAt = initialData?.data.created_at;
             expect(initialCreatedAt).toBeDefined();
 

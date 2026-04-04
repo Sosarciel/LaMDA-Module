@@ -561,7 +561,7 @@ describe("Dialog-Store 模块测试", () => {
             // created_at 缓存同步问题说明：
             // 1. setConversation 设置缓存, created_at 完全由数据库触发器生成, ts端没有 created_at
             // 2. SQL INSERT/UPDATE 触发，发送 insert/update 通知
-            // 3. insert 通知快于 set 时，缓存不存在，insert 被 peek(key) 防积极水化逻辑拦截而忽略
+            // 3. insert 通知快于 set 时，缓存不存在，insert 被 CachePool.has(key) 防积极水化逻辑拦截而忽略
             // 4. insert 通知后到 或下一次 update 通知到达时，由于 data_hash 去重逻辑会排除 created_at 字段计算hash，update/insert 被跳过
             // 5. 导致 created_at 永远不会同步到缓存, 同理其他被 data_hash 忽略的字段也都不可能同步到本地缓存
             // 

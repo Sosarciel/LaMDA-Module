@@ -546,4 +546,123 @@ describe("Dialog-Store 模块测试", () => {
             expect(messageIds).toEqual([childMessage1.data.message_id, childMessage2.data.message_id]);
         });
     });
+
+    describe("边界情况与数据清理测试", () => {
+        test("18. UPDATE 时应保留 created_at 时间戳", async () => {
+            // 创建对话
+            const testConversation = createTestConversation<TestLightData, TestHeavyData>({
+                light_data: { sender_type: 'user' }
+            });
+            await DialogStore.setConversation(testConversation);
+
+            // 等待 SQL 触发器生成的 created_at 同步到缓存
+            await sleep(100);
+
+            // 获取初始 created_at（使用 ignoreCache 确保获取数据库中的数据）
+            const initialData = await DialogStore.getConversation(
+                testConversation.data.conversation_id,
+                { ignoreCache: true }
+            );
+            const initialCreatedAt = initialData?.data.created_at;
+            expect(initialCreatedAt).toBeDefined();
+
+            // 等待一小段时间确保时间戳有差异
+            await sleep(100);
+
+            // 更新对话（全量更新）
+            const updatedConversation = createTestConversation<TestLightData, TestHeavyData>({
+                conversation_id: testConversation.data.conversation_id,
+                light_data: { sender_type: 'char', status: 'updated' }
+            });
+            await DialogStore.setConversation(updatedConversation);
+
+            // 等待通知处理
+            await sleep(100);
+
+            // 验证 created_at 未被修改
+            const afterUpdateData = await DialogStore.getConversation(
+                testConversation.data.conversation_id,
+                { ignoreCache: true }
+            );
+            expect(afterUpdateData?.data.created_at).toBe(initialCreatedAt);
+
+            // 验证 updated_at 已更新
+            expect(afterUpdateData?.data.updated_at).toBeDefined();
+        });
+
+        test("19. 空对象 light_data/heavy_data 应被清理", async () => {
+            // 创建带有空 light_data 的对话
+            const testConversation = createTestConversation({
+                light_data: {} as TestLightData
+            });
+
+            // 手动添加空对象到数据中
+            (testConversation.data as any).light_data = {};
+
+            await DialogStore.setConversation(testConversation);
+
+            // 等待通知处理
+            await sleep(100);
+
+            // 从数据库直接查询验证空对象已被删除
+            const result = await manager.client.query(`
+                SELECT data->'light_data' as light_data, data->'heavy_data' as heavy_data
+                FROM dialog.conversation
+                WHERE data->>'conversation_id' = '${testConversation.data.conversation_id}';
+            `);
+
+            // light_data 应该是 null（被删除），而不是 '{}'
+            expect(result.rows[0].light_data).toBeNull();
+            expect(result.rows[0].heavy_data).toBeNull();
+
+            // 验证缓存中也无空对象
+            const cacheKey = DBCacheKH.getConversationKey(testConversation.data.conversation_id);
+            const cachedData = DBCache.peekCache(cacheKey);
+            expect((cachedData?.data as any).light_data).toBeUndefined();
+            expect((cachedData?.data as any).heavy_data).toBeUndefined();
+        });
+
+        test("20. SQL UPDATE 时强制保留 OLD 的 created_at", async () => {
+            // 创建对话
+            const testConversation = createTestConversation();
+            await DialogStore.setConversation(testConversation);
+
+            // 获取初始 created_at
+            const initialResult = await manager.client.query(`
+                SELECT data->>'created_at' as created_at
+                FROM dialog.conversation
+                WHERE data->>'conversation_id' = '${testConversation.data.conversation_id}';
+            `);
+            const initialCreatedAt = initialResult.rows[0].created_at;
+            expect(initialCreatedAt).toBeDefined();
+
+            // 等待一小段时间
+            await sleep(100);
+
+            // 通过 SQL 直接更新，尝试覆盖 created_at
+            await manager.client.query(`
+                UPDATE dialog.conversation
+                SET data = jsonb_set(
+                    data,
+                    '{created_at}',
+                    '"2099-01-01T00:00:00Z"'::jsonb,
+                    false
+                )
+                WHERE data->>'conversation_id' = '${testConversation.data.conversation_id}';
+            `);
+
+            // 等待触发器处理
+            await sleep(100);
+
+            // 验证 created_at 仍为初始值（触发器强制保留 OLD 值）
+            const afterResult = await manager.client.query(`
+                SELECT data->>'created_at' as created_at
+                FROM dialog.conversation
+                WHERE data->>'conversation_id' = '${testConversation.data.conversation_id}';
+            `);
+
+            // created_at 应该保持原值，而不是被改为 2099 年
+            expect(afterResult.rows[0].created_at).toBe(initialCreatedAt);
+        });
+    });
 });

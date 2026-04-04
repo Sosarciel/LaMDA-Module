@@ -556,6 +556,14 @@ describe("Dialog-Store 模块测试", () => {
             await DialogStore.setConversation(testConversation);
 
             // 等待 SQL 触发器生成的 created_at 同步到缓存
+            // 注意：如果 insert 通知快于 set，此时缓存可能没有 created_at
+            // created_at 完全由数据库触发器生成, ts端创建时本地数据不会有此字段
+            await sleep(100);
+
+            // 初始数据不存在 created_at, 而 insert 通知快于set导致不会主动水化, set到达后只能置入一个不含 created_at 的数据
+            // 这里尝试更新并等待 update 通知下发, 尝试获取 created_at
+            const initEntity = await ConversationEntity.load<TestLightData, TestHeavyData>(testConversation.data.conversation_id);
+            await initEntity?.updateData({light_data:{status: 'init'}});
             await sleep(100);
 
             // 获取初始 created_at

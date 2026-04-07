@@ -1,8 +1,8 @@
 import { DBManager } from "@sosraciel-lamda/postgresql-manager";
-import { DialogStore, ConversationEntity, MessageEntity } from "@sosraciel-lamda/dialog-store";
+import { DialogStore } from "@sosraciel-lamda/dialog-store";
 import type { ConversationStruct, MessageStruct } from "@sosraciel-lamda/dialog-store";
 import { ConversationLog, MessageLog, FirstLog, DialogHelper } from "@sosraciel-lamda/dialog-domain";
-import type { DialogConversationData, DialogMessageData } from "@sosraciel-lamda/dialog-domain";
+import type { DialogMessageData } from "@sosraciel-lamda/dialog-domain";
 import type { MessageLightData, MessageHeavyData, ConversationHeavyData } from "@sosraciel-lamda/dialog-domain";
 import { sleep, UtilFunc } from "@zwa73/utils";
 import { DBCache } from "@sosraciel-lamda/dialog-store/dist/DBCache";

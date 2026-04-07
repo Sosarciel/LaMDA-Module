@@ -355,7 +355,7 @@ describe("Dialog-Domain 模块测试", () => {
         expect(messageChoiceList.length).toBe(0);
     });
 
-    test("10. 应成功获取消息选择列表", async () => {
+    test("10. 应成功获取消息选择列表并验证排序", async () => {
         // 先创建对话
         const testScene = createTestScene();
         const conversationLog = await ConversationLog.create({ scene: testScene });
@@ -373,40 +373,14 @@ describe("Dialog-Domain 模块测试", () => {
         // 获取消息选择列表
         const messageChoiceList = await DialogStore.getMessageChoiceList(conversationId);
         expect(Array.isArray(messageChoiceList)).toBe(true);
+        expect(messageChoiceList.length).toBe(3);
 
-        // 验证消息选择列表包含所有创建的消息，并且顺序正确
+        // 验证消息选择列表的完整内容和顺序（按插入顺序）
         const messageIds = messageChoiceList.map(msg => msg.data.message_id);
         expect(messageIds).toEqual([testMessage1.data.message_id, testMessage2.data.message_id, testMessage3.data.message_id]);
     });
 
-    test("11. 应正确排序消息选择列表", async () => {
-        // 先创建对话
-        const testScene = createTestScene();
-        const conversationLog = await ConversationLog.create({ scene: testScene });
-        const conversationId = conversationLog.getConversationId();
-
-        // 创建3条消息
-        const firstMessage = createTestMessage(conversationId, { content: "First message" });
-        const secondMessage = createTestMessage(conversationId, { content: "Second message" });
-        const thirdMessage = createTestMessage(conversationId, { content: "Third message" });
-
-        await DialogStore.setMessage(firstMessage);
-        await DialogStore.setMessage(secondMessage);
-        await DialogStore.setMessage(thirdMessage);
-
-        // 获取消息选择列表
-        const messageChoiceList = await DialogStore.getMessageChoiceList(conversationId);
-        expect(Array.isArray(messageChoiceList)).toBe(true);
-        expect(messageChoiceList.length).toBe(3);
-
-        // 提取消息ID列表
-        const messageIds = messageChoiceList.map(msg => msg.data.message_id);
-
-        // 直接验证消息选择列表的完整内容和顺序（按插入顺序）
-        expect(messageIds).toEqual([firstMessage.data.message_id, secondMessage.data.message_id, thirdMessage.data.message_id]);
-    });
-
-    test("12. 应成功使用DialogStore获取消息选择ID列表", async () => {
+    test("11. 应成功使用DialogStore获取消息选择ID列表", async () => {
         // 先创建对话
         const testScene = createTestScene();
         const conversationLog = await ConversationLog.create({ scene: testScene });
@@ -430,7 +404,7 @@ describe("Dialog-Domain 模块测试", () => {
         expect(messageChoiceIdList).toEqual([testMessage1.data.message_id, testMessage2.data.message_id, testMessage3.data.message_id]);
     });
 
-    test("13. 应成功使用DialogStore获取消息选择列表（带parentid）", async () => {
+    test("12. 应成功使用DialogStore获取消息选择列表（带parentid）", async () => {
         // 先创建对话
         const testScene = createTestScene();
         const conversationLog = await ConversationLog.create({ scene: testScene });
@@ -468,7 +442,7 @@ describe("Dialog-Domain 模块测试", () => {
         expect(messageIds).toEqual([childMessage1.data.message_id, childMessage2.data.message_id, childMessage3.data.message_id]);
     });
 
-    test("14. 应成功测试对话记录的更新操作", async () => {
+    test("13. 应成功测试对话记录的更新操作", async () => {
         // 先创建对话
         const testConversation = createTestConversation({ background_info: "Initial background" });
         await DialogStore.setConversation(testConversation);
@@ -486,7 +460,7 @@ describe("Dialog-Domain 模块测试", () => {
         expect((retrievedConversation?.data.heavy_data as ConversationHeavyData)?.background_info).toBe("Updated background info");
     });
 
-    test("15. 应成功测试消息记录的更新操作", async () => {
+    test("14. 应成功测试消息记录的更新操作", async () => {
         // 先创建对话
         const testConversation = createTestConversation();
         await DialogStore.setConversation(testConversation);
@@ -509,7 +483,7 @@ describe("Dialog-Domain 模块测试", () => {
         expect(retrievedMessage?.data.content).toBe("Updated content");
     });
 
-    test("16. 应成功测试缓存与数据库通知的同步（通过直接调用SQL）", async () => {
+    test("15. 应成功测试缓存与数据库通知的同步（通过直接调用SQL）", async () => {
         // 先创建对话
         const testConversation = createTestConversation();
         await DialogStore.setConversation(testConversation);
@@ -539,7 +513,7 @@ describe("Dialog-Domain 模块测试", () => {
         expect(updatedCachedMessage?.data.content).toBe("Updated via SQL");
     });
 
-    test("17. 应成功测试对话场景的设置与获取", async () => {
+    test("16. 应成功测试对话场景的设置与获取", async () => {
         // 先创建对话
         const testScene = createTestScene();
         const conversationLog = await ConversationLog.create({ scene: testScene });
@@ -574,7 +548,7 @@ describe("Dialog-Domain 模块测试", () => {
         expect(updatedScene.define).toBe("new_test_define");
     });
 
-    test("18. 应成功测试FirstLog的updateData设置translate_content_table", async () => {
+    test("17. 应成功测试FirstLog的updateData设置translate_content_table", async () => {
         // 创建对话和FirstLog
         const testScene = createTestScene();
         const conversationLog = await ConversationLog.create({ scene: testScene });
@@ -597,7 +571,7 @@ describe("Dialog-Domain 模块测试", () => {
         expect(firstLog.getTransContent("en")).toBe(anotherTranslation);
     });
 
-    test("19. 应成功测试MessageLog.updateData传入新值覆盖旧值", async () => {
+    test("18. 应成功测试MessageLog.updateData传入新值覆盖旧值", async () => {
         // 创建对话和消息
         const testScene = createTestScene();
         const conversationLog = await ConversationLog.create({ scene: testScene });
@@ -634,7 +608,7 @@ describe("Dialog-Domain 模块测试", () => {
         expect(loadedMessage2?.getTransContent("en")).toBe("updated translation");
     });
 
-    test("20. 应成功测试recordMessageLog批量记录消息", async () => {
+    test("19. 应成功测试recordMessageLog批量记录消息", async () => {
         // 创建对话
         const testScene = createTestScene();
         const conversationLog = await ConversationLog.create({ scene: testScene });
@@ -692,9 +666,14 @@ describe("Dialog-Domain 模块测试", () => {
         expect(loadedMessage0?.getContent()).toBe("First message");
     });
 
-    test("21. 应成功测试DialogHelper.getHistMessageList获取历史消息", async () => {
-        // 创建对话
-        const testScene = createTestScene();
+    test("20. 应成功测试DialogHelper.getHistMessageList获取历史消息（强断言）", async () => {
+        // 创建无预对话的场景，便于精确验证
+        const testScene = {
+            define: "strong_assert_test",
+            memory: [],
+            name: "test_scene",
+            dialog: []
+        };
         const conversationLog = await ConversationLog.create({ scene: testScene });
         const conversationId = conversationLog.getConversationId();
 
@@ -726,73 +705,6 @@ describe("Dialog-Domain 模块测试", () => {
             content: "User message 2"
         });
 
-        // 定义场景（包含预对话）
-        const defineScene = {
-            define: "test_define_scene",
-            memory: [],
-            name: "test_define",
-            dialog: [
-                { type: "chat" as const, content: "Define scene dialog 1", sender_name: "Narrator" },
-                { type: "chat" as const, content: "Define scene dialog 2", sender_name: "Narrator" }
-            ]
-        };
-
-        // 获取历史消息列表
-        const histMessages = await DialogHelper.getHistMessageList({
-            defineScene,
-            maxLength: 1000,
-            maxCount: 10,
-            convLog: conversationLog,
-            msgLog: msg3
-        });
-
-        // 验证返回的是数组
-        expect(Array.isArray(histMessages)).toBe(true);
-        // 应包含至少3条消息（可能还包含场景预对话）
-        expect(histMessages.length).toBeGreaterThanOrEqual(3);
-
-        // 筛选出用户消息（带sender_id的）
-        const chatMessages = histMessages.filter(m => m.type === 'chat' && 'sender_id' in m);
-        expect(chatMessages.length).toBe(3);
-
-        // 验证消息内容
-        const msgContents = chatMessages.map(m => m.content);
-        expect(msgContents).toContain("User message 1");
-        expect(msgContents).toContain("Character response 1");
-        expect(msgContents).toContain("User message 2");
-    });
-
-    test("22. 应成功测试DialogHelper.getHistMessageList的强断言验证", async () => {
-        // 创建无预对话的场景，便于精确验证
-        const testScene = {
-            define: "strong_assert_test",
-            memory: [],
-            name: "test_scene",
-            dialog: []
-        };
-        const conversationLog = await ConversationLog.create({ scene: testScene });
-        const conversationId = conversationLog.getConversationId();
-
-        // 创建FirstLog
-        const firstLog = await FirstLog.loadOrCreate(conversationLog);
-
-        // 创建消息链：user -> char
-        const msg1 = await MessageLog.create({
-            conversation_id: conversationId,
-            parent_message_id: undefined,
-            sender_id: "test_user",
-            sender_type: "user",
-            content: "Hello world"
-        });
-
-        const msg2 = await MessageLog.create({
-            conversation_id: conversationId,
-            parent_message_id: msg1.getMessageId(),
-            sender_id: "test_char",
-            sender_type: "char",
-            content: "Hi there!"
-        });
-
         // 定义无预对话的场景
         const defineScene = {
             define: "strong_assert_test",
@@ -807,35 +719,45 @@ describe("Dialog-Domain 模块测试", () => {
             maxLength: 1000,
             maxCount: 10,
             convLog: conversationLog,
-            msgLog: msg2
+            msgLog: msg3
         });
+
+        // 验证返回的是数组
+        expect(Array.isArray(histMessages)).toBe(true);
 
         // 筛选用户消息进行强断言验证
         const chatMessages = histMessages.filter(m => m.type === 'chat' && 'sender_id' in m);
-        expect(chatMessages.length).toBe(2);
+        expect(chatMessages.length).toBe(3);
 
         // 验证第一条消息的完整结构
-        const firstMsg = chatMessages[0];
-        expect(firstMsg.type).toBe("chat");
-        if (firstMsg.type === 'chat' && 'sender_id' in firstMsg) {
-            expect(firstMsg.sender_id).toBe("test_user");
-            expect(firstMsg.sender_type).toBe("user");
-            expect(firstMsg.content).toBe("Hello world");
-            expect(firstMsg.id).toBe(msg1.getMessageId());
-        }
+        expect(chatMessages[0]).toEqual({
+            type: "chat",
+            sender_id: "user",
+            sender_type: "user",
+            content: "User message 1",
+            id: msg1.getMessageId()
+        });
 
         // 验证第二条消息的完整结构
-        const secondMsg = chatMessages[1];
-        expect(secondMsg.type).toBe("chat");
-        if (secondMsg.type === 'chat' && 'sender_id' in secondMsg) {
-            expect(secondMsg.sender_id).toBe("test_char");
-            expect(secondMsg.sender_type).toBe("char");
-            expect(secondMsg.content).toBe("Hi there!");
-            expect(secondMsg.id).toBe(msg2.getMessageId());
-        }
+        expect(chatMessages[1]).toEqual({
+            type: "chat",
+            sender_id: "char",
+            sender_type: "char",
+            content: "Character response 1",
+            id: msg2.getMessageId()
+        });
+
+        // 验证第三条消息的完整结构
+        expect(chatMessages[2]).toEqual({
+            type: "chat",
+            sender_id: "user",
+            sender_type: "user",
+            content: "User message 2",
+            id: msg3.getMessageId()
+        });
     });
 
-    test("23. 应成功测试DialogHelper.getHistMessageList从FirstLog开始", async () => {
+    test("21. 应成功测试DialogHelper.getHistMessageList从FirstLog开始", async () => {
         // 创建带预对话的场景
         const testScene = {
             define: "first_log_test",
@@ -892,7 +814,7 @@ describe("Dialog-Domain 模块测试", () => {
         expect(sceneDialogs.length).toBeGreaterThan(0);
     });
 
-    test("24. 应成功测试DialogHelper.getDialogPos和getDialogPosId", async () => {
+    test("22. 应成功测试DialogHelper.getDialogPos和getDialogPosId", async () => {
         // 创建对话和消息
         const testScene = createTestScene();
         const conversationLog = await ConversationLog.create({ scene: testScene });
@@ -923,7 +845,7 @@ describe("Dialog-Domain 模块测试", () => {
         expect(retrievedPos?.message.getMessageId()).toBe(messageLog.getMessageId());
     });
 
-    test("25. 应成功测试ConversationLog.updateData清空background_info", async () => {
+    test("23. 应成功测试ConversationLog.updateData清空background_info", async () => {
         // 创建带背景信息的对话
         const testScene = createTestScene();
         const conversationLog = await ConversationLog.create({ scene: testScene });
@@ -946,7 +868,7 @@ describe("Dialog-Domain 模块测试", () => {
         expect(loadedConv?.getBackgroundInfo()).toBeUndefined();
     });
 
-    test("26. 应成功测试DialogHelper.getCurrMessageList完整流程", async () => {
+    test("24. 应成功测试DialogHelper.getCurrMessageList完整流程", async () => {
         // 创建带完整场景的对话
         const testScene = {
             define: "Scene define content",
@@ -1007,37 +929,50 @@ describe("Dialog-Domain 模块测试", () => {
         expect(messageList).toBeDefined();
         expect(Array.isArray(messageList)).toBe(true);
 
-        // 验证消息列表包含所有必要部分
-        // 1. defineScene.define（desc类型）
-        const defineContent = messageList?.find(m => m.type === 'desc' && m.content === "Define scene content");
-        expect(defineContent).toBeDefined();
+        // 分离不同类型的消息
+        const descMessages = messageList?.filter(m => m.type === 'desc') ?? [];
+        const chatWithSenderId = messageList?.filter(m => m.type === 'chat' && 'sender_id' in m) ?? [];
+        const chatWithSenderName = messageList?.filter(m => m.type === 'chat' && 'sender_name' in m && !('sender_id' in m)) ?? [];
 
-        // 2. defineScene.memory（chat类型，带sender_name）
-        const defineMemory = messageList?.find(m => m.type === 'chat' && 'sender_name' in m && m.content === "Define memory 1");
-        expect(defineMemory).toBeDefined();
+        // 验证desc消息（define和background_info）
+        expect(descMessages.length).toBe(3);
+        const descContents = descMessages.map(m => m.content);
+        expect(descContents).toEqual([
+            "Define scene content",
+            "Scene define content",
+            "Background info content"
+        ]);
 
-        // 3. scene.define（desc类型）
-        const sceneDefine = messageList?.find(m => m.type === 'desc' && m.content === "Scene define content");
-        expect(sceneDefine).toBeDefined();
+        // 验证chat with sender_name消息（memory和dialog）
+        expect(chatWithSenderName.length).toBe(5);
+        const senderNameContents = chatWithSenderName.map(m => m.content);
+        expect(senderNameContents).toEqual([
+            "Define memory 1",
+            "Scene memory 1",
+            "Scene memory 2",
+            "Define dialog 1",
+            "Scene dialog 1"
+        ]);
 
-        // 4. scene.memory（chat类型，带sender_name）
-        const sceneMemory1 = messageList?.find(m => m.type === 'chat' && 'sender_name' in m && m.content === "Scene memory 1");
-        const sceneMemory2 = messageList?.find(m => m.type === 'chat' && 'sender_name' in m && m.content === "Scene memory 2");
-        expect(sceneMemory1).toBeDefined();
-        expect(sceneMemory2).toBeDefined();
-
-        // 5. background_info（desc类型）
-        const bgInfo = messageList?.find(m => m.type === 'desc' && m.content === "Background info content");
-        expect(bgInfo).toBeDefined();
-
-        // 6. 历史消息（chat类型，带sender_id）
-        const userMsg = messageList?.filter(m => m.type === 'chat' && 'sender_id' in m && m.sender_id === "user");
-        const charMsg = messageList?.filter(m => m.type === 'chat' && 'sender_id' in m && m.sender_id === "char");
-        expect(userMsg?.length).toBe(1);
-        expect(charMsg?.length).toBe(1);
+        // 验证chat with sender_id消息（历史消息）
+        expect(chatWithSenderId.length).toBe(2);
+        expect(chatWithSenderId[0]).toEqual({
+            type: "chat",
+            sender_id: "user",
+            sender_type: "user",
+            content: "User message",
+            id: msg1.getMessageId()
+        });
+        expect(chatWithSenderId[1]).toEqual({
+            type: "chat",
+            sender_id: "char",
+            sender_type: "char",
+            content: "Character response",
+            id: msg2.getMessageId()
+        });
     });
 
-    test("27. 应成功测试DialogHelper.renderMessageList渲染逻辑", async () => {
+    test("25. 应成功测试DialogHelper.renderMessageList渲染逻辑", async () => {
         // 创建未渲染消息列表
         const unrenderedList = [
             { type: 'desc' as const, content: "System description" },
@@ -1079,7 +1014,7 @@ describe("Dialog-Domain 模块测试", () => {
         expect(renderedList[3]).toEqual({ type: 'chat', content: "Already rendered message", sender_name: "Narrator" });
     });
 
-    test("28. 应成功测试maxLength限制触发时的截断行为", async () => {
+    test("26. 应成功测试maxLength限制触发时的截断行为", async () => {
         // 创建无预对话的场景
         const testScene = {
             define: "",
@@ -1136,7 +1071,7 @@ describe("Dialog-Domain 模块测试", () => {
         expect(chatMessages.length).toBeLessThan(10);
     });
 
-    test("29. 应成功测试maxCount限制触发时的截断行为", async () => {
+    test("27. 应成功测试maxCount限制触发时的截断行为", async () => {
         // 创建无预对话的场景
         const testScene = {
             define: "",
@@ -1191,7 +1126,7 @@ describe("Dialog-Domain 模块测试", () => {
         expect(chatMessages[chatMessages.length - 1].content).toBe("Message 9");
     });
 
-    test("30. 应成功测试MessageLog.getPreMessageId返回undefined情况", async () => {
+    test("28. 应成功测试MessageLog.getPreMessageId返回undefined情况", async () => {
         // 创建对话
         const testScene = createTestScene();
         const conversationLog = await ConversationLog.create({ scene: testScene });
@@ -1225,7 +1160,7 @@ describe("Dialog-Domain 模块测试", () => {
         expect(msg2.getPreMessageId()).toBe(msg.getMessageId());
     });
 
-    test("31. 应成功测试FirstLog.getMessageChoiceList", async () => {
+    test("29. 应成功测试FirstLog.getMessageChoiceList", async () => {
         // 创建对话
         const testScene = createTestScene();
         const conversationLog = await ConversationLog.create({ scene: testScene });
@@ -1271,7 +1206,7 @@ describe("Dialog-Domain 模块测试", () => {
         expect(choiceIds).toContain(msg3.getMessageId());
     });
 
-    test("32. 应成功测试深度消息链遍历", async () => {
+    test("30. 应成功测试深度消息链遍历", async () => {
         // 创建无预对话的场景
         const testScene = {
             define: "",
@@ -1331,105 +1266,7 @@ describe("Dialog-Domain 模块测试", () => {
         }
     });
 
-    test("33. 应成功测试defineScene.memory处理", async () => {
-        // 创建无预对话的场景
-        const testScene = {
-            define: "",
-            memory: [],
-            name: "test",
-            dialog: []
-        };
-        const conversationLog = await ConversationLog.create({ scene: testScene });
-        const conversationId = conversationLog.getConversationId();
-
-        // 创建FirstLog
-        const firstLog = await FirstLog.loadOrCreate(conversationLog);
-
-        // 定义带memory的defineScene
-        const defineScene = {
-            define: "Define content",
-            memory: [
-                { type: "chat" as const, content: "Memory entry 1: Important event", sender_name: "System" },
-                { type: "chat" as const, content: "Memory entry 2: Character trait", sender_name: "System" },
-                { type: "chat" as const, content: "Memory entry 3: World setting", sender_name: "System" }
-            ],
-            name: "test",
-            dialog: []
-        };
-
-        // 获取当前消息列表
-        const messageList = await DialogHelper.getCurrMessageList({
-            defineScene,
-            maxLength: 10000,
-            maxCount: 100,
-            convLog: conversationLog,
-            msgLog: firstLog
-        });
-
-        // 验证memory内容出现在消息列表中
-        expect(messageList).toBeDefined();
-
-        // 验证define内容（desc类型）
-        const descContents = messageList?.filter(m => m.type === 'desc').map(m => m.content);
-        expect(descContents).toContain("Define content");
-
-        // 验证memory内容（chat类型，带sender_name）
-        const chatMemory = messageList?.filter(m => m.type === 'chat' && 'sender_name' in m && m.sender_name === "System");
-        const memoryContents = chatMemory?.map(m => m.content);
-        expect(memoryContents).toContain("Memory entry 1: Important event");
-        expect(memoryContents).toContain("Memory entry 2: Character trait");
-        expect(memoryContents).toContain("Memory entry 3: World setting");
-    });
-
-    test("34. 应成功测试scene.memory处理", async () => {
-        // 创建带memory的场景
-        const testScene = {
-            define: "Scene define",
-            memory: [
-                { type: "chat" as const, content: "Scene memory 1: Location detail", sender_name: "System" },
-                { type: "chat" as const, content: "Scene memory 2: Time setting", sender_name: "System" }
-            ],
-            name: "test_scene",
-            dialog: []
-        };
-        const conversationLog = await ConversationLog.create({ scene: testScene });
-        const conversationId = conversationLog.getConversationId();
-
-        // 创建FirstLog
-        const firstLog = await FirstLog.loadOrCreate(conversationLog);
-
-        // 定义空的defineScene
-        const defineScene = {
-            define: "",
-            memory: [],
-            name: "test",
-            dialog: []
-        };
-
-        // 获取当前消息列表
-        const messageList = await DialogHelper.getCurrMessageList({
-            defineScene,
-            maxLength: 10000,
-            maxCount: 100,
-            convLog: conversationLog,
-            msgLog: firstLog
-        });
-
-        // 验证scene.memory内容出现在消息列表中
-        expect(messageList).toBeDefined();
-
-        // 验证scene.define（desc类型）
-        const descContents = messageList?.filter(m => m.type === 'desc').map(m => m.content);
-        expect(descContents).toContain("Scene define");
-
-        // 验证scene.memory内容（chat类型，带sender_name）
-        const chatMemory = messageList?.filter(m => m.type === 'chat' && 'sender_name' in m && m.sender_name === "System");
-        const memoryContents = chatMemory?.map(m => m.content);
-        expect(memoryContents).toContain("Scene memory 1: Location detail");
-        expect(memoryContents).toContain("Scene memory 2: Time setting");
-    });
-
-    test("35. 应成功测试多语言翻译覆盖", async () => {
+    test("31. 应成功测试多语言翻译覆盖", async () => {
         // 创建对话和消息
         const testScene = createTestScene();
         const conversationLog = await ConversationLog.create({ scene: testScene });
@@ -1460,7 +1297,7 @@ describe("Dialog-Domain 模块测试", () => {
         expect(loadedMsg?.getTransContent("zh")).toBe("第二次翻译");
     });
 
-    test("36. 应成功测试getTransContent不存在的语言", async () => {
+    test("32. 应成功测试getTransContent不存在的语言", async () => {
         // 创建对话和消息
         const testScene = createTestScene();
         const conversationLog = await ConversationLog.create({ scene: testScene });

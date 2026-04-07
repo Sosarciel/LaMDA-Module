@@ -922,4 +922,568 @@ describe("Dialog-Domain 模块测试", () => {
         expect(retrievedPos?.conversation.getConversationId()).toBe(conversationId);
         expect(retrievedPos?.message.getMessageId()).toBe(messageLog.getMessageId());
     });
+
+    test("25. 应成功测试ConversationLog.updateData清空background_info", async () => {
+        // 创建带背景信息的对话
+        const testScene = createTestScene();
+        const conversationLog = await ConversationLog.create({ scene: testScene });
+
+        // 设置背景信息
+        await conversationLog.updateData({ background_info: "Initial background info" });
+        expect(conversationLog.hasBackgroundInfo()).toBe(true);
+        expect(conversationLog.getBackgroundInfo()).toBe("Initial background info");
+
+        // 清空背景信息
+        await conversationLog.updateData({ background_info: "" });
+
+        // 验证背景信息已清空
+        expect(conversationLog.hasBackgroundInfo()).toBe(false);
+        expect(conversationLog.getBackgroundInfo()).toBeUndefined();
+
+        // 重新加载验证持久化
+        const loadedConv = await ConversationLog.load(conversationLog.getConversationId());
+        expect(loadedConv?.hasBackgroundInfo()).toBe(false);
+        expect(loadedConv?.getBackgroundInfo()).toBeUndefined();
+    });
+
+    test("26. 应成功测试DialogHelper.getCurrMessageList完整流程", async () => {
+        // 创建带完整场景的对话
+        const testScene = {
+            define: "Scene define content",
+            memory: [
+                { type: "chat" as const, content: "Scene memory 1", sender_name: "System" },
+                { type: "chat" as const, content: "Scene memory 2", sender_name: "System" }
+            ],
+            name: "test_scene",
+            dialog: [
+                { type: "chat" as const, content: "Scene dialog 1", sender_name: "Character" }
+            ]
+        };
+        const conversationLog = await ConversationLog.create({ scene: testScene });
+        const conversationId = conversationLog.getConversationId();
+
+        // 设置背景信息
+        await conversationLog.updateData({ background_info: "Background info content" });
+
+        // 创建FirstLog和消息链
+        const firstLog = await FirstLog.loadOrCreate(conversationLog);
+        const msg1 = await MessageLog.create({
+            conversation_id: conversationId,
+            parent_message_id: undefined,
+            sender_id: "user",
+            sender_type: "user",
+            content: "User message"
+        });
+        const msg2 = await MessageLog.create({
+            conversation_id: conversationId,
+            parent_message_id: msg1.getMessageId(),
+            sender_id: "char",
+            sender_type: "char",
+            content: "Character response"
+        });
+
+        // 定义defineScene
+        const defineScene = {
+            define: "Define scene content",
+            memory: [
+                { type: "chat" as const, content: "Define memory 1", sender_name: "System" }
+            ],
+            name: "define",
+            dialog: [
+                { type: "chat" as const, content: "Define dialog 1", sender_name: "System" }
+            ]
+        };
+
+        // 获取当前消息列表
+        const messageList = await DialogHelper.getCurrMessageList({
+            defineScene,
+            maxLength: 10000,
+            maxCount: 100,
+            convLog: conversationLog,
+            msgLog: msg2
+        });
+
+        // 验证返回结果
+        expect(messageList).toBeDefined();
+        expect(Array.isArray(messageList)).toBe(true);
+
+        // 验证消息列表包含所有必要部分
+        // 1. defineScene.define（desc类型）
+        const defineContent = messageList?.find(m => m.type === 'desc' && m.content === "Define scene content");
+        expect(defineContent).toBeDefined();
+
+        // 2. defineScene.memory（chat类型，带sender_name）
+        const defineMemory = messageList?.find(m => m.type === 'chat' && 'sender_name' in m && m.content === "Define memory 1");
+        expect(defineMemory).toBeDefined();
+
+        // 3. scene.define（desc类型）
+        const sceneDefine = messageList?.find(m => m.type === 'desc' && m.content === "Scene define content");
+        expect(sceneDefine).toBeDefined();
+
+        // 4. scene.memory（chat类型，带sender_name）
+        const sceneMemory1 = messageList?.find(m => m.type === 'chat' && 'sender_name' in m && m.content === "Scene memory 1");
+        const sceneMemory2 = messageList?.find(m => m.type === 'chat' && 'sender_name' in m && m.content === "Scene memory 2");
+        expect(sceneMemory1).toBeDefined();
+        expect(sceneMemory2).toBeDefined();
+
+        // 5. background_info（desc类型）
+        const bgInfo = messageList?.find(m => m.type === 'desc' && m.content === "Background info content");
+        expect(bgInfo).toBeDefined();
+
+        // 6. 历史消息（chat类型，带sender_id）
+        const userMsg = messageList?.filter(m => m.type === 'chat' && 'sender_id' in m && m.sender_id === "user");
+        const charMsg = messageList?.filter(m => m.type === 'chat' && 'sender_id' in m && m.sender_id === "char");
+        expect(userMsg?.length).toBe(1);
+        expect(charMsg?.length).toBe(1);
+    });
+
+    test("27. 应成功测试DialogHelper.renderMessageList渲染逻辑", async () => {
+        // 创建未渲染消息列表
+        const unrenderedList = [
+            { type: 'desc' as const, content: "System description" },
+            { type: 'chat' as const, sender_id: "user1", sender_type: "user" as const, content: "User message", id: "msg1" },
+            { type: 'chat' as const, sender_id: "char1", sender_type: "char" as const, content: "Char message", id: "msg2" },
+            { type: 'chat' as const, sender_name: "Narrator", content: "Already rendered message" }
+        ];
+
+        // 渲染函数：将sender_id转换为sender_name
+        const renderFunc = async (msg: { sender_id: string; sender_type: string; content: string }) => {
+            const nameMap: Record<string, string> = {
+                "user1": "Alice",
+                "char1": "Bob"
+            };
+            return {
+                type: 'chat' as const,
+                content: msg.content,
+                sender_name: nameMap[msg.sender_id] ?? msg.sender_id
+            };
+        };
+
+        // 执行渲染
+        const renderedList = await DialogHelper.renderMessageList({
+            list: unrenderedList,
+            render: renderFunc
+        });
+
+        // 验证渲染结果
+        expect(renderedList.length).toBe(4);
+
+        // 验证desc消息保持不变
+        expect(renderedList[0]).toEqual({ type: 'desc', content: "System description" });
+
+        // 验证未渲染消息被正确渲染
+        expect(renderedList[1]).toEqual({ type: 'chat', content: "User message", sender_name: "Alice" });
+        expect(renderedList[2]).toEqual({ type: 'chat', content: "Char message", sender_name: "Bob" });
+
+        // 验证已渲染消息保持不变
+        expect(renderedList[3]).toEqual({ type: 'chat', content: "Already rendered message", sender_name: "Narrator" });
+    });
+
+    test("28. 应成功测试maxLength限制触发时的截断行为", async () => {
+        // 创建无预对话的场景
+        const testScene = {
+            define: "",
+            memory: [],
+            name: "test",
+            dialog: []
+        };
+        const conversationLog = await ConversationLog.create({ scene: testScene });
+        const conversationId = conversationLog.getConversationId();
+
+        // 创建FirstLog
+        await FirstLog.loadOrCreate(conversationLog);
+
+        // 创建多条消息，每条约50字符
+        const messages: MessageLog[] = [];
+        for (let i = 0; i < 10; i++) {
+            const msg = await MessageLog.create({
+                conversation_id: conversationId,
+                parent_message_id: i === 0 ? undefined : messages[i - 1].getMessageId(),
+                sender_id: i % 2 === 0 ? "user" : "char",
+                sender_type: i % 2 === 0 ? "user" : "char",
+                content: `Message number ${i} with some extra content to make it longer`
+            });
+            messages.push(msg);
+        }
+
+        // 定义场景
+        const defineScene = {
+            define: "",
+            memory: [],
+            name: "test",
+            dialog: []
+        };
+
+        // 设置较小的maxLength（约200字符）
+        const smallMaxLength = 200;
+
+        // 获取历史消息
+        const histMessages = await DialogHelper.getHistMessageList({
+            defineScene,
+            maxLength: smallMaxLength,
+            maxCount: 100,
+            convLog: conversationLog,
+            msgLog: messages[messages.length - 1]
+        });
+
+        // 验证总长度不超过maxLength
+        const totalLength = histMessages.reduce((sum, m) => sum + m.content.length, 0);
+        expect(totalLength).toBeLessThanOrEqual(smallMaxLength);
+
+        // 验证返回的是最新的消息（从后向前截断）
+        const chatMessages = histMessages.filter(m => m.type === 'chat' && 'sender_id' in m);
+        expect(chatMessages.length).toBeGreaterThan(0);
+        expect(chatMessages.length).toBeLessThan(10);
+    });
+
+    test("29. 应成功测试maxCount限制触发时的截断行为", async () => {
+        // 创建无预对话的场景
+        const testScene = {
+            define: "",
+            memory: [],
+            name: "test",
+            dialog: []
+        };
+        const conversationLog = await ConversationLog.create({ scene: testScene });
+        const conversationId = conversationLog.getConversationId();
+
+        // 创建FirstLog
+        await FirstLog.loadOrCreate(conversationLog);
+
+        // 创建10条消息
+        const messages: MessageLog[] = [];
+        for (let i = 0; i < 10; i++) {
+            const msg = await MessageLog.create({
+                conversation_id: conversationId,
+                parent_message_id: i === 0 ? undefined : messages[i - 1].getMessageId(),
+                sender_id: i % 2 === 0 ? "user" : "char",
+                sender_type: i % 2 === 0 ? "user" : "char",
+                content: `Message ${i}`
+            });
+            messages.push(msg);
+        }
+
+        // 定义场景
+        const defineScene = {
+            define: "",
+            memory: [],
+            name: "test",
+            dialog: []
+        };
+
+        // 设置maxCount为3
+        const smallMaxCount = 3;
+
+        // 获取历史消息
+        const histMessages = await DialogHelper.getHistMessageList({
+            defineScene,
+            maxLength: 10000,
+            maxCount: smallMaxCount,
+            convLog: conversationLog,
+            msgLog: messages[messages.length - 1]
+        });
+
+        // 验证消息数量不超过maxCount
+        const chatMessages = histMessages.filter(m => m.type === 'chat' && 'sender_id' in m);
+        expect(chatMessages.length).toBeLessThanOrEqual(smallMaxCount);
+
+        // 验证返回的是最新的消息
+        expect(chatMessages[chatMessages.length - 1].content).toBe("Message 9");
+    });
+
+    test("30. 应成功测试MessageLog.getPreMessageId返回undefined情况", async () => {
+        // 创建对话
+        const testScene = createTestScene();
+        const conversationLog = await ConversationLog.create({ scene: testScene });
+        const conversationId = conversationLog.getConversationId();
+
+        // 创建FirstLog
+        const firstLog = await FirstLog.loadOrCreate(conversationLog);
+
+        // 创建没有parent_message_id的消息（直接跟在FirstLog后）
+        const msg = await MessageLog.create({
+            conversation_id: conversationId,
+            parent_message_id: undefined,
+            sender_id: "user",
+            sender_type: "user",
+            content: "First user message"
+        });
+
+        // 验证getPreMessageId返回undefined
+        expect(msg.getPreMessageId()).toBeUndefined();
+
+        // 创建有parent_message_id的消息
+        const msg2 = await MessageLog.create({
+            conversation_id: conversationId,
+            parent_message_id: msg.getMessageId(),
+            sender_id: "char",
+            sender_type: "char",
+            content: "Response"
+        });
+
+        // 验证getPreMessageId返回正确的ID
+        expect(msg2.getPreMessageId()).toBe(msg.getMessageId());
+    });
+
+    test("31. 应成功测试FirstLog.getMessageChoiceList", async () => {
+        // 创建对话
+        const testScene = createTestScene();
+        const conversationLog = await ConversationLog.create({ scene: testScene });
+        const conversationId = conversationLog.getConversationId();
+
+        // 创建FirstLog
+        const firstLog = await FirstLog.loadOrCreate(conversationLog);
+
+        // 在FirstLog后创建多条消息（作为FirstLog的选择）
+        const msg1 = await MessageLog.create({
+            conversation_id: conversationId,
+            parent_message_id: undefined,
+            sender_id: "user1",
+            sender_type: "user",
+            content: "First choice"
+        });
+        const msg2 = await MessageLog.create({
+            conversation_id: conversationId,
+            parent_message_id: undefined,
+            sender_id: "user2",
+            sender_type: "user",
+            content: "Second choice"
+        });
+        const msg3 = await MessageLog.create({
+            conversation_id: conversationId,
+            parent_message_id: undefined,
+            sender_id: "user3",
+            sender_type: "user",
+            content: "Third choice"
+        });
+
+        // 获取FirstLog的消息选择列表
+        const choiceList = await firstLog.getMessageChoiceList();
+
+        // 验证返回的消息选择列表
+        expect(Array.isArray(choiceList)).toBe(true);
+        expect(choiceList.length).toBe(3);
+
+        // 验证消息ID和内容
+        const choiceIds = choiceList.map(m => m.getMessageId());
+        expect(choiceIds).toContain(msg1.getMessageId());
+        expect(choiceIds).toContain(msg2.getMessageId());
+        expect(choiceIds).toContain(msg3.getMessageId());
+    });
+
+    test("32. 应成功测试深度消息链遍历", async () => {
+        // 创建无预对话的场景
+        const testScene = {
+            define: "",
+            memory: [],
+            name: "test",
+            dialog: []
+        };
+        const conversationLog = await ConversationLog.create({ scene: testScene });
+        const conversationId = conversationLog.getConversationId();
+
+        // 创建FirstLog
+        const firstLog = await FirstLog.loadOrCreate(conversationLog);
+
+        // 创建15层深度的消息链
+        const messages: MessageLog[] = [];
+        for (let i = 0; i < 15; i++) {
+            const msg = await MessageLog.create({
+                conversation_id: conversationId,
+                parent_message_id: i === 0 ? undefined : messages[i - 1].getMessageId(),
+                sender_id: i % 2 === 0 ? "user" : "char",
+                sender_type: i % 2 === 0 ? "user" : "char",
+                content: `Deep message level ${i}`
+            });
+            messages.push(msg);
+        }
+
+        // 定义场景
+        const defineScene = {
+            define: "",
+            memory: [],
+            name: "test",
+            dialog: []
+        };
+
+        // 获取历史消息
+        const histMessages = await DialogHelper.getHistMessageList({
+            defineScene,
+            maxLength: 10000,
+            maxCount: 100,
+            convLog: conversationLog,
+            msgLog: messages[messages.length - 1]
+        });
+
+        // 验证消息链完整性
+        const chatMessages = histMessages.filter(m => m.type === 'chat' && 'sender_id' in m);
+        expect(chatMessages.length).toBe(15);
+
+        // 验证消息顺序（从旧到新）
+        for (let i = 0; i < 15; i++) {
+            expect(chatMessages[i].content).toBe(`Deep message level ${i}`);
+        }
+
+        // 验证消息ID链的正确性
+        for (let i = 1; i < messages.length; i++) {
+            const loadedMsg = await MessageLog.load(messages[i].getMessageId());
+            expect(loadedMsg?.getPreMessageId()).toBe(messages[i - 1].getMessageId());
+        }
+    });
+
+    test("33. 应成功测试defineScene.memory处理", async () => {
+        // 创建无预对话的场景
+        const testScene = {
+            define: "",
+            memory: [],
+            name: "test",
+            dialog: []
+        };
+        const conversationLog = await ConversationLog.create({ scene: testScene });
+        const conversationId = conversationLog.getConversationId();
+
+        // 创建FirstLog
+        const firstLog = await FirstLog.loadOrCreate(conversationLog);
+
+        // 定义带memory的defineScene
+        const defineScene = {
+            define: "Define content",
+            memory: [
+                { type: "chat" as const, content: "Memory entry 1: Important event", sender_name: "System" },
+                { type: "chat" as const, content: "Memory entry 2: Character trait", sender_name: "System" },
+                { type: "chat" as const, content: "Memory entry 3: World setting", sender_name: "System" }
+            ],
+            name: "test",
+            dialog: []
+        };
+
+        // 获取当前消息列表
+        const messageList = await DialogHelper.getCurrMessageList({
+            defineScene,
+            maxLength: 10000,
+            maxCount: 100,
+            convLog: conversationLog,
+            msgLog: firstLog
+        });
+
+        // 验证memory内容出现在消息列表中
+        expect(messageList).toBeDefined();
+
+        // 验证define内容（desc类型）
+        const descContents = messageList?.filter(m => m.type === 'desc').map(m => m.content);
+        expect(descContents).toContain("Define content");
+
+        // 验证memory内容（chat类型，带sender_name）
+        const chatMemory = messageList?.filter(m => m.type === 'chat' && 'sender_name' in m && m.sender_name === "System");
+        const memoryContents = chatMemory?.map(m => m.content);
+        expect(memoryContents).toContain("Memory entry 1: Important event");
+        expect(memoryContents).toContain("Memory entry 2: Character trait");
+        expect(memoryContents).toContain("Memory entry 3: World setting");
+    });
+
+    test("34. 应成功测试scene.memory处理", async () => {
+        // 创建带memory的场景
+        const testScene = {
+            define: "Scene define",
+            memory: [
+                { type: "chat" as const, content: "Scene memory 1: Location detail", sender_name: "System" },
+                { type: "chat" as const, content: "Scene memory 2: Time setting", sender_name: "System" }
+            ],
+            name: "test_scene",
+            dialog: []
+        };
+        const conversationLog = await ConversationLog.create({ scene: testScene });
+        const conversationId = conversationLog.getConversationId();
+
+        // 创建FirstLog
+        const firstLog = await FirstLog.loadOrCreate(conversationLog);
+
+        // 定义空的defineScene
+        const defineScene = {
+            define: "",
+            memory: [],
+            name: "test",
+            dialog: []
+        };
+
+        // 获取当前消息列表
+        const messageList = await DialogHelper.getCurrMessageList({
+            defineScene,
+            maxLength: 10000,
+            maxCount: 100,
+            convLog: conversationLog,
+            msgLog: firstLog
+        });
+
+        // 验证scene.memory内容出现在消息列表中
+        expect(messageList).toBeDefined();
+
+        // 验证scene.define（desc类型）
+        const descContents = messageList?.filter(m => m.type === 'desc').map(m => m.content);
+        expect(descContents).toContain("Scene define");
+
+        // 验证scene.memory内容（chat类型，带sender_name）
+        const chatMemory = messageList?.filter(m => m.type === 'chat' && 'sender_name' in m && m.sender_name === "System");
+        const memoryContents = chatMemory?.map(m => m.content);
+        expect(memoryContents).toContain("Scene memory 1: Location detail");
+        expect(memoryContents).toContain("Scene memory 2: Time setting");
+    });
+
+    test("35. 应成功测试多语言翻译覆盖", async () => {
+        // 创建对话和消息
+        const testScene = createTestScene();
+        const conversationLog = await ConversationLog.create({ scene: testScene });
+        const conversationId = conversationLog.getConversationId();
+
+        const messageLog = await MessageLog.create({
+            conversation_id: conversationId,
+            parent_message_id: undefined,
+            sender_id: "user",
+            sender_type: "user",
+            content: "Original content",
+            translate_content_table: {}
+        });
+
+        // 第一次设置中文翻译
+        await messageLog.setTransContent("zh", "第一次翻译");
+        expect(messageLog.getTransContent("zh")).toBe("第一次翻译");
+
+        // 第二次设置中文翻译（覆盖）
+        await messageLog.setTransContent("zh", "第二次翻译");
+        expect(messageLog.getTransContent("zh")).toBe("第二次翻译");
+
+        // 验证第一次翻译已被覆盖
+        expect(messageLog.getTransContent("zh")).not.toBe("第一次翻译");
+
+        // 重新加载验证持久化
+        const loadedMsg = await MessageLog.load(messageLog.getMessageId());
+        expect(loadedMsg?.getTransContent("zh")).toBe("第二次翻译");
+    });
+
+    test("36. 应成功测试getTransContent不存在的语言", async () => {
+        // 创建对话和消息
+        const testScene = createTestScene();
+        const conversationLog = await ConversationLog.create({ scene: testScene });
+        const conversationId = conversationLog.getConversationId();
+
+        const messageLog = await MessageLog.create({
+            conversation_id: conversationId,
+            parent_message_id: undefined,
+            sender_id: "user",
+            sender_type: "user",
+            content: "Original content",
+            translate_content_table: { zh: "中文翻译" }
+        });
+
+        // 验证存在的语言
+        expect(messageLog.getTransContent("zh")).toBe("中文翻译");
+
+        // 验证不存在的语言返回undefined
+        expect(messageLog.getTransContent("en")).toBeUndefined();
+        expect(messageLog.getTransContent("ja")).toBeUndefined();
+        expect(messageLog.getTransContent("ko")).toBeUndefined();
+
+        // 验证空字符串语言key
+        expect(messageLog.getTransContent("")).toBeUndefined();
+    });
 });

@@ -1,7 +1,7 @@
 import { DBManager } from "@sosraciel-lamda/postgresql-manager";
 import { DialogStore, ConversationEntity, MessageEntity } from "@sosraciel-lamda/dialog-store";
 import type { ConversationStruct, MessageStruct } from "@sosraciel-lamda/dialog-store";
-import { ConversationLog, MessageLog, FirstLog } from "@sosraciel-lamda/dialog-domain";
+import { ConversationLog, MessageLog, FirstLog, DialogHelper } from "@sosraciel-lamda/dialog-domain";
 import type { DialogConversationData, DialogMessageData } from "@sosraciel-lamda/dialog-domain";
 import type { MessageLightData, MessageHeavyData, ConversationHeavyData } from "@sosraciel-lamda/dialog-domain";
 import { sleep, UtilFunc } from "@zwa73/utils";
@@ -484,5 +484,304 @@ describe("Dialog-Domain 模块测试", () => {
         expect(updatedScene).toBeDefined();
         expect(updatedScene.name).toBe("new_test_scene");
         expect(updatedScene.define).toBe("new_test_define");
+    });
+
+    test("18. 应成功测试FirstLog的updateData设置translate_content_table", async () => {
+        const testScene = createTestScene();
+        const conversationLog = await ConversationLog.create({ scene: testScene });
+        const firstLog = await FirstLog.loadOrCreate(conversationLog);
+
+        const testTranslation = "这是首条消息的翻译";
+        await firstLog.setTransContent("zh", testTranslation);
+
+        const retrievedTranslation = firstLog.getTransContent("zh");
+        expect(retrievedTranslation).toBe(testTranslation);
+
+        const anotherTranslation = "This is the first message translation";
+        await firstLog.setTransContent("en", anotherTranslation);
+
+        expect(firstLog.getTransContent("zh")).toBe(testTranslation);
+        expect(firstLog.getTransContent("en")).toBe(anotherTranslation);
+    });
+
+    test("19. 应成功测试MessageLog.updateData传入undefined删除key", async () => {
+        const testScene = createTestScene();
+        const conversationLog = await ConversationLog.create({ scene: testScene });
+        const conversationId = conversationLog.getConversationId();
+
+        const messageLog = await MessageLog.create({
+            conversation_id: conversationId,
+            parent_message_id: undefined,
+            sender_id: "test_user",
+            sender_type: "user",
+            content: "Test content for undefined deletion",
+            translate_content_table: { zh: "初始翻译", en: "initial translation" }
+        });
+
+        const messageId = messageLog.getMessageId();
+
+        expect(messageLog.getTransContent("zh")).toBe("初始翻译");
+        expect(messageLog.getTransContent("en")).toBe("initial translation");
+
+        const loadedMessage1 = await MessageLog.load(messageId);
+        expect(loadedMessage1?.getTransContent("zh")).toBe("初始翻译");
+
+        await messageLog.updateData({
+            translate_content_table: { en: "updated translation" }
+        });
+
+        const loadedMessage2 = await MessageLog.load(messageId);
+        expect(loadedMessage2?.getTransContent("zh")).toBeUndefined();
+        expect(loadedMessage2?.getTransContent("en")).toBe("updated translation");
+    });
+
+    test("20. 应成功测试recordMessageLog批量记录消息", async () => {
+        const testScene = createTestScene();
+        const conversationLog = await ConversationLog.create({ scene: testScene });
+        const conversationId = conversationLog.getConversationId();
+
+        const firstLog = await FirstLog.loadOrCreate(conversationLog);
+
+        const messages = await MessageLog.recordMessageLog(
+            {
+                conversation_id: conversationId,
+                content: "First message",
+                sender_id: "user1",
+                sender_type: "user",
+                parent_message_id: undefined
+            },
+            {
+                conversation_id: conversationId,
+                content: "Second message",
+                sender_id: "char1",
+                sender_type: "char",
+                parent_message_id: undefined
+            },
+            {
+                conversation_id: conversationId,
+                content: "Third message",
+                sender_id: "user2",
+                sender_type: "user",
+                parent_message_id: undefined
+            }
+        );
+
+        expect(messages.length).toBe(3);
+        expect(messages[0].getContent()).toBe("First message");
+        expect(messages[0].getSenderId()).toBe("user1");
+        expect(messages[0].getSenderType()).toBe("user");
+
+        expect(messages[1].getContent()).toBe("Second message");
+        expect(messages[1].getSenderId()).toBe("char1");
+        expect(messages[1].getSenderType()).toBe("char");
+
+        expect(messages[2].getContent()).toBe("Third message");
+        expect(messages[2].getSenderId()).toBe("user2");
+        expect(messages[2].getSenderType()).toBe("user");
+
+        const loadedMessage0 = await MessageLog.load(messages[0].getMessageId());
+        expect(loadedMessage0).toBeDefined();
+        expect(loadedMessage0?.getContent()).toBe("First message");
+    });
+
+    test("21. 应成功测试DialogHelper.getHistMessageList获取历史消息", async () => {
+        const testScene = createTestScene();
+        const conversationLog = await ConversationLog.create({ scene: testScene });
+        const conversationId = conversationLog.getConversationId();
+
+        const firstLog = await FirstLog.loadOrCreate(conversationLog);
+
+        const msg1 = await MessageLog.create({
+            conversation_id: conversationId,
+            parent_message_id: undefined,
+            sender_id: "user",
+            sender_type: "user",
+            content: "User message 1"
+        });
+
+        const msg2 = await MessageLog.create({
+            conversation_id: conversationId,
+            parent_message_id: msg1.getMessageId(),
+            sender_id: "char",
+            sender_type: "char",
+            content: "Character response 1"
+        });
+
+        const msg3 = await MessageLog.create({
+            conversation_id: conversationId,
+            parent_message_id: msg2.getMessageId(),
+            sender_id: "user",
+            sender_type: "user",
+            content: "User message 2"
+        });
+
+        const defineScene = {
+            define: "test_define_scene",
+            memory: [],
+            name: "test_define",
+            dialog: [
+                { type: "chat" as const, content: "Define scene dialog 1", sender_name: "Narrator" },
+                { type: "chat" as const, content: "Define scene dialog 2", sender_name: "Narrator" }
+            ]
+        };
+
+        const histMessages = await DialogHelper.getHistMessageList({
+            defineScene,
+            maxLength: 1000,
+            maxCount: 10,
+            convLog: conversationLog,
+            msgLog: msg3
+        });
+
+        expect(Array.isArray(histMessages)).toBe(true);
+        expect(histMessages.length).toBeGreaterThanOrEqual(3);
+
+        const chatMessages = histMessages.filter(m => m.type === 'chat' && 'sender_id' in m);
+        expect(chatMessages.length).toBe(3);
+
+        const msgContents = chatMessages.map(m => m.content);
+        expect(msgContents).toContain("User message 1");
+        expect(msgContents).toContain("Character response 1");
+        expect(msgContents).toContain("User message 2");
+    });
+
+    test("22. 应成功测试DialogHelper.getHistMessageList的强断言验证", async () => {
+        const testScene = {
+            define: "strong_assert_test",
+            memory: [],
+            name: "test_scene",
+            dialog: []
+        };
+        const conversationLog = await ConversationLog.create({ scene: testScene });
+        const conversationId = conversationLog.getConversationId();
+
+        const firstLog = await FirstLog.loadOrCreate(conversationLog);
+
+        const msg1 = await MessageLog.create({
+            conversation_id: conversationId,
+            parent_message_id: undefined,
+            sender_id: "test_user",
+            sender_type: "user",
+            content: "Hello world"
+        });
+
+        const msg2 = await MessageLog.create({
+            conversation_id: conversationId,
+            parent_message_id: msg1.getMessageId(),
+            sender_id: "test_char",
+            sender_type: "char",
+            content: "Hi there!"
+        });
+
+        const defineScene = {
+            define: "strong_assert_test",
+            memory: [],
+            name: "test",
+            dialog: []
+        };
+
+        const histMessages = await DialogHelper.getHistMessageList({
+            defineScene,
+            maxLength: 1000,
+            maxCount: 10,
+            convLog: conversationLog,
+            msgLog: msg2
+        });
+
+        const chatMessages = histMessages.filter(m => m.type === 'chat' && 'sender_id' in m);
+        expect(chatMessages.length).toBe(2);
+
+        const firstMsg = chatMessages[0];
+        expect(firstMsg.type).toBe("chat");
+        if (firstMsg.type === 'chat' && 'sender_id' in firstMsg) {
+            expect(firstMsg.sender_id).toBe("test_user");
+            expect(firstMsg.sender_type).toBe("user");
+            expect(firstMsg.content).toBe("Hello world");
+            expect(firstMsg.id).toBe(msg1.getMessageId());
+        }
+
+        const secondMsg = chatMessages[1];
+        expect(secondMsg.type).toBe("chat");
+        if (secondMsg.type === 'chat' && 'sender_id' in secondMsg) {
+            expect(secondMsg.sender_id).toBe("test_char");
+            expect(secondMsg.sender_type).toBe("char");
+            expect(secondMsg.content).toBe("Hi there!");
+            expect(secondMsg.id).toBe(msg2.getMessageId());
+        }
+    });
+
+    test("23. 应成功测试DialogHelper.getHistMessageList从FirstLog开始", async () => {
+        const testScene = {
+            define: "first_log_test",
+            memory: [],
+            name: "test_scene",
+            dialog: [
+                { type: "chat" as const, content: "Opening line from scene", sender_name: "Character" }
+            ]
+        };
+        const conversationLog = await ConversationLog.create({ scene: testScene });
+        const conversationId = conversationLog.getConversationId();
+
+        const firstLog = await FirstLog.loadOrCreate(conversationLog);
+
+        const msg1 = await MessageLog.create({
+            conversation_id: conversationId,
+            parent_message_id: undefined,
+            sender_id: "user",
+            sender_type: "user",
+            content: "User message after first"
+        });
+
+        const defineScene = {
+            define: "define_test",
+            memory: [],
+            name: "define",
+            dialog: [
+                { type: "chat" as const, content: "Define opening", sender_name: "System" }
+            ]
+        };
+
+        const histMessages = await DialogHelper.getHistMessageList({
+            defineScene,
+            maxLength: 1000,
+            maxCount: 10,
+            convLog: conversationLog,
+            msgLog: firstLog
+        });
+
+        expect(Array.isArray(histMessages)).toBe(true);
+
+        const chatMessages = histMessages.filter(m => m.type === 'chat' && 'sender_id' in m);
+        expect(chatMessages.length).toBe(0);
+
+        const sceneDialogs = histMessages.filter(m => m.type === 'chat' && 'sender_name' in m);
+        expect(sceneDialogs.length).toBeGreaterThan(0);
+    });
+
+    test("24. 应成功测试DialogHelper.getDialogPos和getDialogPosId", async () => {
+        const testScene = createTestScene();
+        const conversationLog = await ConversationLog.create({ scene: testScene });
+        const conversationId = conversationLog.getConversationId();
+
+        const messageLog = await MessageLog.create({
+            conversation_id: conversationId,
+            parent_message_id: undefined,
+            sender_id: "user",
+            sender_type: "user",
+            content: "Test message for pos"
+        });
+
+        const posId = DialogHelper.getDialogPosId({
+            message: messageLog,
+            conversation: conversationLog
+        });
+
+        expect(posId.conversationId).toBe(conversationId);
+        expect(posId.messageId).toBe(messageLog.getMessageId());
+
+        const retrievedPos = await DialogHelper.getDialogPos(posId);
+        expect(retrievedPos).toBeDefined();
+        expect(retrievedPos?.conversation.getConversationId()).toBe(conversationId);
+        expect(retrievedPos?.message.getMessageId()).toBe(messageLog.getMessageId());
     });
 });

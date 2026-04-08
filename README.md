@@ -21,6 +21,10 @@ LaMDA 系统的模块集合，采用多仓库架构管理。
 ### Business-Domain
 - [[Business-Domain/Dialog-Domain/README|Dialog-Domain]] - 对话域
 - [[Business-Domain/CharProfile-Domain/README|CharProfile-Domain]] - 角色档案域
+- [[Business-Domain/User-Domain/README|User-Domain]] - 用户域
+
+### Data-Store
+- [[Data-Store/Dialog-Store/README|Dialog-Store]] - 对话数据存储
 
 ### Common-Utility
 - [[Common-Utility/Text-Processor/README|Text-Processor]] - 文本处理器
@@ -35,4 +39,4 @@ LaMDA 系统的模块集合，采用多仓库架构管理。
 
 ---
 
-*最后更新: 2026-03-25*
+*最后更新: 2026-04-09*

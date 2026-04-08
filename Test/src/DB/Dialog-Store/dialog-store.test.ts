@@ -838,4 +838,168 @@ describe("Dialog-Store 模块测试", () => {
             }
         });
     });
+
+    describe("Entity.updateData 深层合并行为测试", () => {
+        test("25. ConversationEntity.updateData传入undefined删除heavy_data中的key", async () => {
+            // 创建带有多个heavy_data字段的对话
+            const entity = await ConversationEntity.create<TestLightData, TestHeavyData>({
+                heavy_data: {
+                    translate_content_table: { en: 'Hello', zh: '你好' },
+                    metadata: { key: 'value1' }
+                }
+            });
+
+            // 验证初始数据
+            expect(entity.getHeavyField('translate_content_table')).toEqual({ en: 'Hello', zh: '你好' });
+            expect(entity.getHeavyField('metadata')).toEqual({ key: 'value1' });
+
+            // 传入undefined删除translate_content_table
+            await entity.updateData({
+                heavy_data: {
+                    translate_content_table: undefined
+                }
+            });
+
+            // 验证translate_content_table已删除，metadata仍存在
+            expect(entity.getHeavyField('translate_content_table')).toBeUndefined();
+            expect(entity.getHeavyField('metadata')).toEqual({ key: 'value1' });
+
+            // 重新加载验证持久化
+            const loadedEntity = await ConversationEntity.load<TestLightData, TestHeavyData>(entity.getConversationId());
+            expect(loadedEntity?.getHeavyField('translate_content_table')).toBeUndefined();
+            expect(loadedEntity?.getHeavyField('metadata')).toEqual({ key: 'value1' });
+        });
+
+        test("26. MessageEntity.updateData传入undefined删除heavy_data中的key", async () => {
+            // 创建对话实体
+            const convEntity = await ConversationEntity.create<TestLightData, TestHeavyData>({});
+
+            // 获取首条消息实体并设置heavy_data
+            const firstMsg = await convEntity.getFirstMessageEntity();
+            await firstMsg.updateData({
+                heavy_data: {
+                    translate_content_table: { en: 'Hello', zh: '你好' },
+                    metadata: { key: 'value1' }
+                }
+            });
+
+            // 验证初始数据
+            expect(firstMsg.getHeavyField('translate_content_table')).toEqual({ en: 'Hello', zh: '你好' });
+            expect(firstMsg.getHeavyField('metadata')).toEqual({ key: 'value1' });
+
+            // 传入undefined删除metadata
+            await firstMsg.updateData({
+                heavy_data: {
+                    metadata: undefined
+                }
+            });
+
+            // 验证metadata已删除，translate_content_table仍存在
+            expect(firstMsg.getHeavyField('metadata')).toBeUndefined();
+            expect(firstMsg.getHeavyField('translate_content_table')).toEqual({ en: 'Hello', zh: '你好' });
+
+            // 重新加载验证持久化
+            const loadedMsg = await MessageEntity.load<TestLightData, TestHeavyData>(firstMsg.getMessageId() ?? convEntity.getFirstMessageId());
+            expect(loadedMsg?.getHeavyField('metadata')).toBeUndefined();
+            expect(loadedMsg?.getHeavyField('translate_content_table')).toEqual({ en: 'Hello', zh: '你好' });
+        });
+
+        test("27. ConversationEntity.updateData传入空对象不删除字段", async () => {
+            // 创建带有heavy_data的对话
+            const entity = await ConversationEntity.create<TestLightData, TestHeavyData>({
+                heavy_data: {
+                    translate_content_table: { en: 'Hello' },
+                    metadata: { key: 'value1' }
+                }
+            });
+
+            // 验证初始数据
+            expect(entity.getHeavyField('translate_content_table')).toEqual({ en: 'Hello' });
+            expect(entity.getHeavyField('metadata')).toEqual({ key: 'value1' });
+
+            // 传入空对象{}应无操作
+            await entity.updateData({
+                heavy_data: {}
+            });
+
+            // 验证heavy_data字段仍然存在
+            expect(entity.getHeavyField('translate_content_table')).toEqual({ en: 'Hello' });
+            expect(entity.getHeavyField('metadata')).toEqual({ key: 'value1' });
+
+            // 重新加载验证持久化
+            const loadedEntity = await ConversationEntity.load<TestLightData, TestHeavyData>(entity.getConversationId());
+            expect(loadedEntity?.getHeavyField('translate_content_table')).toEqual({ en: 'Hello' });
+            expect(loadedEntity?.getHeavyField('metadata')).toEqual({ key: 'value1' });
+        });
+
+        test("28. MessageEntity.updateData传入空对象不删除字段", async () => {
+            // 创建对话实体
+            const convEntity = await ConversationEntity.create<TestLightData, TestHeavyData>({});
+
+            // 获取首条消息实体并设置heavy_data
+            const firstMsg = await convEntity.getFirstMessageEntity();
+            await firstMsg.updateData({
+                heavy_data: {
+                    translate_content_table: { en: 'Hello' },
+                    metadata: { key: 'value1' }
+                }
+            });
+
+            // 验证初始数据
+            expect(firstMsg.getHeavyField('translate_content_table')).toEqual({ en: 'Hello' });
+            expect(firstMsg.getHeavyField('metadata')).toEqual({ key: 'value1' });
+
+            // 传入空对象{}应无操作
+            await firstMsg.updateData({
+                heavy_data: {}
+            });
+
+            // 验证heavy_data字段仍然存在
+            expect(firstMsg.getHeavyField('translate_content_table')).toEqual({ en: 'Hello' });
+            expect(firstMsg.getHeavyField('metadata')).toEqual({ key: 'value1' });
+
+            // 重新加载验证持久化
+            const loadedMsg = await MessageEntity.load<TestLightData, TestHeavyData>(firstMsg.getMessageId() ?? convEntity.getFirstMessageId());
+            expect(loadedMsg?.getHeavyField('translate_content_table')).toEqual({ en: 'Hello' });
+            expect(loadedMsg?.getHeavyField('metadata')).toEqual({ key: 'value1' });
+        });
+
+        test("29. ConversationEntity.updateData深层合并light_data", async () => {
+            // 创建带有light_data的对话
+            const entity = await ConversationEntity.create<TestLightData, TestHeavyData>({
+                light_data: { sender_type: 'user', status: 'active' }
+            });
+
+            // 验证初始数据
+            expect(entity.getLightField('sender_type')).toBe('user');
+            expect(entity.getLightField('status')).toBe('active');
+
+            // 深层合并：只更新status，保留sender_type
+            await entity.updateData({
+                light_data: {
+                    status: 'completed'
+                }
+            });
+
+            // 验证sender_type保留，status更新
+            expect(entity.getLightField('sender_type')).toBe('user');
+            expect(entity.getLightField('status')).toBe('completed');
+
+            // 传入undefined删除status
+            await entity.updateData({
+                light_data: {
+                    status: undefined
+                }
+            });
+
+            // 验证status已删除，sender_type仍存在
+            expect(entity.getLightField('status')).toBeUndefined();
+            expect(entity.getLightField('sender_type')).toBe('user');
+
+            // 重新加载验证持久化
+            const loadedEntity = await ConversationEntity.load<TestLightData, TestHeavyData>(entity.getConversationId());
+            expect(loadedEntity?.getLightField('status')).toBeUndefined();
+            expect(loadedEntity?.getLightField('sender_type')).toBe('user');
+        });
+    });
 });

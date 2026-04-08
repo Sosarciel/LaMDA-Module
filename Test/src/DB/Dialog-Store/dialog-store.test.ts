@@ -176,8 +176,7 @@ describe("Dialog-Store 模块测试", () => {
             });
             await DialogStore.setConversation(updatedConversation);
 
-            // 等待通知处理
-            await sleep(100);
+            // 内部set对缓存的影响应该随promise结果完成, 无需等待
 
             // 验证缓存已更新为新值
             cachedData = DBCache.peekCache(cacheKey) as ConversationStruct<TestLightData, TestHeavyData> | undefined;
@@ -204,8 +203,7 @@ describe("Dialog-Store 模块测试", () => {
             });
             await DialogStore.setConversation(updatedConversation);
 
-            // 等待通知处理
-            await sleep(100);
+            // 内部set对缓存的影响应该随promise结果完成, 无需等待
 
             // 验证缓存已更新为新值（en 已被替换掉）
             cachedData = DBCache.peekCache(cacheKey) as ConversationStruct<TestLightData, TestHeavyData> | undefined;
@@ -240,8 +238,7 @@ describe("Dialog-Store 模块测试", () => {
             );
             await DialogStore.setMessage(updatedMessage);
 
-            // 等待通知处理
-            await sleep(100);
+            // 内部set对缓存的影响应该随promise结果完成, 无需等待
 
             // 验证缓存已更新
             cachedData = DBCache.peekCache(cacheKey) as MessageStruct<TestLightData, TestHeavyData> | undefined;

@@ -332,7 +332,7 @@ describe("Dialog-Store 模块测试", () => {
     });
 
     describe("Entity 泛型测试", () => {
-        test("10. ConversationEntity 应正确处理泛型 light_data", async () => {
+        test("10. ConversationEntity 应正确处理泛型 light_data（深合并）", async () => {
             // 创建带有泛型 light_data 的对话实体
             const entity = await ConversationEntity.create<TestLightData, TestHeavyData>({
                 light_data: { sender_type: 'char', status: 'active' }
@@ -342,14 +342,32 @@ describe("Dialog-Store 模块测试", () => {
             expect(entity.getLightField('sender_type')).toBe('char');
             expect(entity.getLightField('status')).toBe('active');
 
-            // 更新 light_data（注意：是浅合并，需要传入完整对象）
+            // 深层合并：只更新status，保留sender_type
             await entity.updateData({
-                light_data: { sender_type: 'char', status: 'completed' }
+                light_data: {
+                    status: 'completed'
+                }
             });
 
-            // 验证更新后的值
+            // 验证sender_type保留，status更新
             expect(entity.getLightField('sender_type')).toBe('char');
             expect(entity.getLightField('status')).toBe('completed');
+
+            // 传入undefined删除status
+            await entity.updateData({
+                light_data: {
+                    status: undefined
+                }
+            });
+
+            // 验证status已删除，sender_type仍存在
+            expect(entity.getLightField('status')).toBeUndefined();
+            expect(entity.getLightField('sender_type')).toBe('char');
+
+            // 重新加载验证持久化
+            const loadedEntity = await ConversationEntity.load<TestLightData, TestHeavyData>(entity.getConversationId());
+            expect(loadedEntity?.getLightField('status')).toBeUndefined();
+            expect(loadedEntity?.getLightField('sender_type')).toBe('char');
         });
 
         test("11. MessageEntity 应正确处理泛型 heavy_data", async () => {
@@ -548,7 +566,7 @@ describe("Dialog-Store 模块测试", () => {
     });
 
     describe("边界情况与数据清理测试", () => {
-        test("18. UPDATE 时应保留 created_at 时间戳", async () => {
+        test("18. UPDATE 时应保留 created_at 时间戳（含SQL覆盖保护）", async () => {
             // 创建对话
             const testConversation = createTestConversation<TestLightData, TestHeavyData>({
                 light_data: { sender_type: 'user' }
@@ -579,7 +597,7 @@ describe("Dialog-Store 模块测试", () => {
             // 等待一小段时间确保时间戳有差异
             await sleep(100);
 
-            // 更新对话（全量更新）
+            // 更新对话（深合并更新light_data）
             const updatedConversation = createTestConversation<TestLightData, TestHeavyData>({
                 conversation_id: testConversation.data.conversation_id,
                 light_data: { sender_type: 'char', status: 'updated' }
@@ -598,6 +616,31 @@ describe("Dialog-Store 模块测试", () => {
 
             // 验证 updated_at 已更新
             expect(afterUpdateData?.data.updated_at).toBeDefined();
+
+            // 通过 SQL 直接更新，尝试覆盖 created_at（验证触发器保护）
+            await manager.client.query(`
+                UPDATE dialog.conversation
+                SET data = jsonb_set(
+                    data,
+                    '{created_at}',
+                    '"2099-01-01T00:00:00Z"'::jsonb,
+                    false
+                )
+                WHERE data->>'conversation_id' = '${testConversation.data.conversation_id}';
+            `);
+
+            // 等待触发器处理
+            await sleep(100);
+
+            // 验证 created_at 仍为初始值（触发器强制保留 OLD 值）
+            const afterSqlUpdate = await manager.client.query(`
+                SELECT data->>'created_at' as created_at
+                FROM dialog.conversation
+                WHERE data->>'conversation_id' = '${testConversation.data.conversation_id}';
+            `);
+
+            // created_at 应该保持原值，而不是被改为 2099 年
+            expect(afterSqlUpdate.rows[0].created_at).toBe(initialCreatedAt);
         });
 
         test("19. 空对象 light_data/heavy_data 应被清理", async () => {
@@ -631,53 +674,10 @@ describe("Dialog-Store 模块测试", () => {
             expect((cachedData?.data as any).light_data).toBeUndefined();
             expect((cachedData?.data as any).heavy_data).toBeUndefined();
         });
-
-        test("20. SQL UPDATE 时强制保留 OLD 的 created_at", async () => {
-            // 创建对话
-            const testConversation = createTestConversation();
-            await DialogStore.setConversation(testConversation);
-
-            // 获取初始 created_at
-            const initialResult = await manager.client.query(`
-                SELECT data->>'created_at' as created_at
-                FROM dialog.conversation
-                WHERE data->>'conversation_id' = '${testConversation.data.conversation_id}';
-            `);
-            const initialCreatedAt = initialResult.rows[0].created_at;
-            expect(initialCreatedAt).toBeDefined();
-
-            // 等待一小段时间
-            await sleep(100);
-
-            // 通过 SQL 直接更新，尝试覆盖 created_at
-            await manager.client.query(`
-                UPDATE dialog.conversation
-                SET data = jsonb_set(
-                    data,
-                    '{created_at}',
-                    '"2099-01-01T00:00:00Z"'::jsonb,
-                    false
-                )
-                WHERE data->>'conversation_id' = '${testConversation.data.conversation_id}';
-            `);
-
-            // 等待触发器处理
-            await sleep(100);
-
-            // 验证 created_at 仍为初始值（触发器强制保留 OLD 值）
-            const afterResult = await manager.client.query(`
-                SELECT data->>'created_at' as created_at
-                FROM dialog.conversation
-                WHERE data->>'conversation_id' = '${testConversation.data.conversation_id}';
-            `);
-
-            // created_at 应该保持原值，而不是被改为 2099 年
-            expect(afterResult.rows[0].created_at).toBe(initialCreatedAt);
-        });
     });
 
     describe("DialogStoreHelper.createHistChain 测试", () => {
-        test("21. 应在遇到 FirstEntity 时正常结束", async () => {
+        test("20. 应在遇到 FirstEntity 时正常结束", async () => {
             // 创建对话
             const convEntity = await ConversationEntity.create<TestLightData, TestHeavyData>({});
 
@@ -711,7 +711,7 @@ describe("Dialog-Store 模块测试", () => {
             expect(result.chain[1].getMessageId()).toBe(msg2.getMessageId());
         });
 
-        test("22. 应在消息条数超限时停止", async () => {
+        test("21. 应在消息条数超限时停止", async () => {
             // 创建对话
             const convEntity = await ConversationEntity.create<TestLightData, TestHeavyData>({});
 
@@ -747,7 +747,7 @@ describe("Dialog-Store 模块测试", () => {
             }
         });
 
-        test("23. 应在总长度超限时停止", async () => {
+        test("22. 应在总长度超限时停止", async () => {
             // 创建对话
             const convEntity = await ConversationEntity.create<TestLightData, TestHeavyData>({});
 
@@ -790,7 +790,7 @@ describe("Dialog-Store 模块测试", () => {
             }
         });
 
-        test("24. 应支持自定义 computeLength 计算", async () => {
+        test("23. 应支持自定义 computeLength 计算", async () => {
             // 创建对话
             const convEntity = await ConversationEntity.create<TestLightData, TestHeavyData>({});
 
@@ -840,7 +840,7 @@ describe("Dialog-Store 模块测试", () => {
     });
 
     describe("Entity.updateData 深层合并行为测试", () => {
-        test("25. ConversationEntity.updateData传入undefined删除heavy_data中的key", async () => {
+        test("24. ConversationEntity.updateData传入undefined删除heavy_data中的key", async () => {
             // 创建带有多个heavy_data字段的对话
             const entity = await ConversationEntity.create<TestLightData, TestHeavyData>({
                 heavy_data: {
@@ -870,7 +870,7 @@ describe("Dialog-Store 模块测试", () => {
             expect(loadedEntity?.getHeavyField('metadata')).toEqual({ key: 'value1' });
         });
 
-        test("26. MessageEntity.updateData传入undefined删除heavy_data中的key", async () => {
+        test("25. MessageEntity.updateData传入undefined删除heavy_data中的key", async () => {
             // 创建对话实体
             const convEntity = await ConversationEntity.create<TestLightData, TestHeavyData>({});
 
@@ -904,7 +904,7 @@ describe("Dialog-Store 模块测试", () => {
             expect(loadedMsg?.getHeavyField('translate_content_table')).toEqual({ en: 'Hello', zh: '你好' });
         });
 
-        test("27. ConversationEntity.updateData传入空对象不删除字段", async () => {
+        test("26. ConversationEntity.updateData传入空对象不删除字段", async () => {
             // 创建带有heavy_data的对话
             const entity = await ConversationEntity.create<TestLightData, TestHeavyData>({
                 heavy_data: {
@@ -932,7 +932,7 @@ describe("Dialog-Store 模块测试", () => {
             expect(loadedEntity?.getHeavyField('metadata')).toEqual({ key: 'value1' });
         });
 
-        test("28. MessageEntity.updateData传入空对象不删除字段", async () => {
+        test("27. MessageEntity.updateData传入空对象不删除字段", async () => {
             // 创建对话实体
             const convEntity = await ConversationEntity.create<TestLightData, TestHeavyData>({});
 
@@ -962,44 +962,6 @@ describe("Dialog-Store 模块测试", () => {
             const loadedMsg = await MessageEntity.load<TestLightData, TestHeavyData>(firstMsg.getMessageId() ?? convEntity.getFirstMessageId());
             expect(loadedMsg?.getHeavyField('translate_content_table')).toEqual({ en: 'Hello' });
             expect(loadedMsg?.getHeavyField('metadata')).toEqual({ key: 'value1' });
-        });
-
-        test("29. ConversationEntity.updateData深层合并light_data", async () => {
-            // 创建带有light_data的对话
-            const entity = await ConversationEntity.create<TestLightData, TestHeavyData>({
-                light_data: { sender_type: 'user', status: 'active' }
-            });
-
-            // 验证初始数据
-            expect(entity.getLightField('sender_type')).toBe('user');
-            expect(entity.getLightField('status')).toBe('active');
-
-            // 深层合并：只更新status，保留sender_type
-            await entity.updateData({
-                light_data: {
-                    status: 'completed'
-                }
-            });
-
-            // 验证sender_type保留，status更新
-            expect(entity.getLightField('sender_type')).toBe('user');
-            expect(entity.getLightField('status')).toBe('completed');
-
-            // 传入undefined删除status
-            await entity.updateData({
-                light_data: {
-                    status: undefined
-                }
-            });
-
-            // 验证status已删除，sender_type仍存在
-            expect(entity.getLightField('status')).toBeUndefined();
-            expect(entity.getLightField('sender_type')).toBe('user');
-
-            // 重新加载验证持久化
-            const loadedEntity = await ConversationEntity.load<TestLightData, TestHeavyData>(entity.getConversationId());
-            expect(loadedEntity?.getLightField('status')).toBeUndefined();
-            expect(loadedEntity?.getLightField('sender_type')).toBe('user');
         });
     });
 });

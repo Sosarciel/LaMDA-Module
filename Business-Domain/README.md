@@ -6,9 +6,24 @@
 
 ## 📦 模块列表
 
-- [[LaMDA-Module/Business-Domain/Dialog-Domain/README|Dialog-Domain]] — 对话域 → [[LaMDA-Module/Business-Domain/Dialog-Domain/plan/README|实施计划]]
-- [[LaMDA-Module/Business-Domain/CharProfile-Domain/README|CharProfile-Domain]] — 角色档案域 → [[LaMDA-Module/Business-Domain/CharProfile-Domain/plan/README|实施计划]]
+- [[Business-Domain/Dialog-Domain/README|Dialog-Domain]] — 对话域 → [[Business-Domain/Dialog-Domain/plan/README|实施计划]]
+- [[Business-Domain/CharProfile-Domain/README|CharProfile-Domain]] — 角色档案域 → [[Business-Domain/CharProfile-Domain/plan/README|实施计划]]
+- [[Business-Domain/User-Domain/README|User-Domain]] — 用户域 → [[Business-Domain/User-Domain/plan/README|实施计划]]
 
 ---
 
-*最后更新: 2026-03-25*
+## 🔗 依赖关系
+
+```
+Business-Domain
+    ├── Dialog-Domain (对话管理)
+    │   └── 依赖: Dialog-Store, CharProfile-Domain
+    ├── CharProfile-Domain (角色档案)
+    │   └── 依赖: 无
+    └── User-Domain (用户管理)
+        └── 依赖: 无
+```
+
+---
+
+*最后更新: 2026-04-09*

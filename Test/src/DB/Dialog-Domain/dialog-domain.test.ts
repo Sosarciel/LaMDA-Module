@@ -1323,4 +1323,102 @@ describe("Dialog-Domain 模块测试", () => {
         // 验证空字符串语言key
         expect(messageLog.getTransContent("")).toBeUndefined();
     });
+
+    test("33. 应成功测试MessageLog.updateData传入undefined删除translate_content_table中的key", async () => {
+        // 创建对话和消息
+        const testScene = createTestScene();
+        const conversationLog = await ConversationLog.create({ scene: testScene });
+        const conversationId = conversationLog.getConversationId();
+
+        // 创建带有多个翻译的消息
+        const messageLog = await MessageLog.create({
+            conversation_id: conversationId,
+            parent_message_id: undefined,
+            sender_id: "user",
+            sender_type: "user",
+            content: "Test content for undefined deletion",
+            translate_content_table: { zh: "中文翻译", en: "English translation", ja: "日本語訳" }
+        });
+
+        const messageId = messageLog.getMessageId();
+
+        // 验证初始翻译
+        expect(messageLog.getTransContent("zh")).toBe("中文翻译");
+        expect(messageLog.getTransContent("en")).toBe("English translation");
+        expect(messageLog.getTransContent("ja")).toBe("日本語訳");
+
+        // 重新加载验证持久化
+        const loadedMessage1 = await MessageLog.load(messageId);
+        expect(loadedMessage1?.getTransContent("zh")).toBe("中文翻译");
+        expect(loadedMessage1?.getTransContent("en")).toBe("English translation");
+        expect(loadedMessage1?.getTransContent("ja")).toBe("日本語訳");
+
+        // 通过setTransContent更新，只保留en（setTransContent会合并而不是覆盖）
+        // 但我们使用updateData直接传入translate_content_table来测试深合并
+        // 传入只包含en的table，zh和ja应该被删除
+        await messageLog.updateData({
+            translate_content_table: { en: "updated English" }
+        });
+
+        // 重新加载验证更新结果：zh和ja应被删除，en应被更新
+        const loadedMessage2 = await MessageLog.load(messageId);
+        expect(loadedMessage2?.getTransContent("zh")).toBeUndefined();
+        expect(loadedMessage2?.getTransContent("ja")).toBeUndefined();
+        expect(loadedMessage2?.getTransContent("en")).toBe("updated English");
+    });
+
+    test("34. 应成功测试FirstLog.updateData传入undefined删除translate_content_table中的key", async () => {
+        // 创建对话和FirstLog
+        const testScene = createTestScene();
+        const conversationLog = await ConversationLog.create({ scene: testScene });
+        const firstLog = await FirstLog.loadOrCreate(conversationLog);
+
+        // 设置多个语言翻译
+        await firstLog.setTransContent("zh", "首条消息中文");
+        await firstLog.setTransContent("en", "First message English");
+        await firstLog.setTransContent("ja", "最初のメッセージ");
+
+        // 验证初始翻译
+        expect(firstLog.getTransContent("zh")).toBe("首条消息中文");
+        expect(firstLog.getTransContent("en")).toBe("First message English");
+        expect(firstLog.getTransContent("ja")).toBe("最初のメッセージ");
+
+        // 使用updateData传入只包含en的table
+        await firstLog.updateData({
+            translate_content_table: { en: "Updated first message" }
+        });
+
+        // 验证zh和ja被删除，en被更新
+        expect(firstLog.getTransContent("zh")).toBeUndefined();
+        expect(firstLog.getTransContent("ja")).toBeUndefined();
+        expect(firstLog.getTransContent("en")).toBe("Updated first message");
+    });
+
+    test("35. 应成功测试ConversationLog.updateData传入undefined删除background_info", async () => {
+        // 创建带背景信息的对话
+        const testScene = createTestScene();
+        const conversationLog = await ConversationLog.create({ scene: testScene });
+
+        // 设置背景信息
+        await conversationLog.updateData({ background_info: "This is background info" });
+        expect(conversationLog.hasBackgroundInfo()).toBe(true);
+        expect(conversationLog.getBackgroundInfo()).toBe("This is background info");
+
+        // 重新加载验证持久化
+        const loadedConv1 = await ConversationLog.load(conversationLog.getConversationId());
+        expect(loadedConv1?.hasBackgroundInfo()).toBe(true);
+        expect(loadedConv1?.getBackgroundInfo()).toBe("This is background info");
+
+        // 传入undefined删除background_info
+        await conversationLog.updateData({ background_info: undefined });
+
+        // 验证背景信息已删除
+        expect(conversationLog.hasBackgroundInfo()).toBe(false);
+        expect(conversationLog.getBackgroundInfo()).toBeUndefined();
+
+        // 重新加载验证持久化
+        const loadedConv2 = await ConversationLog.load(conversationLog.getConversationId());
+        expect(loadedConv2?.hasBackgroundInfo()).toBe(false);
+        expect(loadedConv2?.getBackgroundInfo()).toBeUndefined();
+    });
 });

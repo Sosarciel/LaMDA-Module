@@ -169,7 +169,7 @@ describe("Dialog-Store 模块测试", () => {
             expect((cachedData?.data.light_data as TestLightData)?.sender_type).toBe('user');
             expect((cachedData?.data.light_data as TestLightData)?.status).toBe('active');
 
-            // 全量更新 light_data（注意：是全量替换，不是增量合并）
+            // 全量更新 light_data 的每一个字段
             const updatedConversation = createTestConversation<TestLightData, TestHeavyData>({
                 conversation_id: testConversation.data.conversation_id,
                 light_data: { sender_type: 'char', status: 'inactive' }
@@ -197,7 +197,7 @@ describe("Dialog-Store 模块测试", () => {
             let cachedData = DBCache.peekCache(cacheKey) as ConversationStruct<TestLightData, TestHeavyData> | undefined;
             expect((cachedData?.data.heavy_data as TestHeavyData)?.translate_content_table?.en).toBe('Hello');
 
-            // 全量更新 heavy_data（注意：是全量替换，不是增量合并）
+            // 全量更新 heavy_data 的每一个字段
             const updatedConversation = createTestConversation<TestLightData, TestHeavyData>({
                 conversation_id: testConversation.data.conversation_id,
                 heavy_data: { translate_content_table: { zh: '你好' } }
@@ -251,7 +251,7 @@ describe("Dialog-Store 模块测试", () => {
     });
 
     describe("SQL 触发器与 TS 缓存一致性测试", () => {
-        test("7. SQL 增量更新后缓存应正确同步 light_data", async () => {
+        test("7. 外部SQL 增量更新后缓存应正确同步 light_data", async () => {
             // 创建带有 light_data 的对话
             const testConversation = createTestConversation<TestLightData, TestHeavyData>({
                 light_data: { sender_type: 'user' }
@@ -274,7 +274,7 @@ describe("Dialog-Store 模块测试", () => {
             `);
 
             // 等待 SQL 触发器发送通知和缓存同步
-            await sleep(500);
+            await sleep(100);
 
             // 验证缓存已同步 SQL 的增量更新
             const cachedData = DBCache.peekCache(cacheKey) as ConversationStruct<TestLightData, TestHeavyData> | undefined;
@@ -282,7 +282,7 @@ describe("Dialog-Store 模块测试", () => {
             expect((cachedData?.data.light_data as TestLightData)?.sender_type).toBe('user');
         });
 
-        test("8. SQL 增量更新后缓存应正确同步 heavy_data", async () => {
+        test("8. 外部SQL 增量更新后缓存应正确同步 heavy_data", async () => {
             // 创建带有 heavy_data 的对话
             const testConversation = createTestConversation<TestLightData, TestHeavyData>({
                 heavy_data: { translate_content_table: { en: 'Hello' } }
@@ -304,7 +304,7 @@ describe("Dialog-Store 模块测试", () => {
             `);
 
             // 等待 SQL 触发器发送通知和缓存同步
-            await sleep(500);
+            await sleep(100);
 
             // 验证缓存已同步 SQL 的增量更新
             const cachedData = DBCache.peekCache(cacheKey) as ConversationStruct<TestLightData, TestHeavyData> | undefined;
@@ -467,7 +467,7 @@ describe("Dialog-Store 模块测试", () => {
             await DialogStore.deleteMessage(parentMessage.data.message_id);
 
             // 等待联动删除副作用通知下发
-            await sleep(500);
+            await sleep(100);
 
             // 验证根消息和子消息都已删除（由于触发器联动删除）
             const deletedParentMessage = await DialogStore.getMessage(parentMessage.data.message_id);
@@ -498,7 +498,7 @@ describe("Dialog-Store 模块测试", () => {
             await DialogStore.deleteConversation(testConversation.data.conversation_id);
 
             // 等待联动删除副作用通知下发
-            await sleep(500);
+            await sleep(100);
 
             // 验证对话和所有相关消息都已删除（由于触发器联动删除）
             const deletedConversation = await DialogStore.getConversation(testConversation.data.conversation_id, { ignoreCache: true });

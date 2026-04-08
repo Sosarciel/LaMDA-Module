@@ -223,7 +223,7 @@ describe("Dialog-Domain 模块测试", () => {
         await DialogStore.deleteMessage(parentMessage.data.message_id);
 
         // 等待联动删除副作用通知下发
-        await sleep(500);
+        await sleep(100);
 
         // 验证根消息和子消息都已删除（由于触发器联动删除）
         const deletedParentMessage = await DialogStore.getMessage(parentMessage.data.message_id);
@@ -258,7 +258,7 @@ describe("Dialog-Domain 模块测试", () => {
         await DialogStore.deleteConversation(testConversation.data.conversation_id);
 
         // 等待联动删除副作用通知下发
-        await sleep(500);
+        await sleep(100);
 
         // 验证对话和所有相关消息都已删除（由于触发器联动删除）
         const deletedConversation = await DialogStore.getConversation(testConversation.data.conversation_id, { ignoreCache: true });
@@ -505,7 +505,7 @@ describe("Dialog-Domain 模块测试", () => {
         `);
 
         // 等待通知处理
-        await sleep(500);
+        await sleep(100);
 
         // 验证缓存是否已更新
         const updatedCachedMessage = await DialogStore.getMessage(testMessage.data.message_id);

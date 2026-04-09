@@ -3,7 +3,7 @@ import { DialogStore } from "@sosraciel-lamda/dialog-store";
 import type { ConversationStruct, MessageStruct } from "@sosraciel-lamda/dialog-store";
 import { ConversationModel, MessageModel, FirstModel, DialogHelper } from "@sosraciel-lamda/dialog-domain";
 import type { DialogMessageData } from "@sosraciel-lamda/dialog-domain";
-import type { MessageLightData, MessageHeavyData, ConversationHeavyData } from "@sosraciel-lamda/dialog-domain";
+import type { ConversationHeavyData, MessageModelExt, ConversationModelExt } from "@sosraciel-lamda/dialog-domain";
 import { sleep, UtilFunc } from "@zwa73/utils";
 import { DBCache } from "@sosraciel-lamda/dialog-store/dist/DBCache";
 import { PG_PORT } from "@/src/Constant";
@@ -12,7 +12,7 @@ import { PG_PORT } from "@/src/Constant";
 const createTestConversation = (options?: {
     conversation_id?: string;
     background_info?: string;
-}): ConversationStruct<{}, ConversationHeavyData> => {
+}): ConversationStruct<ConversationModelExt> => {
     return {
         data: {
             conversation_id: options?.conversation_id || UtilFunc.genUUID(),
@@ -42,7 +42,7 @@ const createTestMessage = (conversationId: string, options?: {
     sender_id?: string;
     sender_type?: "user" | "char";
     content?: string;
-}): MessageStruct<MessageLightData, MessageHeavyData> => {
+}): MessageStruct<MessageModelExt> => {
     return {
         data: {
             message_id: options?.message_id || UtilFunc.genUUID(),

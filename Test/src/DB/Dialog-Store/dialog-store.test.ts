@@ -1,6 +1,6 @@
 import { DBManager } from "@sosraciel-lamda/postgresql-manager";
-import { DialogStore, DialogStoreHelper, MessageEntity } from "@sosraciel-lamda/dialog-store";
-import type { ConversationStruct, MessageStruct, ConversationStructExt, MessageStructExt } from "@sosraciel-lamda/dialog-store";
+import { DialogStore, DialogStoreHelper, MessageEntity, AnchorEntity } from "@sosraciel-lamda/dialog-store";
+import type { ConversationStruct, MessageStruct, ConversationStructExt, MessageStructExt, AnchorStruct, AnchorStructExt } from "@sosraciel-lamda/dialog-store";
 import { ConversationEntity, FirstEntity } from "@sosraciel-lamda/dialog-store";
 import { sleep, UtilFunc, type JObject } from "@zwa73/utils";
 import { DBCache, DBCacheKH } from "@sosraciel-lamda/dialog-store/dist/DBCache";
@@ -30,6 +30,12 @@ type TestConversationExt = {
     m_heavy: TestHeavyData;
     c_light: TestLightData;
     c_heavy: TestHeavyData;
+};
+
+/**测试用锚点扩展类型 */
+type TestAnchorExt = {
+    a_light: TestLightData;
+    a_heavy: TestHeavyData;
 };
 
 /**创建测试对话结构体 */
@@ -74,6 +80,27 @@ const createTestMessage = <TMsg extends MessageStructExt = {m_light:{}, m_heavy:
     } as MessageStruct<TMsg>;
 };
 
+/**创建测试锚点结构体 */
+const createTestAnchor = <TExt extends AnchorStructExt = {a_light:{}, a_heavy:{}}>(
+    options?: {
+        anchor_id?: string;
+        conversation_id?: string;
+        message_id?: string;
+        light_data?: Partial<TExt['a_light']>;
+        heavy_data?: Partial<TExt['a_heavy']>;
+    }
+): AnchorStruct<TExt> => {
+    return {
+        data: {
+            anchor_id: options?.anchor_id || UtilFunc.genUUID(),
+            ...(options?.conversation_id && { conversation_id: options.conversation_id }),
+            ...(options?.message_id && { message_id: options.message_id }),
+            ...(options?.light_data && { light_data: options.light_data }),
+            ...(options?.heavy_data && { heavy_data: options.heavy_data }),
+        }
+    } as AnchorStruct<TExt>;
+};
+
 describe("Dialog-Store 模块测试", () => {
     let manager: DBManager;
 
@@ -99,6 +126,7 @@ describe("Dialog-Store 模块测试", () => {
         // 清理测试数据
         await manager.client.query(`DELETE FROM dialog.message`);
         await manager.client.query(`DELETE FROM dialog.conversation`);
+        await manager.client.query(`DELETE FROM dialog.anchor`);
     }, 30000);
 
     afterAll(async () => {
@@ -108,6 +136,7 @@ describe("Dialog-Store 模块测试", () => {
                 // 删除测试数据
                 await manager.client.query(`DELETE FROM dialog.message`);
                 await manager.client.query(`DELETE FROM dialog.conversation`);
+                await manager.client.query(`DELETE FROM dialog.anchor`);
                 // 关闭数据库连接
                 await manager.stop();
             }
@@ -139,6 +168,15 @@ describe("Dialog-Store 模块测试", () => {
                 AND table_schema = 'dialog';
             `;
             expect(messageTableResult.rowCount).toBe(1);
+
+            // 验证 anchor 表是否存在
+            const anchorTableResult = await manager.client.sql`
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_name = 'anchor'
+                AND table_schema = 'dialog';
+            `;
+            expect(anchorTableResult.rowCount).toBe(1);
         });
 
         test("2. 应成功创建和获取对话记录", async () => {
@@ -167,10 +205,22 @@ describe("Dialog-Store 模块测试", () => {
             expect(retrievedMessage).toBeDefined();
             expect(retrievedMessage?.data.message_id).toBe(testMessage.data.message_id);
         });
+
+        test("4. 应成功创建和获取锚点记录", async () => {
+            const testAnchor = createTestAnchor();
+
+            // 创建锚点记录
+            await DialogStore.setAnchor(testAnchor);
+
+            // 获取锚点记录
+            const retrievedAnchor = await DialogStore.getAnchor(testAnchor.data.anchor_id);
+            expect(retrievedAnchor).toBeDefined();
+            expect(retrievedAnchor?.data.anchor_id).toBe(testAnchor.data.anchor_id);
+        });
     });
 
     describe("light_data/heavy_data 缓存同步测试", () => {
-        test("4. 应正确处理 light_data 的全量更新", async () => {
+        test("5. 应正确处理 light_data 的全量更新", async () => {
             // 创建带有 light_data 的对话
             const testConversation = createTestConversation<TestConversationExt>({
                 light_data: { sender_type: 'user', status: 'active' }
@@ -198,7 +248,7 @@ describe("Dialog-Store 模块测试", () => {
             expect((cachedData?.data.light_data as TestLightData)?.status).toBe('inactive');
         });
 
-        test("5. 应正确处理 heavy_data 的全量更新", async () => {
+        test("6. 应正确处理 heavy_data 的全量更新", async () => {
             // 创建带有 heavy_data 的对话
             const testConversation = createTestConversation<TestConversationExt>({
                 heavy_data: { translate_content_table: { en: 'Hello' } }
@@ -225,7 +275,7 @@ describe("Dialog-Store 模块测试", () => {
             expect((cachedData?.data.heavy_data as TestHeavyData)?.translate_content_table?.en).toBeUndefined();
         });
 
-        test("6. 应正确处理消息的 light_data 缓存同步", async () => {
+        test("7. 应正确处理消息的 light_data 缓存同步", async () => {
             // 先创建对话
             const testConversation = createTestConversation();
             await DialogStore.setConversation(testConversation);
@@ -259,10 +309,36 @@ describe("Dialog-Store 模块测试", () => {
             expect((cachedData?.data.light_data as TestLightData)?.sender_type).toBe('user');
             expect((cachedData?.data.light_data as TestLightData)?.status).toBe('pending');
         });
+
+        test("8. 应正确处理锚点的 light_data 缓存同步", async () => {
+            // 创建带有 light_data 的锚点
+            const testAnchor = createTestAnchor<TestAnchorExt>({
+                light_data: { sender_type: 'user', status: 'active' }
+            });
+            await DialogStore.setAnchor(testAnchor);
+
+            // 验证缓存中的 light_data
+            const cacheKey = DBCacheKH.getAnchorKey(testAnchor.data.anchor_id);
+            let cachedData = DBCache.peekCache(cacheKey) as AnchorStruct<TestAnchorExt> | undefined;
+            expect((cachedData?.data.light_data as TestLightData)?.sender_type).toBe('user');
+            expect((cachedData?.data.light_data as TestLightData)?.status).toBe('active');
+
+            // 全量更新 light_data
+            const updatedAnchor = createTestAnchor<TestAnchorExt>({
+                anchor_id: testAnchor.data.anchor_id,
+                light_data: { sender_type: 'char', status: 'inactive' }
+            });
+            await DialogStore.setAnchor(updatedAnchor);
+
+            // 验证缓存已更新
+            cachedData = DBCache.peekCache(cacheKey) as AnchorStruct<TestAnchorExt> | undefined;
+            expect((cachedData?.data.light_data as TestLightData)?.sender_type).toBe('char');
+            expect((cachedData?.data.light_data as TestLightData)?.status).toBe('inactive');
+        });
     });
 
     describe("SQL 触发器与 TS 缓存一致性测试", () => {
-        test("7. 外部SQL 增量更新后缓存应正确同步 light_data", async () => {
+        test("9. 外部SQL 增量更新后缓存应正确同步 light_data", async () => {
             // 创建带有 light_data 的对话
             const testConversation = createTestConversation<TestConversationExt>({
                 light_data: { sender_type: 'user' }
@@ -293,7 +369,7 @@ describe("Dialog-Store 模块测试", () => {
             expect((cachedData?.data.light_data as TestLightData)?.sender_type).toBe('user');
         });
 
-        test("8. 外部SQL 增量更新后缓存应正确同步 heavy_data", async () => {
+        test("10. 外部SQL 增量更新后缓存应正确同步 heavy_data", async () => {
             // 创建带有 heavy_data 的对话
             const testConversation = createTestConversation<TestConversationExt>({
                 heavy_data: { translate_content_table: { en: 'Hello' } }
@@ -323,7 +399,7 @@ describe("Dialog-Store 模块测试", () => {
             expect((cachedData?.data.heavy_data as TestHeavyData)?.translate_content_table?.en).toBe('Hello');
         });
 
-        test("9. data_hash 应在 SQL 触发器中正确生成", async () => {
+        test("11. data_hash 应在 SQL 触发器中正确生成", async () => {
             // 创建对话
             const testConversation = createTestConversation<TestConversationExt>({
                 light_data: { sender_type: 'user' }
@@ -340,10 +416,40 @@ describe("Dialog-Store 模块测试", () => {
             expect(result.rows[0].data_hash).toBeDefined();
             expect(result.rows[0].data_hash).toBe(testConversation.data.data_hash);
         });
+
+        test("12. 外部SQL 增量更新锚点后缓存应正确同步", async () => {
+            // 创建锚点
+            const testAnchor = createTestAnchor<TestAnchorExt>({
+                light_data: { sender_type: 'user' }
+            });
+            await DialogStore.setAnchor(testAnchor);
+
+            const cacheKey = DBCacheKH.getAnchorKey(testAnchor.data.anchor_id);
+
+            // 通过 SQL 增量更新 light_data
+            await manager.client.query(`
+                UPDATE dialog.anchor
+                SET data = jsonb_set(
+                    data,
+                    '{light_data,status}',
+                    '"anchor-synced"'::jsonb,
+                    true
+                )
+                WHERE data->>'anchor_id' = '${testAnchor.data.anchor_id}';
+            `);
+
+            // 等待 SQL 触发器发送通知和缓存同步
+            await sleep(100);
+
+            // 验证缓存已同步 SQL 的增量更新
+            const cachedData = DBCache.peekCache(cacheKey) as AnchorStruct<TestAnchorExt> | undefined;
+            expect((cachedData?.data.light_data as TestLightData)?.status).toBe('anchor-synced');
+            expect((cachedData?.data.light_data as TestLightData)?.sender_type).toBe('user');
+        });
     });
 
     describe("Entity 泛型测试", () => {
-        test("10. ConversationEntity 应正确处理泛型 light_data（深合并）", async () => {
+        test("13. ConversationEntity 应正确处理泛型 light_data（深合并）", async () => {
             // 创建带有泛型 light_data 的对话实体
             const entity = await ConversationEntity.create<TestConversationExt>({
                 light_data: { sender_type: 'char', status: 'active' }
@@ -381,7 +487,7 @@ describe("Dialog-Store 模块测试", () => {
             expect(loadedEntity?.getLightField('sender_type')).toBe('char');
         });
 
-        test("11. MessageEntity 应正确处理泛型 heavy_data", async () => {
+        test("14. MessageEntity 应正确处理泛型 heavy_data", async () => {
             // 创建对话实体
             const convEntity = await ConversationEntity.create<TestConversationExt>({
                 light_data: {}
@@ -400,7 +506,7 @@ describe("Dialog-Store 模块测试", () => {
             expect(firstMsg.getHeavyField('translate_content_table')?.zh).toBe('你好');
         });
 
-        test("12. FirstEntity 应正确工作", async () => {
+        test("15. FirstEntity 应正确工作", async () => {
             // 创建对话实体
             const convEntity = await ConversationEntity.create<TestConversationExt>({
                 light_data: {}
@@ -427,10 +533,79 @@ describe("Dialog-Store 模块测试", () => {
             expect(dbFirstMsg).toBeDefined();
             expect(dbFirstMsg?.data.message_id).toBe(firstMessageId);
         });
+
+        test("16. AnchorEntity 应正确处理泛型 light_data（深合并）", async () => {
+            // 创建带有泛型 light_data 的锚点实体
+            const anchorId = `test-anchor-${UtilFunc.genUUID()}`;
+            const entity = await AnchorEntity.create<TestAnchorExt>(anchorId);
+
+            // 更新 light_data
+            await entity.updateData({
+                light_data: { sender_type: 'char', status: 'active' }
+            });
+
+            // 验证 getLightField 方法
+            expect(entity.getLightField('sender_type')).toBe('char');
+            expect(entity.getLightField('status')).toBe('active');
+
+            // 深层合并：只更新status，保留sender_type
+            await entity.updateData({
+                light_data: {
+                    status: 'completed'
+                }
+            });
+
+            // 验证sender_type保留，status更新
+            expect(entity.getLightField('sender_type')).toBe('char');
+            expect(entity.getLightField('status')).toBe('completed');
+
+            // 传入undefined删除status
+            await entity.updateData({
+                light_data: {
+                    status: undefined
+                }
+            });
+
+            // 验证status已删除，sender_type仍存在
+            expect(entity.getLightField('status')).toBeUndefined();
+            expect(entity.getLightField('sender_type')).toBe('char');
+
+            // 重新加载验证持久化
+            const loadedEntity = await AnchorEntity.load<TestAnchorExt>(anchorId);
+            expect(loadedEntity?.getLightField('status')).toBeUndefined();
+            expect(loadedEntity?.getLightField('sender_type')).toBe('char');
+        });
+
+        test("17. AnchorEntity 应正确处理 conversation_id 和 message_id", async () => {
+            // 创建锚点实体
+            const anchorId = `test-anchor-conv-${UtilFunc.genUUID()}`;
+            const entity = await AnchorEntity.create<TestAnchorExt>(anchorId);
+
+            // 初始状态无 conversation_id 和 message_id
+            expect(entity.getConversationId()).toBeUndefined();
+            expect(entity.getMessageId()).toBeUndefined();
+
+            // 更新 conversation_id 和 message_id
+            const convId = UtilFunc.genUUID();
+            const msgId = UtilFunc.genUUID();
+            await entity.updateData({
+                conversation_id: convId,
+                message_id: msgId
+            });
+
+            // 验证更新成功
+            expect(entity.getConversationId()).toBe(convId);
+            expect(entity.getMessageId()).toBe(msgId);
+
+            // 重新加载验证持久化
+            const loadedEntity = await AnchorEntity.load<TestAnchorExt>(anchorId);
+            expect(loadedEntity?.getConversationId()).toBe(convId);
+            expect(loadedEntity?.getMessageId()).toBe(msgId);
+        });
     });
 
     describe("消息树与联动删除测试", () => {
-        test("13. 应成功创建消息树结构", async () => {
+        test("18. 应成功创建消息树结构", async () => {
             // 先创建对话
             const testConversation = createTestConversation();
             await DialogStore.setConversation(testConversation);
@@ -451,7 +626,7 @@ describe("Dialog-Store 模块测试", () => {
             expect(retrievedChildMessage?.data.parent_message_id).toBe(parentMessage.data.message_id);
         });
 
-        test("14. 删除根消息时应联动删除子消息", async () => {
+        test("19. 删除根消息时应联动删除子消息", async () => {
             // 先创建对话
             const testConversation = createTestConversation();
             await DialogStore.setConversation(testConversation);
@@ -488,7 +663,7 @@ describe("Dialog-Store 模块测试", () => {
             expect(deletedChildMessage).toBeUndefined();
         });
 
-        test("15. 删除对话时应联动删除所有相关消息", async () => {
+        test("20. 删除对话时应联动删除所有相关消息", async () => {
             // 先创建对话
             const testConversation = createTestConversation();
             await DialogStore.setConversation(testConversation);
@@ -521,7 +696,7 @@ describe("Dialog-Store 模块测试", () => {
     });
 
     describe("消息选择列表测试", () => {
-        test("16. 应成功获取消息选择列表", async () => {
+        test("21. 应成功获取消息选择列表", async () => {
             // 先创建对话
             const testConversation = createTestConversation();
             await DialogStore.setConversation(testConversation);
@@ -545,7 +720,7 @@ describe("Dialog-Store 模块测试", () => {
             expect(messageIds).toEqual([testMessage1.data.message_id, testMessage2.data.message_id, testMessage3.data.message_id]);
         });
 
-        test("17. 应成功获取带 parent_message_id 的消息选择列表", async () => {
+        test("22. 应成功获取带 parent_message_id 的消息选择列表", async () => {
             // 先创建对话
             const testConversation = createTestConversation();
             await DialogStore.setConversation(testConversation);
@@ -577,7 +752,7 @@ describe("Dialog-Store 模块测试", () => {
     });
 
     describe("边界情况与数据清理测试", () => {
-        test("18. UPDATE 时应保留 created_at 时间戳（含SQL覆盖保护）", async () => {
+        test("23. UPDATE 时应保留 created_at 时间戳（含SQL覆盖保护）", async () => {
             // 创建对话
             const testConversation = createTestConversation<TestConversationExt>({
                 light_data: { sender_type: 'user' }
@@ -654,7 +829,7 @@ describe("Dialog-Store 模块测试", () => {
             expect(afterSqlUpdate.rows[0].created_at).toBe(initialCreatedAt);
         });
 
-        test("19. 空对象 light_data/heavy_data 应被清理", async () => {
+        test("24. 空对象 light_data/heavy_data 应被清理", async () => {
             // 创建带有空 light_data 的对话
             const testConversation = createTestConversation({
                 light_data: {} as TestLightData
@@ -688,7 +863,7 @@ describe("Dialog-Store 模块测试", () => {
     });
 
     describe("DialogStoreHelper.createHistChain 测试", () => {
-        test("20. 应在遇到 FirstEntity 时正常结束", async () => {
+        test("25. 应在遇到 FirstEntity 时正常结束", async () => {
             // 创建对话
             const convEntity = await ConversationEntity.create<TestConversationExt>({});
 
@@ -722,7 +897,7 @@ describe("Dialog-Store 模块测试", () => {
             expect(result.chain[1].getMessageId()).toBe(msg2.getMessageId());
         });
 
-        test("21. 应在消息条数超限时停止", async () => {
+        test("26. 应在消息条数超限时停止", async () => {
             // 创建对话
             const convEntity = await ConversationEntity.create<TestConversationExt>({});
 
@@ -758,7 +933,7 @@ describe("Dialog-Store 模块测试", () => {
             }
         });
 
-        test("22. 应在总长度超限时停止", async () => {
+        test("27. 应在总长度超限时停止", async () => {
             // 创建对话
             const convEntity = await ConversationEntity.create<TestConversationExt>({});
 
@@ -801,7 +976,7 @@ describe("Dialog-Store 模块测试", () => {
             }
         });
 
-        test("23. 应支持自定义 computeLength 计算", async () => {
+        test("28. 应支持自定义 computeLength 计算", async () => {
             // 创建对话
             const convEntity = await ConversationEntity.create<TestConversationExt>({});
 
@@ -851,7 +1026,7 @@ describe("Dialog-Store 模块测试", () => {
     });
 
     describe("Entity.updateData 深层合并行为测试", () => {
-        test("24. ConversationEntity.updateData传入undefined删除heavy_data中的key", async () => {
+        test("29. ConversationEntity.updateData传入undefined删除heavy_data中的key", async () => {
             // 创建带有多个heavy_data字段的对话
             const entity = await ConversationEntity.create<TestConversationExt>({
                 heavy_data: {
@@ -881,7 +1056,7 @@ describe("Dialog-Store 模块测试", () => {
             expect(loadedEntity?.getHeavyField('metadata')).toEqual({ key: 'value1' });
         });
 
-        test("25. MessageEntity.updateData传入undefined删除heavy_data中的key", async () => {
+        test("30. MessageEntity.updateData传入undefined删除heavy_data中的key", async () => {
             // 创建对话实体
             const convEntity = await ConversationEntity.create<TestConversationExt>({});
 
@@ -915,7 +1090,7 @@ describe("Dialog-Store 模块测试", () => {
             expect(loadedMsg?.getHeavyField('translate_content_table')).toEqual({ en: 'Hello', zh: '你好' });
         });
 
-        test("26. ConversationEntity.updateData传入空对象不删除字段", async () => {
+        test("31. ConversationEntity.updateData传入空对象不删除字段", async () => {
             // 创建带有heavy_data的对话
             const entity = await ConversationEntity.create<TestConversationExt>({
                 heavy_data: {
@@ -943,7 +1118,7 @@ describe("Dialog-Store 模块测试", () => {
             expect(loadedEntity?.getHeavyField('metadata')).toEqual({ key: 'value1' });
         });
 
-        test("27. MessageEntity.updateData传入空对象不删除字段", async () => {
+        test("32. MessageEntity.updateData传入空对象不删除字段", async () => {
             // 创建对话实体
             const convEntity = await ConversationEntity.create<TestConversationExt>({});
 

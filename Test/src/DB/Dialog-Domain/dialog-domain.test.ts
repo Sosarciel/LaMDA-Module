@@ -1382,4 +1382,104 @@ describe("Dialog-Domain 模块测试", () => {
         expect(loadedConv2?.hasBackgroundInfo()).toBe(false);
         expect(loadedConv2?.getBackgroundInfo()).toBeUndefined();
     });
+
+    test("35. 应成功测试ConversationLog.existsAnyMessage静态方法", async () => {
+        // 创建对话
+        const testScene = createTestScene();
+        const conversationLog = await ConversationLog.create({ scene: testScene });
+        const conversationId = conversationLog.getConversationId();
+
+        // 刚创建时应该没有消息（只有FirstLog，不算真正的消息）
+        const existsBefore = await ConversationLog.existsAnyMessage(conversationId);
+        expect(existsBefore).toBe(false);
+
+        // 添加一条消息
+        await MessageLog.create({
+            conversation_id: conversationId,
+            parent_message_id: undefined,
+            sender_id: "user",
+            sender_type: "user",
+            content: "Test message for existsAnyMessage"
+        });
+
+        // 现在应该有消息了
+        const existsAfter = await ConversationLog.existsAnyMessage(conversationId);
+        expect(existsAfter).toBe(true);
+
+        // 测试不存在的对话ID
+        const existsNonExistent = await ConversationLog.existsAnyMessage("non-existent-conversation-id");
+        expect(existsNonExistent).toBe(false);
+    });
+
+    test("36. 应成功测试ConversationLog.delete静态方法", async () => {
+        // 创建对话和消息
+        const testScene = createTestScene();
+        const conversationLog = await ConversationLog.create({ scene: testScene });
+        const conversationId = conversationLog.getConversationId();
+
+        // 添加消息
+        const messageLog = await MessageLog.create({
+            conversation_id: conversationId,
+            parent_message_id: undefined,
+            sender_id: "user",
+            sender_type: "user",
+            content: "Test message for delete"
+        });
+
+        // 验证消息存在
+        const loadedMessage = await MessageLog.load(messageLog.getMessageId());
+        expect(loadedMessage).toBeDefined();
+
+        // 删除对话
+        await ConversationLog.delete(conversationId);
+
+        // 等待联动删除
+        await sleep(100);
+
+        // 验证对话和消息都被删除
+        const deletedConv = await ConversationLog.load(conversationId);
+        expect(deletedConv).toBeUndefined();
+
+        const deletedMessage = await MessageLog.load(messageLog.getMessageId());
+        expect(deletedMessage).toBeUndefined();
+    });
+
+    test("37. 应成功测试MessageLog.delete方法", async () => {
+        // 创建对话和父子消息
+        const testScene = createTestScene();
+        const conversationLog = await ConversationLog.create({ scene: testScene });
+        const conversationId = conversationLog.getConversationId();
+
+        // 创建父消息
+        const parentMessage = await MessageLog.create({
+            conversation_id: conversationId,
+            parent_message_id: undefined,
+            sender_id: "user",
+            sender_type: "user",
+            content: "Parent message"
+        });
+
+        // 创建子消息
+        const childMessage = await MessageLog.create({
+            conversation_id: conversationId,
+            parent_message_id: parentMessage.getMessageId(),
+            sender_id: "char",
+            sender_type: "char",
+            content: "Child message"
+        });
+
+        // 验证消息存在
+        expect(await MessageLog.load(parentMessage.getMessageId())).toBeDefined();
+        expect(await MessageLog.load(childMessage.getMessageId())).toBeDefined();
+
+        // 删除父消息
+        await parentMessage.delete();
+
+        // 等待联动删除
+        await sleep(100);
+
+        // 验证父消息和子消息都被删除（触发器联动）
+        expect(await MessageLog.load(parentMessage.getMessageId())).toBeUndefined();
+        expect(await MessageLog.load(childMessage.getMessageId())).toBeUndefined();
+    });
 });

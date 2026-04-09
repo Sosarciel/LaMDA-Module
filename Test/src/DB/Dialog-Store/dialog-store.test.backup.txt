@@ -1,19 +1,152 @@
 import { DBManager } from "@sosraciel-lamda/postgresql-manager";
-import { DialogStore } from "@sosraciel-lamda/dialog-store";
-import type { ConversationStruct, MessageStruct, AnchorStruct } from "@sosraciel-lamda/dialog-store";
-import { sleep } from "@zwa73/utils";
+import { DialogStore, DialogStoreHelper, MessageEntity, AnchorEntity } from "@sosraciel-lamda/dialog-store";
+import type { ConversationStruct, MessageStruct, ConversationStructExt, MessageStructExt, AnchorStruct, AnchorStructExt } from "@sosraciel-lamda/dialog-store";
+import { ConversationEntity, FirstEntity } from "@sosraciel-lamda/dialog-store";
+import { sleep, UtilFunc, type JObject } from "@zwa73/utils";
 import { DBCache, DBCacheKH } from "@sosraciel-lamda/dialog-store/dist/DBCache";
-import { TestLightData, TestHeavyData, TestMessageExt, TestConversationExt, TestAnchorExt, createTestConversation, createTestMessage, createTestAnchor, setupTestDb, teardownTestDb } from "./Util";
+import { PG_PORT } from "@/src/Constant";
 
-describe("Dialog-Store 主测试", () => {
+/**测试用轻数据类型 */
+type TestLightData = {
+    sender_type?: 'user' | 'char';
+    status?: string;
+};
+
+/**测试用重数据类型 */
+type TestHeavyData = {
+    translate_content_table?: Record<string, string>;
+    metadata?: { key: string; value?: string };
+};
+
+/**测试用消息扩展类型 */
+type TestMessageExt = {
+    m_light: TestLightData;
+    m_heavy: TestHeavyData;
+};
+
+/**测试用对话扩展类型 */
+type TestConversationExt = {
+    m_light: TestLightData;
+    m_heavy: TestHeavyData;
+    c_light: TestLightData;
+    c_heavy: TestHeavyData;
+};
+
+/**测试用锚点扩展类型 */
+type TestAnchorExt = {
+    a_light: TestLightData;
+    a_heavy: TestHeavyData;
+};
+
+/**创建测试对话结构体 */
+const createTestConversation = <TConv extends ConversationStructExt = {m_light:{}, m_heavy:{}, c_light:{}, c_heavy:{}}>(
+    options?: {
+        conversation_id?: string;
+        light_data?: Partial<TConv['c_light']>;
+        heavy_data?: Partial<TConv['c_heavy']>;
+    }
+): ConversationStruct<TConv> => {
+    return {
+        data: {
+            conversation_id: options?.conversation_id || UtilFunc.genUUID(),
+            ...(options?.light_data && { light_data: options.light_data }),
+            ...(options?.heavy_data && { heavy_data: options.heavy_data }),
+        }
+    } as ConversationStruct<TConv>;
+};
+
+/**创建测试消息结构体 */
+const createTestMessage = <TMsg extends MessageStructExt = {m_light:{}, m_heavy:{}}>(
+    conversationId: string,
+    options?: {
+        message_id?: string;
+        parent_message_id?: string | null;
+        sender_id?: string;
+        content?: string;
+        light_data?: Partial<TMsg['m_light']>;
+        heavy_data?: Partial<TMsg['m_heavy']>;
+    }
+): MessageStruct<TMsg> => {
+    return {
+        data: {
+            message_id: options?.message_id || UtilFunc.genUUID(),
+            conversation_id: conversationId,
+            parent_message_id: options?.parent_message_id || null,
+            sender_id: options?.sender_id || "user",
+            content: options?.content || "Test message",
+            ...(options?.light_data && { light_data: options.light_data }),
+            ...(options?.heavy_data && { heavy_data: options.heavy_data }),
+        }
+    } as MessageStruct<TMsg>;
+};
+
+/**创建测试锚点结构体 */
+const createTestAnchor = <TExt extends AnchorStructExt = {a_light:{}, a_heavy:{}}>(
+    options?: {
+        anchor_id?: string;
+        conversation_id?: string;
+        message_id?: string;
+        light_data?: Partial<TExt['a_light']>;
+        heavy_data?: Partial<TExt['a_heavy']>;
+    }
+): AnchorStruct<TExt> => {
+    return {
+        data: {
+            anchor_id: options?.anchor_id || UtilFunc.genUUID(),
+            ...(options?.conversation_id && { conversation_id: options.conversation_id }),
+            ...(options?.message_id && { message_id: options.message_id }),
+            ...(options?.light_data && { light_data: options.light_data }),
+            ...(options?.heavy_data && { heavy_data: options.heavy_data }),
+        }
+    } as AnchorStruct<TExt>;
+};
+
+describe("Dialog-Store 模块测试", () => {
     let manager: DBManager;
 
     beforeAll(async () => {
-        manager = await setupTestDb();
+        // 创建数据库管理器
+        manager = await DBManager.create({
+            port: PG_PORT,
+            user: "postgres",
+            database: "postgres",
+            host: "localhost",
+            max: 10,
+            idleTimeoutMillis: 1000 * 30,
+        });
+
+        // 测试数据库连接
+        const result = await manager.client.query("SELECT 1");
+        expect(result.rowCount).toBe(1);
+
+        // 初始化DialogStore
+        DialogStore.initInject(Promise.resolve(manager));
+        await DialogStore.inited;
+
+        // 清理测试数据
+        await manager.client.query(`DELETE FROM dialog.message`);
+        await manager.client.query(`DELETE FROM dialog.conversation`);
+        await manager.client.query(`DELETE FROM dialog.anchor`);
     }, 30000);
 
     afterAll(async () => {
-        await teardownTestDb(manager);
+        // 清理数据库
+        try {
+            if (manager) {
+                // 删除测试数据
+                await manager.client.query(`DELETE FROM dialog.message`);
+                await manager.client.query(`DELETE FROM dialog.conversation`);
+                await manager.client.query(`DELETE FROM dialog.anchor`);
+                // 关闭数据库连接
+                await manager.stop();
+            }
+
+            // 清理缓存
+            DBCache.dispose();
+
+        } catch (e) {
+            // 忽略错误
+        }
     }, 30000);
 
     describe("基础 CRUD 测试", () => {
@@ -315,6 +448,162 @@ describe("Dialog-Store 主测试", () => {
         });
     });
 
+    describe("Entity 泛型测试", () => {
+        test("13. ConversationEntity 应正确处理泛型 light_data（深合并）", async () => {
+            // 创建带有泛型 light_data 的对话实体
+            const entity = await ConversationEntity.create<TestConversationExt>({
+                light_data: { sender_type: 'char', status: 'active' }
+            });
+
+            // 验证 getLightField 方法
+            expect(entity.getLightField('sender_type')).toBe('char');
+            expect(entity.getLightField('status')).toBe('active');
+
+            // 深层合并：只更新status，保留sender_type
+            await entity.updateData({
+                light_data: {
+                    status: 'completed'
+                }
+            });
+
+            // 验证sender_type保留，status更新
+            expect(entity.getLightField('sender_type')).toBe('char');
+            expect(entity.getLightField('status')).toBe('completed');
+
+            // 传入undefined删除status
+            await entity.updateData({
+                light_data: {
+                    status: undefined
+                }
+            });
+
+            // 验证status已删除，sender_type仍存在
+            expect(entity.getLightField('status')).toBeUndefined();
+            expect(entity.getLightField('sender_type')).toBe('char');
+
+            // 重新加载验证持久化
+            const loadedEntity = await ConversationEntity.load<TestConversationExt>(entity.getConversationId());
+            expect(loadedEntity?.getLightField('status')).toBeUndefined();
+            expect(loadedEntity?.getLightField('sender_type')).toBe('char');
+        });
+
+        test("14. MessageEntity 应正确处理泛型 heavy_data", async () => {
+            // 创建对话实体
+            const convEntity = await ConversationEntity.create<TestConversationExt>({
+                light_data: {}
+            });
+
+            // 获取首条消息实体
+            const firstMsg = await convEntity.getFirstMessageEntity();
+
+            // 更新 heavy_data
+            await firstMsg.updateData({
+                heavy_data: { translate_content_table: { en: 'Hello', zh: '你好' } }
+            });
+
+            // 验证 getHeavyField 方法
+            expect(firstMsg.getHeavyField('translate_content_table')?.en).toBe('Hello');
+            expect(firstMsg.getHeavyField('translate_content_table')?.zh).toBe('你好');
+        });
+
+        test("15. FirstEntity 应正确工作", async () => {
+            // 创建对话实体
+            const convEntity = await ConversationEntity.create<TestConversationExt>({
+                light_data: {}
+            });
+
+            // 验证 getFirstMessageId 返回包含 flag 的真实 ID
+            const firstMessageId = convEntity.getFirstMessageId();
+            expect(firstMessageId).toContain(FirstEntity.FirstMessageFlag);
+
+            // 获取首条消息实体
+            const firstMsg = await convEntity.getFirstMessageEntity();
+
+            // 验证首条消息实体存在
+            expect(firstMsg).toBeDefined();
+
+            // FirstEntity.getMessageId() 设计上返回 undefined，表示这是根节点
+            expect(firstMsg.getMessageId()).toBeUndefined();
+
+            // 验证可以通过 getConversationId 获取对话 ID
+            expect(firstMsg.getConversationId()).toBe(convEntity.getConversationId());
+
+            // 验证 FirstEntity 被写入数据库
+            const dbFirstMsg = await DialogStore.getMessage(firstMessageId);
+            expect(dbFirstMsg).toBeDefined();
+            expect(dbFirstMsg?.data.message_id).toBe(firstMessageId);
+        });
+
+        test("16. AnchorEntity 应正确处理泛型 light_data（深合并）", async () => {
+            // 创建带有泛型 light_data 的锚点实体
+            const anchorId = `test-anchor-${UtilFunc.genUUID()}`;
+            const entity = await AnchorEntity.create<TestAnchorExt>(anchorId);
+
+            // 更新 light_data
+            await entity.updateData({
+                light_data: { sender_type: 'char', status: 'active' }
+            });
+
+            // 验证 getLightField 方法
+            expect(entity.getLightField('sender_type')).toBe('char');
+            expect(entity.getLightField('status')).toBe('active');
+
+            // 深层合并：只更新status，保留sender_type
+            await entity.updateData({
+                light_data: {
+                    status: 'completed'
+                }
+            });
+
+            // 验证sender_type保留，status更新
+            expect(entity.getLightField('sender_type')).toBe('char');
+            expect(entity.getLightField('status')).toBe('completed');
+
+            // 传入undefined删除status
+            await entity.updateData({
+                light_data: {
+                    status: undefined
+                }
+            });
+
+            // 验证status已删除，sender_type仍存在
+            expect(entity.getLightField('status')).toBeUndefined();
+            expect(entity.getLightField('sender_type')).toBe('char');
+
+            // 重新加载验证持久化
+            const loadedEntity = await AnchorEntity.load<TestAnchorExt>(anchorId);
+            expect(loadedEntity?.getLightField('status')).toBeUndefined();
+            expect(loadedEntity?.getLightField('sender_type')).toBe('char');
+        });
+
+        test("17. AnchorEntity 应正确处理 conversation_id 和 message_id", async () => {
+            // 创建锚点实体
+            const anchorId = `test-anchor-conv-${UtilFunc.genUUID()}`;
+            const entity = await AnchorEntity.create<TestAnchorExt>(anchorId);
+
+            // 初始状态无 conversation_id 和 message_id
+            expect(entity.getConversationId()).toBeUndefined();
+            expect(entity.getMessageId()).toBeUndefined();
+
+            // 更新 conversation_id 和 message_id
+            const convId = UtilFunc.genUUID();
+            const msgId = UtilFunc.genUUID();
+            await entity.updateData({
+                conversation_id: convId,
+                message_id: msgId
+            });
+
+            // 验证更新成功
+            expect(entity.getConversationId()).toBe(convId);
+            expect(entity.getMessageId()).toBe(msgId);
+
+            // 重新加载验证持久化
+            const loadedEntity = await AnchorEntity.load<TestAnchorExt>(anchorId);
+            expect(loadedEntity?.getConversationId()).toBe(convId);
+            expect(loadedEntity?.getMessageId()).toBe(msgId);
+        });
+    });
+
     describe("消息树与联动删除测试", () => {
         test("18. 应成功创建消息树结构", async () => {
             // 先创建对话
@@ -570,6 +859,295 @@ describe("Dialog-Store 主测试", () => {
             const cachedData = DBCache.peekCache(cacheKey);
             expect((cachedData?.data as any).light_data).toBeUndefined();
             expect((cachedData?.data as any).heavy_data).toBeUndefined();
+        });
+    });
+
+    describe("DialogStoreHelper.createHistChain 测试", () => {
+        test("25. 应在遇到 FirstEntity 时正常结束", async () => {
+            // 创建对话
+            const convEntity = await ConversationEntity.create<TestConversationExt>({});
+
+            // 创建消息链
+            const msg1 = await MessageEntity.create({
+                conversation_id: convEntity.getConversationId(),
+                sender_id: 'user1',
+                content: '消息1',
+            });
+            const msg2 = await MessageEntity.create({
+                conversation_id: convEntity.getConversationId(),
+                parent_message_id: msg1.getMessageId(),
+                sender_id: 'char1',
+                content: '消息2',
+            });
+
+            // 测试 createHistChain
+            const result = await DialogStoreHelper.createHistChain({
+                convEntity,
+                startEntity: msg2,
+                maxLength: 10000,
+                maxCount: 100,
+                computeLength: (entity) => entity.getContent().length,
+            });
+
+            // 验证结果
+            expect(result.chain.length).toBe(2);
+            expect(result.totalCount).toBe(2);
+            expect(result.stopReason.reason).toBe('first');
+            expect(result.chain[0].getMessageId()).toBe(msg1.getMessageId());
+            expect(result.chain[1].getMessageId()).toBe(msg2.getMessageId());
+        });
+
+        test("26. 应在消息条数超限时停止", async () => {
+            // 创建对话
+            const convEntity = await ConversationEntity.create<TestConversationExt>({});
+
+            // 创建 5 条消息
+            const messages: MessageEntity<TestMessageExt>[] = [];
+            let parentId: string | undefined;
+            for (let i = 0; i < 5; i++) {
+                const msg = await MessageEntity.create({
+                    conversation_id: convEntity.getConversationId(),
+                    parent_message_id: parentId,
+                    sender_id: `sender${i}`,
+                    content: `消息${i}`,
+                });
+                messages.push(msg);
+                parentId = msg.getMessageId();
+            }
+
+            // 测试 createHistChain，maxCount 设为 3
+            const result = await DialogStoreHelper.createHistChain({
+                convEntity,
+                startEntity: messages[4],
+                maxLength: 10000,
+                maxCount: 3,
+                computeLength: (entity) => entity.getContent().length,
+            });
+
+            // 验证结果
+            expect(result.chain.length).toBe(3);
+            expect(result.totalCount).toBe(3);
+            expect(result.stopReason.reason).toBe('count');
+            if (result.stopReason.reason === 'count') {
+                expect(result.stopReason.exceededCount).toBe(4);
+            }
+        });
+
+        test("27. 应在总长度超限时停止", async () => {
+            // 创建对话
+            const convEntity = await ConversationEntity.create<TestConversationExt>({});
+
+            // 创建消息链，每条消息长度为 10
+            const msg1 = await MessageEntity.create({
+                conversation_id: convEntity.getConversationId(),
+                sender_id: 'user1',
+                content: '0123456789', // 长度 10
+            });
+            const msg2 = await MessageEntity.create({
+                conversation_id: convEntity.getConversationId(),
+                parent_message_id: msg1.getMessageId(),
+                sender_id: 'char1',
+                content: '0123456789', // 长度 10
+            });
+            const msg3 = await MessageEntity.create({
+                conversation_id: convEntity.getConversationId(),
+                parent_message_id: msg2.getMessageId(),
+                sender_id: 'user2',
+                content: '0123456789', // 长度 10
+            });
+
+            // 测试 createHistChain，maxLength 设为 25
+            const result = await DialogStoreHelper.createHistChain({
+                convEntity,
+                startEntity: msg3,
+                maxLength: 25,
+                maxCount: 100,
+                computeLength: (entity) => entity.getContent().length,
+            });
+
+            // 验证结果
+            expect(result.chain.length).toBe(2);
+            expect(result.totalLength).toBe(20);
+            expect(result.totalCount).toBe(2);
+            expect(result.stopReason.reason).toBe('length');
+            if (result.stopReason.reason === 'length') {
+                // 如果接入第 3 条消息，总长度会是 30
+                expect(result.stopReason.wouldBeLength).toBe(30);
+            }
+        });
+
+        test("28. 应支持自定义 computeLength 计算", async () => {
+            // 创建对话
+            const convEntity = await ConversationEntity.create<TestConversationExt>({});
+
+            // 创建消息链，内容中包含不同数量的 'a' 字符
+            const msg1 = await MessageEntity.create({
+                conversation_id: convEntity.getConversationId(),
+                sender_id: 'user1',
+                content: 'aaabbb', // 包含 3 个 'a'
+            });
+            const msg2 = await MessageEntity.create({
+                conversation_id: convEntity.getConversationId(),
+                parent_message_id: msg1.getMessageId(),
+                sender_id: 'char1',
+                content: 'aaaaacccc', // 包含 5 个 'a'
+            });
+            const msg3 = await MessageEntity.create({
+                conversation_id: convEntity.getConversationId(),
+                parent_message_id: msg2.getMessageId(),
+                sender_id: 'user2',
+                content: 'aaaaaaadddd', // 包含 7 个 'a'
+            });
+
+            // 自定义 computeLength：计算内容中 'a' 字符的个数
+            const countA = (str: string) => str.split('a').length - 1;
+
+            // 测试 createHistChain，maxLength 设为 10（按 'a' 的个数计算）
+            // msg3: 7 个 'a'，可以接入，总长度 7
+            // msg2: 5 个 'a'，接入后总长度 12 > 10，停止
+            const result = await DialogStoreHelper.createHistChain({
+                convEntity,
+                startEntity: msg3,
+                maxLength: 10,
+                maxCount: 100,
+                computeLength: (entity) => countA(entity.getContent()),
+            });
+
+            // 验证结果
+            expect(result.chain.length).toBe(1);
+            expect(result.totalLength).toBe(7);
+            expect(result.totalCount).toBe(1);
+            expect(result.stopReason.reason).toBe('length');
+            if (result.stopReason.reason === 'length') {
+                // 如果接入 msg2，总长度会是 7 + 5 = 12
+                expect(result.stopReason.wouldBeLength).toBe(12);
+            }
+        });
+    });
+
+    describe("Entity.updateData 深层合并行为测试", () => {
+        test("29. ConversationEntity.updateData传入undefined删除heavy_data中的key", async () => {
+            // 创建带有多个heavy_data字段的对话
+            const entity = await ConversationEntity.create<TestConversationExt>({
+                heavy_data: {
+                    translate_content_table: { en: 'Hello', zh: '你好' },
+                    metadata: { key: 'value1' }
+                }
+            });
+
+            // 验证初始数据
+            expect(entity.getHeavyField('translate_content_table')).toEqual({ en: 'Hello', zh: '你好' });
+            expect(entity.getHeavyField('metadata')).toEqual({ key: 'value1' });
+
+            // 传入undefined删除translate_content_table
+            await entity.updateData({
+                heavy_data: {
+                    translate_content_table: undefined
+                }
+            });
+
+            // 验证translate_content_table已删除，metadata仍存在
+            expect(entity.getHeavyField('translate_content_table')).toBeUndefined();
+            expect(entity.getHeavyField('metadata')).toEqual({ key: 'value1' });
+
+            // 重新加载验证持久化
+            const loadedEntity = await ConversationEntity.load<TestConversationExt>(entity.getConversationId());
+            expect(loadedEntity?.getHeavyField('translate_content_table')).toBeUndefined();
+            expect(loadedEntity?.getHeavyField('metadata')).toEqual({ key: 'value1' });
+        });
+
+        test("30. MessageEntity.updateData传入undefined删除heavy_data中的key", async () => {
+            // 创建对话实体
+            const convEntity = await ConversationEntity.create<TestConversationExt>({});
+
+            // 获取首条消息实体并设置heavy_data
+            const firstMsg = await convEntity.getFirstMessageEntity();
+            await firstMsg.updateData({
+                heavy_data: {
+                    translate_content_table: { en: 'Hello', zh: '你好' },
+                    metadata: { key: 'value1' }
+                }
+            });
+
+            // 验证初始数据
+            expect(firstMsg.getHeavyField('translate_content_table')).toEqual({ en: 'Hello', zh: '你好' });
+            expect(firstMsg.getHeavyField('metadata')).toEqual({ key: 'value1' });
+
+            // 传入undefined删除metadata
+            await firstMsg.updateData({
+                heavy_data: {
+                    metadata: undefined
+                }
+            });
+
+            // 验证metadata已删除，translate_content_table仍存在
+            expect(firstMsg.getHeavyField('metadata')).toBeUndefined();
+            expect(firstMsg.getHeavyField('translate_content_table')).toEqual({ en: 'Hello', zh: '你好' });
+
+            // 重新加载验证持久化
+            const loadedMsg = await MessageEntity.load<TestMessageExt>(firstMsg.getMessageId() ?? convEntity.getFirstMessageId());
+            expect(loadedMsg?.getHeavyField('metadata')).toBeUndefined();
+            expect(loadedMsg?.getHeavyField('translate_content_table')).toEqual({ en: 'Hello', zh: '你好' });
+        });
+
+        test("31. ConversationEntity.updateData传入空对象不删除字段", async () => {
+            // 创建带有heavy_data的对话
+            const entity = await ConversationEntity.create<TestConversationExt>({
+                heavy_data: {
+                    translate_content_table: { en: 'Hello' },
+                    metadata: { key: 'value1' }
+                }
+            });
+
+            // 验证初始数据
+            expect(entity.getHeavyField('translate_content_table')).toEqual({ en: 'Hello' });
+            expect(entity.getHeavyField('metadata')).toEqual({ key: 'value1' });
+
+            // 传入空对象{}应无操作
+            await entity.updateData({
+                heavy_data: {}
+            });
+
+            // 验证heavy_data字段仍然存在
+            expect(entity.getHeavyField('translate_content_table')).toEqual({ en: 'Hello' });
+            expect(entity.getHeavyField('metadata')).toEqual({ key: 'value1' });
+
+            // 重新加载验证持久化
+            const loadedEntity = await ConversationEntity.load<TestConversationExt>(entity.getConversationId());
+            expect(loadedEntity?.getHeavyField('translate_content_table')).toEqual({ en: 'Hello' });
+            expect(loadedEntity?.getHeavyField('metadata')).toEqual({ key: 'value1' });
+        });
+
+        test("32. MessageEntity.updateData传入空对象不删除字段", async () => {
+            // 创建对话实体
+            const convEntity = await ConversationEntity.create<TestConversationExt>({});
+
+            // 获取首条消息实体并设置heavy_data
+            const firstMsg = await convEntity.getFirstMessageEntity();
+            await firstMsg.updateData({
+                heavy_data: {
+                    translate_content_table: { en: 'Hello' },
+                    metadata: { key: 'value1' }
+                }
+            });
+
+            // 验证初始数据
+            expect(firstMsg.getHeavyField('translate_content_table')).toEqual({ en: 'Hello' });
+            expect(firstMsg.getHeavyField('metadata')).toEqual({ key: 'value1' });
+
+            // 传入空对象{}应无操作
+            await firstMsg.updateData({
+                heavy_data: {}
+            });
+
+            // 验证heavy_data字段仍然存在
+            expect(firstMsg.getHeavyField('translate_content_table')).toEqual({ en: 'Hello' });
+            expect(firstMsg.getHeavyField('metadata')).toEqual({ key: 'value1' });
+
+            // 重新加载验证持久化
+            const loadedMsg = await MessageEntity.load<TestMessageExt>(firstMsg.getMessageId() ?? convEntity.getFirstMessageId());
+            expect(loadedMsg?.getHeavyField('translate_content_table')).toEqual({ en: 'Hello' });
+            expect(loadedMsg?.getHeavyField('metadata')).toEqual({ key: 'value1' });
         });
     });
 });

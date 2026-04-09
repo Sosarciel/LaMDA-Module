@@ -1,14 +1,6 @@
 import { DBManager } from "@sosraciel-lamda/postgresql-manager";
-import { DialogStore } from "@sosraciel-lamda/dialog-store";
-import type { ConversationStruct, MessageStruct } from "@sosraciel-lamda/dialog-store";
-import { ConversationModel, MessageModel, FirstModel, DialogHelper, AnchorModel } from "@sosraciel-lamda/dialog-domain";
-import type { DialogMessageData } from "@sosraciel-lamda/dialog-domain";
-import type { ConversationHeavyData, MessageModelExt, ConversationModelExt } from "@sosraciel-lamda/dialog-domain";
-import { genAnchorId, parseAnchorId, genStatusString, parseStatusString } from "@sosraciel-lamda/dialog-domain";
-import { sleep, UtilFunc } from "@zwa73/utils";
-import { DBCache } from "@sosraciel-lamda/dialog-store/dist/DBCache";
-import { PG_PORT } from "@/src/Constant";
-import { createTestConversation, createTestMessage, createTestScene, setupTestDb, teardownTestDb } from "./Util";
+import { ConversationModel, MessageModel, FirstModel, DialogHelper } from "@sosraciel-lamda/dialog-domain";
+import { createTestScene, setupTestDb, teardownTestDb } from "./Util";
 
 describe("Dialog-Domain DialogHelper 测试", () => {
     let manager: DBManager;
@@ -216,13 +208,11 @@ describe("Dialog-Domain DialogHelper 测试", () => {
         const conversationModel = await ConversationModel.create({ scene: testScene });
         const conversationId = conversationModel.getConversationId();
 
-        // 创建FirstModel
-        const firstModel = await FirstModel.loadOrCreate(conversationModel);
-
         // 设置背景信息
         await conversationModel.updateData({ background_info: "Background info content" });
 
-        // 创建消息链
+        // 创建FirstModel和消息链
+        const firstModel = await FirstModel.loadOrCreate(conversationModel);
         const msg1 = await MessageModel.create({
             conversation_id: conversationId,
             parent_message_id: undefined,
@@ -230,7 +220,6 @@ describe("Dialog-Domain DialogHelper 测试", () => {
             sender_type: "user",
             content: "User message"
         });
-
         const msg2 = await MessageModel.create({
             conversation_id: conversationId,
             parent_message_id: msg1.getMessageId(),
@@ -239,9 +228,9 @@ describe("Dialog-Domain DialogHelper 测试", () => {
             content: "Character response"
         });
 
-        // 定义场景
+        // 定义defineScene
         const defineScene = {
-            define: "Define content",
+            define: "Define scene content",
             memory: [
                 { type: "chat" as const, content: "Define memory 1", sender_name: "System" }
             ],
@@ -260,16 +249,20 @@ describe("Dialog-Domain DialogHelper 测试", () => {
             msgModel: msg2
         });
 
-        // 验证消息列表结构
+        // 验证返回结果
+        expect(messageList).toBeDefined();
+        expect(Array.isArray(messageList)).toBe(true);
+
+        // 分离不同类型的消息
         const descMessages = messageList?.filter(m => m.type === 'desc') ?? [];
         const chatWithSenderId = messageList?.filter(m => m.type === 'chat' && 'sender_id' in m) ?? [];
         const chatWithSenderName = messageList?.filter(m => m.type === 'chat' && 'sender_name' in m && !('sender_id' in m)) ?? [];
 
         // 验证desc消息（define和background_info）
-        expect(descMessages.length).toBe(2);
+        expect(descMessages.length).toBe(3);
         const descContents = descMessages.map(m => m.content);
         expect(descContents).toEqual([
-            "Define content",
+            "Define scene content",
             "Scene define content",
             "Background info content"
         ]);

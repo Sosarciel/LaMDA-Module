@@ -33,25 +33,25 @@ describe("Dialog-Domain AnchorModel 测试", () => {
     });
 
     test("39. 应成功生成和解析状态字符串", async () => {
-        const convId = "conv123";// 不能含有分隔符 -
-        const msgId = "msg456";
+        const convId = "conv-123";// 不能含有分隔符 -
+        const msgId = "msg-456";
 
         // 生成状态字符串
         const statusStr = genStatusString(convId, msgId);
-        expect(statusStr).toBe(`${convId}-${msgId}`);
+        expect(statusStr).toBe(`${convId}|${msgId}`);
 
         // 解析状态字符串
         const parsed = parseStatusString(statusStr);
-        expect(parsed.convId).toBe(convId);
-        expect(parsed.msgId).toBe(msgId);
+        expect(parsed.conversationId).toBe(convId);
+        expect(parsed.messageId).toBe(msgId);
 
         // 测试空值
         const emptyStatusStr = genStatusString(undefined, undefined);
-        expect(emptyStatusStr).toBe("-");
+        expect(emptyStatusStr).toBe("|");
 
         const emptyParsed = parseStatusString(emptyStatusStr);
-        expect(emptyParsed.convId).toBeUndefined();
-        expect(emptyParsed.msgId).toBeUndefined();
+        expect(emptyParsed.conversationId).toBeUndefined();
+        expect(emptyParsed.messageId).toBeUndefined();
     });
 
     test("40. 应成功创建和加载锚点", async () => {
@@ -122,8 +122,8 @@ describe("Dialog-Domain AnchorModel 测试", () => {
 
         // 创建锚点并设置数据
         const anchorModel = await AnchorModel.create(threadId, charId);
-        const convId = "convexporttest";
-        const msgId = "msgexporttest";
+        const convId = "conv-export-test";
+        const msgId = "msg-export-test";
         await anchorModel.updateData({
             conversation_id: convId,
             message_id: msgId,
@@ -131,7 +131,7 @@ describe("Dialog-Domain AnchorModel 测试", () => {
 
         // 导出状态字符串
         const statusStr = anchorModel.exportStatusToString();
-        expect(statusStr).toBe(`${convId}-${msgId}`);
+        expect(statusStr).toBe(`${convId}|${msgId}`);
 
         // 创建新锚点并导入状态
         const threadId2 = "thread:import-test";
@@ -157,8 +157,8 @@ describe("Dialog-Domain AnchorModel 测试", () => {
 
         // 获取定位数据
         const posData = anchorModel.getPosData();
-        expect(posData.convId).toBe(convId);
-        expect(posData.msgId).toBe(msgId);
+        expect(posData.conversationId).toBe(convId);
+        expect(posData.messageId).toBe(msgId);
     });
 
     test("45. 应成功清理无效会话", async () => {

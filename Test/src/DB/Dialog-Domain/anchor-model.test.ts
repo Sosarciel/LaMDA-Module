@@ -216,4 +216,40 @@ describe("Dialog-Domain AnchorModel 测试", () => {
         expect(anchorModel.getConversationId()).toBeUndefined();
         expect(anchorModel.getMessageId()).toBeUndefined();
     });
+
+    test("47. 应正确拒绝空threadId入库", async () => {
+        const charId = "char:test-char";
+
+        // 测试空threadId
+        await expect(AnchorModel.create("", charId)).rejects.toThrow("threadId 不允许为空字符串");
+        await expect(AnchorModel.load("", charId)).rejects.toThrow("threadId 不允许为空字符串");
+        await expect(AnchorModel.loadOrCreate("", charId)).rejects.toThrow("threadId 不允许为空字符串");
+    });
+
+    test("48. 应正确拒绝空charId入库", async () => {
+        const threadId = "thread:empty-char-test";
+
+        // 测试空charId
+        await expect(AnchorModel.create(threadId, "")).rejects.toThrow("charId 不允许为空字符串");
+        await expect(AnchorModel.load(threadId, "")).rejects.toThrow("charId 不允许为空字符串");
+        await expect(AnchorModel.loadOrCreate(threadId, "")).rejects.toThrow("charId 不允许为空字符串");
+    });
+
+    test("49. 应正确拒绝空threadId和charId入库", async () => {
+        // 测试两者都为空
+        await expect(AnchorModel.create("", "")).rejects.toThrow("threadId 不允许为空字符串");
+        await expect(AnchorModel.load("", "")).rejects.toThrow("threadId 不允许为空字符串");
+        await expect(AnchorModel.loadOrCreate("", "")).rejects.toThrow("threadId 不允许为空字符串");
+    });
+
+    test("50. 应正确拒绝包含分隔符的ID入库", async () => {
+        const threadId = "thread|invalid";
+        const charId = "char|invalid";
+
+        // 测试包含|的threadId
+        await expect(AnchorModel.create(threadId, "char:valid")).rejects.toThrow("threadId 不允许包含 \"|\" 字符");
+
+        // 测试包含|的charId
+        await expect(AnchorModel.create("thread:valid", charId)).rejects.toThrow("charId 不允许包含 \"|\" 字符");
+    });
 });

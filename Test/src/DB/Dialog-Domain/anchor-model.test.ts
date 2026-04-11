@@ -19,7 +19,7 @@ describe("Dialog-Domain AnchorModel 测试", () => {
 
         // 生成锚点ID
         const anchorId = genAnchorId(threadId, charId);
-        expect(anchorId).toBe(`anchor|thread:${threadId}|char:${charId}`);
+        expect(anchorId).toBe(`anchor|thread_id:${threadId}|char_id:${charId}`);
 
         // 解析锚点ID
         const parsed = parseAnchorId(anchorId);

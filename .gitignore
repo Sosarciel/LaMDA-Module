@@ -8,6 +8,7 @@ Service-Manager/PostgreSQL-Manager
 Service-Manager/CommApi-Manager
 Service-Manager/TTS-Manager
 Service-Manager/Translation-Manager
+Service-Manager/AutoDL-Manager
 CommPlatform-ProtoClient/OneBot11-ProtoClient
 CommPlatform-ProtoClient/KOOK-ProtoClient
 Business-Domain/Dialog-Domain

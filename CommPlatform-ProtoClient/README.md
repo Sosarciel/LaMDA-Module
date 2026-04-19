@@ -6,8 +6,10 @@
 
 ## 📦 模块列表
 
-- [[CommPlatform-ProtoClient/OneBot11-ProtoClient/README|OneBot11-ProtoClient]] — OneBot11 协议客户端 → [[CommPlatform-ProtoClient/OneBot11-ProtoClient/plan/README|实施计划]]
-- [[CommPlatform-ProtoClient/KOOK-ProtoClient/README|KOOK-ProtoClient]] — KOOK 平台协议客户端 → [[CommPlatform-ProtoClient/KOOK-ProtoClient/plan/README|实施计划]]
+| 模块 | 描述 | 实施计划 |
+|------|------|----------|
+| [[CommPlatform-ProtoClient/OneBot11-ProtoClient/README\|OneBot11-ProtoClient]] | OneBot11 协议客户端 | [[CommPlatform-ProtoClient/OneBot11-ProtoClient/plan/README\|查看]] |
+| [[CommPlatform-ProtoClient/KOOK-ProtoClient/README\|KOOK-ProtoClient]] | KOOK 平台协议客户端 | [[CommPlatform-ProtoClient/KOOK-ProtoClient/plan/README\|查看]] |
 
 ---
 

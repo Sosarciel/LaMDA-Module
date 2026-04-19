@@ -6,7 +6,9 @@
 
 ## 📦 模块列表
 
-- [[Text-Processor/README|Text-Processor]] — 文本处理器 → [[Text-Processor/plan/README|实施计划]]
+| 模块 | 描述 | 实施计划 |
+|------|------|----------|
+| [[Text-Processor/README\|Text-Processor]] | 文本处理器 | [[Text-Processor/plan/README\|查看]] |
 
 ---
 

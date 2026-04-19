@@ -6,9 +6,11 @@
 
 ## 📦 模块列表
 
-- [[Business-Domain/Dialog-Domain/README|Dialog-Domain]] — 对话域 → [[Business-Domain/Dialog-Domain/plan/README|实施计划]]
-- [[Business-Domain/CharProfile-Domain/README|CharProfile-Domain]] — 角色档案域 → [[Business-Domain/CharProfile-Domain/plan/README|实施计划]]
-- [[Business-Domain/User-Domain/README|User-Domain]] — 用户域 → [[Business-Domain/User-Domain/plan/README|实施计划]]
+| 模块 | 描述 | 实施计划 |
+|------|------|----------|
+| [[Business-Domain/Dialog-Domain/README\|Dialog-Domain]] | 对话域 | [[Business-Domain/Dialog-Domain/plan/README\|查看]] |
+| [[Business-Domain/CharProfile-Domain/README\|CharProfile-Domain]] | 角色档案域 | [[Business-Domain/CharProfile-Domain/plan/README\|查看]] |
+| [[Business-Domain/User-Domain/README\|User-Domain]] | 用户域 | [[Business-Domain/User-Domain/plan/README\|查看]] |
 
 ---
 
@@ -26,4 +28,4 @@ Business-Domain
 
 ---
 
-*最后更新: 2026-04-09*
+*最后更新: 2026-04-20*

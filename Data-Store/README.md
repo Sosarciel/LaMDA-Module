@@ -6,7 +6,9 @@
 
 ## 📦 模块列表
 
-- [[Data-Store/Dialog-Store/README|Dialog-Store]] — 对话数据存储 → [[Data-Store/Dialog-Store/plan/README|实施计划]]
+| 模块 | 描述 | 实施计划 |
+|------|------|----------|
+| [[Data-Store/Dialog-Store/README\|Dialog-Store]] | 对话数据存储 | [[Data-Store/Dialog-Store/plan/README\|查看]] |
 
 ---
 
@@ -35,4 +37,4 @@ Dialog-Store 使用**引用共享 + 通知广播**机制实现缓存同步：
 
 ---
 
-*最后更新: 2026-04-09*
+*最后更新: 2026-04-20*

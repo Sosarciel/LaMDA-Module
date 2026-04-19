@@ -11,6 +11,7 @@
 - [[Service-Manager/CommApi-Manager/README|CommApi-Manager]] — 通信 API 管理 → [[Service-Manager/CommApi-Manager/plan/README|实施计划]]
 - [[Service-Manager/TTS-Manager/README|TTS-Manager]] — 文本转语音管理 → [[Service-Manager/TTS-Manager/plan/README|实施计划]]
 - [[Service-Manager/Translation-Manager/README|Translation-Manager]] — 翻译管理 → [[Service-Manager/Translation-Manager/plan/README|实施计划]]
+- [[Service-Manager/AutoDL-Manager/README|AutoDL-Manager]] — AutoDL 云端 GPU 实例管理 → [[Service-Manager/AutoDL-Manager/plan/README|实施计划]]
 - [[Service-Manager/KnowledgeBase-Manager/README|KnowledgeBase-Manager]] — 知识库管理 → [[Service-Manager/KnowledgeBase-Manager/plan/README|实施计划]]
 
 ---
@@ -24,9 +25,10 @@ Service-Manager
     ├── CommApi-Manager (通信)
     ├── TTS-Manager (语音)
     ├── Translation-Manager (翻译)
+    ├── AutoDL-Manager (云端GPU)
     └── KnowledgeBase-Manager (知识库)
 ```
 
 ---
 
-*最后更新: 2026-03-25*
+*最后更新: 2026-04-20*

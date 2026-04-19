@@ -6,9 +6,9 @@
 
 ## 📦 模块列表
 
-- [[LaMDA-Module/CommPlatform-ProtoClient/OneBot11-ProtoClient/README|OneBot11-ProtoClient]] — OneBot11 协议客户端 → [[LaMDA-Module/CommPlatform-ProtoClient/OneBot11-ProtoClient/plan/README|实施计划]]
-- [[LaMDA-Module/CommPlatform-ProtoClient/KOOK-ProtoClient/README|KOOK-ProtoClient]] — KOOK 平台协议客户端 → [[LaMDA-Module/CommPlatform-ProtoClient/KOOK-ProtoClient/plan/README|实施计划]]
+- [[CommPlatform-ProtoClient/OneBot11-ProtoClient/README|OneBot11-ProtoClient]] — OneBot11 协议客户端 → [[CommPlatform-ProtoClient/OneBot11-ProtoClient/plan/README|实施计划]]
+- [[CommPlatform-ProtoClient/KOOK-ProtoClient/README|KOOK-ProtoClient]] — KOOK 平台协议客户端 → [[CommPlatform-ProtoClient/KOOK-ProtoClient/plan/README|实施计划]]
 
 ---
 
-*最后更新: 2026-03-25*
+*最后更新: 2026-04-20*

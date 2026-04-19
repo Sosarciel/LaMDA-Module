@@ -6,8 +6,8 @@
 
 ## 📦 模块列表
 
-- [[LaMDA-Module/Common-Utility/Text-Processor/README|Text-Processor]] — 文本处理器 → [[LaMDA-Module/Common-Utility/Text-Processor/plan/README|实施计划]]
+- [[Text-Processor/README|Text-Processor]] — 文本处理器 → [[Text-Processor/plan/README|实施计划]]
 
 ---
 
-*最后更新: 2026-03-25*
+*最后更新: 2026-04-20*

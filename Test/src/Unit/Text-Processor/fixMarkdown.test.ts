@@ -215,12 +215,12 @@ desc6)`);
     it('应确保2尾随的被转义的星号不被处理,填补3尾随星号,789换行',()=>{
         expect(regex(`*motion1* 
 *motion2\\*motion3
-*"desc4" *motion5* 
+*motion4 *motion5* 
 *motion"motion"motion6* 
 "desc7" *motion8* "desc9" 
 *motion10*`)).toEqual(`*motion1*
 *motion2\\*motion3*
-*"desc4" *
+*motion4 *
 *motion5*
 *motion"motion"motion6*
 desc7
@@ -306,6 +306,35 @@ desc2`)
 desc2
 *motion3*
 desc4`);
+    });
+
+    it('应处理全部星号内前置发言换行', () => {
+        expect(regex(`*motion1*
+*motion2*
+*“desc3”motion4*
+*“desc5”motion6*`)).toEqual(`*motion1*
+*motion2*
+desc3
+*motion4*
+desc5
+*motion6*`);
+    });
+
+    it('应确保12与word不处理,579被判定为星号内发言而换行', () => {
+        expect(regex(`*motion1“word”motion2*
+*motion3*
+*motion4*
+*“desc5”motion6，“desc7”*
+*motion8*
+*“desc9”motion10*`)).toEqual(`*motion1“word”motion2*
+*motion3*
+*motion4*
+desc5
+*motion6*
+desc7
+*motion8*
+desc9
+*motion10*`);
     });
 
     //#region AI测试

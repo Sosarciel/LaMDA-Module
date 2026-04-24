@@ -247,6 +247,7 @@ desc8
 *motion10*
 desc11[motion12]desc13`);
     });
+
     it('应确保think块被移除,ASsISTANT前缀被移除',()=>{
         expect(regex(`<think>**thk1**
 
@@ -271,6 +272,22 @@ ASsISTANT: *motion1*
 *motion4*
 desc5
 *motion6*`);
+    });
+
+    it('应确保deepseek think块被移除', () => {
+        const res = `*motion2*
+desc3
+*motion4*`;
+        expect(regex(`好的，我现在是desc1
+*motion2*
+desc3
+*motion4*`)).toEqual(res);
+        expect(regex(`好的，我现在是desc1*motion2*
+desc3
+*motion4*`)).toEqual(res);
+        expect(regex(`好的，现在我是desc1*motion2*
+desc3
+*motion4*`)).toEqual(res);
     });
 
 

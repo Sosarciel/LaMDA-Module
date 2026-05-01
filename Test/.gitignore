@@ -3,3 +3,4 @@ dist/**
 build/**
 cache
 data/pgsql
+src/**/*.backup.test.ts

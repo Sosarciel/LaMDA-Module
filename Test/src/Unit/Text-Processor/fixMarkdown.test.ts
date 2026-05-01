@@ -354,6 +354,32 @@ desc9
 *motion10*`);
     });
 
+    it('应确保短语wd不被转换为星号包裹',()=>{
+        //convertNonMathBrackets 约束为10长度
+        const v = `desc1
+desc2(wd3)desc4(wd5)desc6(wd7)`;
+        expect(regex(v)).toEqual(`desc1
+desc2(wd3)desc4(wd5)desc6(wd7)`);
+    })
+
+    it('应确保长句alongmotion被转换为星号包裹',()=>{
+        //convertNonMathBrackets 约束为10长度
+        const v = `desc1
+desc2(alongmotion3)desc4`;
+        expect(regex(v)).toEqual(`desc1
+desc2
+*alongmotion3*
+desc4`);
+    })
+
+    it('应确保长句mathexpress不被转换为星号包裹',()=>{
+        //convertNonMathBrackets 的+-*/ 不被转换
+        const v = `desc1
+desc2(mathexpress / 2)desc4`;
+        expect(regex(v)).toEqual(`desc1
+desc2(mathexpress / 2)desc4`);
+    })
+
     //#region AI测试
     // 边界情况测试
     it('应处理空字符串', () => {
@@ -390,11 +416,11 @@ desc2`);
     // 多种括号混合测试
     it('应处理多种括号混合', () => {
         expect(regex(`*motion1*
-(desc2)【desc3】[desc4]
+(alongdesc2)【alongdesc3】[alongdesc4]
 *motion5*`)).toEqual(`*motion1*
-*desc2*
-*desc3*
-*desc4*
+*alongdesc2*
+*alongdesc3*
+*alongdesc4*
 *motion5*`);
     });
 

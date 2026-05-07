@@ -65,8 +65,8 @@ describe("Dialog-Domain DialogHelper 测试", () => {
             defineScene,
             maxLength: 1000,
             maxCount: 10,
-            convModel: conversationModel,
-            msgModel: msg3
+            conversationModel: conversationModel,
+            messageModel: msg3
         });
 
         // 验证返回的是数组
@@ -145,8 +145,8 @@ describe("Dialog-Domain DialogHelper 测试", () => {
             defineScene,
             maxLength: 1000,
             maxCount: 10,
-            convModel: conversationModel,
-            msgModel: firstModel
+            conversationModel: conversationModel,
+            messageModel: firstModel
         });
 
         // 验证返回的是数组
@@ -177,8 +177,8 @@ describe("Dialog-Domain DialogHelper 测试", () => {
 
         // 获取对话位置ID
         const posId = DialogHelper.getDialogPosId({
-            message: messageModel,
-            conversation: conversationModel
+            messageModel: messageModel,
+            conversationModel: conversationModel
         });
 
         // 验证位置ID
@@ -188,8 +188,8 @@ describe("Dialog-Domain DialogHelper 测试", () => {
         // 通过位置ID恢复对话位置
         const retrievedPos = await DialogHelper.getDialogPos(posId);
         expect(retrievedPos).toBeDefined();
-        expect(retrievedPos?.conversation.getConversationId()).toBe(conversationId);
-        expect(retrievedPos?.message.getMessageId()).toBe(messageModel.getMessageId());
+        expect(retrievedPos?.conversationModel.getConversationId()).toBe(conversationId);
+        expect(retrievedPos?.messageModel.getMessageId()).toBe(messageModel.getMessageId());
     });
 
     test("24. 应成功测试DialogHelper.getCurrMessageList完整流程", async () => {
@@ -245,8 +245,8 @@ describe("Dialog-Domain DialogHelper 测试", () => {
             defineScene,
             maxLength: 10000,
             maxCount: 100,
-            convModel: conversationModel,
-            msgModel: msg2
+            conversationModel: conversationModel,
+            messageModel: msg2
         });
 
         // 验证返回结果
@@ -381,8 +381,8 @@ describe("Dialog-Domain DialogHelper 测试", () => {
             defineScene,
             maxLength: smallMaxLength,
             maxCount: 100,
-            convModel: conversationModel,
-            msgModel: messages[messages.length - 1]
+            conversationModel: conversationModel,
+            messageModel: messages[messages.length - 1]
         });
 
         // 验证总长度不超过maxLength
@@ -438,8 +438,8 @@ describe("Dialog-Domain DialogHelper 测试", () => {
             defineScene,
             maxLength: 10000,
             maxCount: smallMaxCount,
-            convModel: conversationModel,
-            msgModel: messages[messages.length - 1]
+            conversationModel: conversationModel,
+            messageModel: messages[messages.length - 1]
         });
 
         // 验证消息数量不超过maxCount
@@ -490,8 +490,8 @@ describe("Dialog-Domain DialogHelper 测试", () => {
             defineScene,
             maxLength: 10000,
             maxCount: 100,
-            convModel: conversationModel,
-            msgModel: messages[messages.length - 1]
+            conversationModel: conversationModel,
+            messageModel: messages[messages.length - 1]
         });
 
         // 验证消息链完整性

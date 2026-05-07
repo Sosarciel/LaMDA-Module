@@ -29,6 +29,8 @@ describe("LaM-Manager ChatTask DeepseekChat Formatter", () => {
                 top_p: 1,
                 presence_penalty: 0,
                 frequency_penalty: 0,
+                stop:undefined,
+                thinking:{type:"disabled"},
             });
         });
 
@@ -57,7 +59,8 @@ describe("LaM-Manager ChatTask DeepseekChat Formatter", () => {
                 top_p: 1,
                 presence_penalty: 0,
                 frequency_penalty: 0,
-                stop:undefined
+                stop:undefined,
+                thinking:{type:"disabled"},
             });
         });
 
@@ -87,6 +90,7 @@ describe("LaM-Manager ChatTask DeepseekChat Formatter", () => {
                 presence_penalty: 0,
                 frequency_penalty: 0,
                 stop: ["\n"],
+                thinking:{type:"disabled"},
             });
         });
 
@@ -116,6 +120,8 @@ describe("LaM-Manager ChatTask DeepseekChat Formatter", () => {
                 top_p: 1,
                 presence_penalty: 0.5,
                 frequency_penalty: 0.3,
+                stop:undefined,
+                thinking:{type:"disabled"},
             });
         });
 

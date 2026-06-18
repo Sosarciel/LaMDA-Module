@@ -186,4 +186,49 @@ describe("Dialog-Domain ConversationModel 测试", () => {
         const deletedMessage = await MessageModel.load(messageModel.getMessageId());
         expect(deletedMessage).toBeUndefined();
     });
+
+    test("37. 应成功测试background_table的读写与懒创建", async () => {
+        const testScene = createTestScene();
+        const conversationModel = await ConversationModel.create({ scene: testScene });
+
+        // 初始时无background_table
+        expect(conversationModel.hasBackgroundTable()).toBe(false);
+        expect(conversationModel.getBackgroundTable()).toEqual({});
+        expect(conversationModel.getBackgroundTableEntry("ja")).toBeUndefined();
+
+        // 通过setBackgroundEntry设置单条
+        await conversationModel.setBackgroundTableEntry("ja", "日本語訳");
+        expect(conversationModel.hasBackgroundTable()).toBe(true);
+        expect(conversationModel.getBackgroundTableEntry("ja")).toBe("日本語訳");
+
+        // 重新加载验证持久化
+        const loaded1 = await ConversationModel.load(conversationModel.getConversationId());
+        expect(loaded1?.hasBackgroundTable()).toBe(true);
+        expect(loaded1?.getBackgroundTableEntry("ja")).toBe("日本語訳");
+
+        // 通过updateData整体设置
+        await conversationModel.updateData({ background_table: { en: "English", zh: "中文" } });
+        expect(conversationModel.getBackgroundTableEntry("en")).toBe("English");
+        expect(conversationModel.getBackgroundTableEntry("zh")).toBe("中文");
+        expect(conversationModel.getBackgroundTableEntry("ja")).toBeUndefined();
+
+        // 删除单条条目
+        await conversationModel.setBackgroundTableEntry("en", undefined);
+        expect(conversationModel.getBackgroundTableEntry("en")).toBeUndefined();
+        expect(conversationModel.hasBackgroundTable()).toBe(true);
+
+        // 删除最后一条条目后hasBackgroundTable应为false
+        await conversationModel.setBackgroundTableEntry("zh", undefined);
+        expect(conversationModel.hasBackgroundTable()).toBe(false);
+
+        // 通过updateData传入undefined删除整个background_table
+        await conversationModel.updateData({ background_table: { en: "English" } });
+        expect(conversationModel.hasBackgroundTable()).toBe(true);
+        await conversationModel.updateData({ background_table: undefined });
+        expect(conversationModel.hasBackgroundTable()).toBe(false);
+
+        // 重新加载验证
+        const loaded2 = await ConversationModel.load(conversationModel.getConversationId());
+        expect(loaded2?.hasBackgroundTable()).toBe(false);
+    });
 });

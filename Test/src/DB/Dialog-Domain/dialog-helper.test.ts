@@ -211,6 +211,11 @@ describe("Dialog-Domain DialogHelper 测试", () => {
         // 设置背景信息
         await conversationModel.updateData({ background_info: "Background info content" });
 
+        // 设置背景表（注意 key 顺序故意打乱，验证排序）
+        await conversationModel.setBackgroundTableEntry("zh", "中文背景");
+        await conversationModel.setBackgroundTableEntry("en", "English background");
+        await conversationModel.setBackgroundTableEntry("ja", "日本語背景");
+
         // 创建FirstModel和消息链
         const firstModel = await FirstModel.loadOrCreate(conversationModel);
         const msg1 = await MessageModel.create({
@@ -258,13 +263,17 @@ describe("Dialog-Domain DialogHelper 测试", () => {
         const chatWithSenderId = messageList?.filter(m => m.type === 'chat' && 'sender_id' in m) ?? [];
         const chatWithSenderName = messageList?.filter(m => m.type === 'chat' && 'sender_name' in m && !('sender_id' in m)) ?? [];
 
-        // 验证desc消息（define和background_info）
-        expect(descMessages.length).toBe(3);
+        // 验证desc消息（define + background_info + background_table条目）
+        // 顺序：defineScene.define, extScene.define, background_info, background_table条目(按key排序)
+        expect(descMessages.length).toBe(6);
         const descContents = descMessages.map(m => m.content);
         expect(descContents).toEqual([
             "Define scene content",
             "Scene define content",
-            "Background info content"
+            "Background info content",
+            "en:\nEnglish background",
+            "ja:\n日本語背景",
+            "zh:\n中文背景"
         ]);
 
         // 验证chat with sender_name消息（memory和dialog）

@@ -1,5 +1,6 @@
 import { DBManager } from "@sosraciel-lamda/postgresql-manager";
 import { ConversationModel, MessageModel } from "@sosraciel-lamda/dialog-domain";
+import { DialogStore } from "@sosraciel-lamda/dialog-store";
 import { sleep } from "@zwa73/utils";
 import { createTestScene, setupTestDb, teardownTestDb } from "./Util";
 
@@ -234,9 +235,37 @@ describe("Dialog-Domain ConversationModel 测试", () => {
         expect(conversationModel.hasBackgroundTable()).toBe(true);
         await conversationModel.updateData({ background_table: undefined });
         expect(conversationModel.hasBackgroundTable()).toBe(false);
+    });
 
-        // 重新加载验证
-        const loaded2 = await ConversationModel.load(conversationModel.getConversationId());
-        expect(loaded2?.hasBackgroundTable()).toBe(false);
+    test("38. 应成功测试setBackgroundTableEntry连续写入与删除的持久化", async () => {
+        const testScene = createTestScene();
+        const convId = (await ConversationModel.create({ scene: testScene })).getConversationId();
+
+        // 重新加载，模拟真实场景（与CmdTable一致的操作模式）
+        const conv = (await ConversationModel.load(convId))!;
+
+        // 第一次设置（background_table不存在，table是新对象，写入应成功）
+        await conv.setBackgroundTableEntry("info", "备注信息");
+        const dbRow1 = (await DialogStore.getConversation(convId, { ignoreCache: true }))!.data as any;
+        expect(dbRow1.heavy_data?.background_table?.info).toEqual({ content: "备注信息" });
+
+        // 第二次设置（background_table已存在，table是缓存引用，修改引用后structEqual可能误判）
+        await conv.setBackgroundTableEntry("desc", { content: "描述", order: 1 });
+        const dbRow2 = (await DialogStore.getConversation(convId, { ignoreCache: true }))!.data as any;
+        expect(dbRow2.heavy_data?.background_table?.info).toEqual({ content: "备注信息" });
+        expect(dbRow2.heavy_data?.background_table?.desc).toEqual({ content: "描述", order: 1 });
+
+        // 第三次设置
+        await conv.setBackgroundTableEntry("extra", "额外信息");
+        const dbRow3 = (await DialogStore.getConversation(convId, { ignoreCache: true }))!.data as any;
+        expect(dbRow3.heavy_data?.background_table?.info).toEqual({ content: "备注信息" });
+        expect(dbRow3.heavy_data?.background_table?.desc).toEqual({ content: "描述", order: 1 });
+        expect(dbRow3.heavy_data?.background_table?.extra).toEqual({ content: "额外信息" });
+
+        // 删除条目后验证数据库持久化
+        await conv.setBackgroundTableEntry("info", undefined);
+        const dbRow4 = (await DialogStore.getConversation(convId, { ignoreCache: true }))!.data as any;
+        expect(dbRow4.heavy_data?.background_table?.info).toBeUndefined();
+        expect(dbRow4.heavy_data?.background_table?.desc).toEqual({ content: "描述", order: 1 });
     });
 });

@@ -354,12 +354,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
 
     test("26. 应成功测试maxLength限制触发时的截断行为", async () => {
         // 创建无预对话的场景
-        const testScene = {
-            define: "",
-            memory: [],
-            name: "test",
-            dialog: []
-        };
+        const testScene = { define: "", memory: [], name: "test", dialog: [] };
         const conversationModel = await ConversationModel.create({ scene: testScene });
         const conversationId = conversationModel.getConversationId();
 
@@ -380,12 +375,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
         }
 
         // 定义场景
-        const defineScene = {
-            define: "",
-            memory: [],
-            name: "test",
-            dialog: []
-        };
+        const defineScene = { define: "", memory: [], name: "test", dialog: [] };
 
         // 设置较小的maxLength（约200字符）
         const smallMaxLength = 200;
@@ -411,12 +401,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
 
     test("27. 应成功测试maxCount限制触发时的截断行为", async () => {
         // 创建无预对话的场景
-        const testScene = {
-            define: "",
-            memory: [],
-            name: "test",
-            dialog: []
-        };
+        const testScene = { define: "", memory: [], name: "test", dialog: [] };
         const conversationModel = await ConversationModel.create({ scene: testScene });
         const conversationId = conversationModel.getConversationId();
 
@@ -437,12 +422,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
         }
 
         // 定义场景
-        const defineScene = {
-            define: "",
-            memory: [],
-            name: "test",
-            dialog: []
-        };
+        const defineScene = { define: "", memory: [], name: "test", dialog: [] };
 
         // 设置maxCount为3
         const smallMaxCount = 3;
@@ -466,12 +446,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
 
     test("30. 应成功测试深度消息链遍历", async () => {
         // 创建无预对话的场景
-        const testScene = {
-            define: "",
-            memory: [],
-            name: "test",
-            dialog: []
-        };
+        const testScene = { define: "", memory: [], name: "test", dialog: [] };
         const conversationModel = await ConversationModel.create({ scene: testScene });
         const conversationId = conversationModel.getConversationId();
 
@@ -492,12 +467,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
         }
 
         // 定义场景
-        const defineScene = {
-            define: "",
-            memory: [],
-            name: "test",
-            dialog: []
-        };
+        const defineScene = { define: "", memory: [], name: "test", dialog: [] };
 
         // 获取历史消息
         const histMessages = await DialogHelper.getHistMessageList({
@@ -522,5 +492,168 @@ describe("Dialog-Domain DialogHelper 测试", () => {
             const loadedMsg = await MessageModel.load(messages[i].getMessageId());
             expect(loadedMsg?.getPreMessageId()).toBe(messages[i - 1].getMessageId());
         }
+    });
+
+    test("40. 应成功测试onIntercept的include截断（命中计入链）", async () => {
+        // 创建无预对话的场景
+        const testScene = { define: "", memory: [], name: "test", dialog: [] };
+        const conversationModel = await ConversationModel.create({ scene: testScene });
+        const conversationId = conversationModel.getConversationId();
+        await FirstModel.loadOrCreate(conversationModel);
+
+        // 创建5条消息链
+        const messages: MessageModel[] = [];
+        for (let i = 0; i < 5; i++) {
+            const msg = await MessageModel.create({
+                conversation_id: conversationId,
+                parent_message_id: i === 0 ? undefined : messages[i - 1].getMessageId(),
+                sender_id: i % 2 === 0 ? "user" : "char",
+                sender_type: i % 2 === 0 ? "user" : "char",
+                content: `Intercept test msg ${i}`
+            });
+            messages.push(msg);
+        }
+
+        const defineScene = { define: "", memory: [], name: "test", dialog: [] };
+
+        // onIntercept 在 msg2 命中返回 'include'：msg2计入链并截断
+        // traverseUp 从 msg4 向前遍历：msg4→msg3→msg2(命中include)→停止
+        // 链顺序（unshift）：[msg2, msg3, msg4]
+        const histMessages = await DialogHelper.getHistMessageList({
+            defineScene,
+            maxLength: 10000,
+            maxCount: 100,
+            conversationModel: conversationModel,
+            messageModel: messages[4],
+            onIntercept: (msg) => msg.content.includes("msg 2") ? 'include' : 'continue'
+        });
+
+        const chatMessages = histMessages.filter(m => m.type === 'chat' && 'sender_id' in m);
+        expect(chatMessages.length).toBe(3);
+        expect(chatMessages.map(m => m.content)).toEqual([
+            "Intercept test msg 2",
+            "Intercept test msg 3",
+            "Intercept test msg 4"
+        ]);
+    });
+
+    test("41. 应成功测试onIntercept的reject截断（命中不计入链）", async () => {
+        const testScene = { define: "", memory: [], name: "test", dialog: [] };
+        const conversationModel = await ConversationModel.create({ scene: testScene });
+        const conversationId = conversationModel.getConversationId();
+        await FirstModel.loadOrCreate(conversationModel);
+
+        const messages: MessageModel[] = [];
+        for (let i = 0; i < 5; i++) {
+            const msg = await MessageModel.create({
+                conversation_id: conversationId,
+                parent_message_id: i === 0 ? undefined : messages[i - 1].getMessageId(),
+                sender_id: i % 2 === 0 ? "user" : "char",
+                sender_type: i % 2 === 0 ? "user" : "char",
+                content: `Reject test msg ${i}`
+            });
+            messages.push(msg);
+        }
+
+        const defineScene = { define: "", memory: [], name: "test", dialog: [] };
+
+        // onIntercept 在 msg2 命中返回 'reject'：msg2不计入链并截断
+        // traverseUp 从 msg4 向前遍历：msg4→msg3→msg2(命中reject,不计入)→停止
+        // 链顺序：[msg3, msg4]
+        const histMessages = await DialogHelper.getHistMessageList({
+            defineScene,
+            maxLength: 10000,
+            maxCount: 100,
+            conversationModel: conversationModel,
+            messageModel: messages[4],
+            onIntercept: (msg) => msg.content.includes("msg 2") ? 'reject' : 'continue'
+        });
+
+        const chatMessages = histMessages.filter(m => m.type === 'chat' && 'sender_id' in m);
+        expect(chatMessages.length).toBe(2);
+        expect(chatMessages.map(m => m.content)).toEqual([
+            "Reject test msg 3",
+            "Reject test msg 4"
+        ]);
+    });
+
+    test("42. 应成功测试onIntercept的continue不截断", async () => {
+        const testScene = { define: "", memory: [], name: "test", dialog: [] };
+        const conversationModel = await ConversationModel.create({ scene: testScene });
+        const conversationId = conversationModel.getConversationId();
+        await FirstModel.loadOrCreate(conversationModel);
+
+        const messages: MessageModel[] = [];
+        for (let i = 0; i < 5; i++) {
+            const msg = await MessageModel.create({
+                conversation_id: conversationId,
+                parent_message_id: i === 0 ? undefined : messages[i - 1].getMessageId(),
+                sender_id: i % 2 === 0 ? "user" : "char",
+                sender_type: i % 2 === 0 ? "user" : "char",
+                content: `Continue test msg ${i}`
+            });
+            messages.push(msg);
+        }
+
+        const defineScene = { define: "", memory: [], name: "test", dialog: [] };
+
+        // onIntercept 始终返回 'continue'，不截断，全部5条消息返回
+        const histMessages = await DialogHelper.getHistMessageList({
+            defineScene,
+            maxLength: 10000,
+            maxCount: 100,
+            conversationModel: conversationModel,
+            messageModel: messages[4],
+            onIntercept: () => 'continue'
+        });
+
+        const chatMessages = histMessages.filter(m => m.type === 'chat' && 'sender_id' in m);
+        expect(chatMessages.length).toBe(5);
+        expect(chatMessages.map(m => m.content)).toEqual([
+            "Continue test msg 0",
+            "Continue test msg 1",
+            "Continue test msg 2",
+            "Continue test msg 3",
+            "Continue test msg 4"
+        ]);
+    });
+
+    test("43. 应成功测试onIntercept在length/count限制之后调用", async () => {
+        const testScene = { define: "", memory: [], name: "test", dialog: [] };
+        const conversationModel = await ConversationModel.create({ scene: testScene });
+        const conversationId = conversationModel.getConversationId();
+        await FirstModel.loadOrCreate(conversationModel);
+
+        const messages: MessageModel[] = [];
+        for (let i = 0; i < 5; i++) {
+            const msg = await MessageModel.create({
+                conversation_id: conversationId,
+                parent_message_id: i === 0 ? undefined : messages[i - 1].getMessageId(),
+                sender_id: i % 2 === 0 ? "user" : "char",
+                sender_type: i % 2 === 0 ? "user" : "char",
+                content: `Priority test msg ${i}`
+            });
+            messages.push(msg);
+        }
+
+        const defineScene = { define: "", memory: [], name: "test", dialog: [] };
+
+        // maxCount=2 优先于 onIntercept：只遍历 msg4→msg3，onIntercept 在 msg2 之前就被 count 截断
+        // 链：[msg3, msg4]
+        const histMessages = await DialogHelper.getHistMessageList({
+            defineScene,
+            maxLength: 10000,
+            maxCount: 2,
+            conversationModel: conversationModel,
+            messageModel: messages[4],
+            onIntercept: (msg) => msg.content.includes("msg 2") ? 'include' : 'continue'
+        });
+
+        const chatMessages = histMessages.filter(m => m.type === 'chat' && 'sender_id' in m);
+        expect(chatMessages.length).toBe(2);
+        expect(chatMessages.map(m => m.content)).toEqual([
+            "Priority test msg 3",
+            "Priority test msg 4"
+        ]);
     });
 });

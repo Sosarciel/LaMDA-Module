@@ -174,4 +174,150 @@ describe("Dialog-Store DialogStoreHelper 测试", () => {
             expect(result.stopReason.wouldBeLength).toBe(12);
         }
     });
+
+    test("40. 应支持 onIntercept 返回 include 截断（命中计入链）", async () => {
+        const conversationEntity = await ConversationEntity.create<TestConversationExt>({});
+
+        const messages: MessageEntity<TestMessageExt>[] = [];
+        let parentId: string | undefined;
+        for (let i = 0; i < 5; i++) {
+            const msg = await MessageEntity.create({
+                conversation_id: conversationEntity.getConversationId(),
+                parent_message_id: parentId,
+                sender_id: `sender${i}`,
+                content: `intercept_msg_${i}`,
+            });
+            messages.push(msg);
+            parentId = msg.getMessageId();
+        }
+
+        // onIntercept 在 msg2 命中返回 'include'：msg2计入链并截断
+        // traverseUp: msg4→msg3→msg2(命中include)→停止
+        // chain(unshift): [msg2, msg3, msg4]
+        const result = await DialogStoreHelper.createHistChain({
+            conversationEntity,
+            messageEntity: messages[4],
+            maxLength: 10000,
+            maxCount: 100,
+            computeLength: (entity) => entity.getContent().length,
+            onIntercept: (entity) => entity.getContent().includes('msg_2') ? 'include' : 'continue',
+        });
+
+        expect(result.chain.length).toBe(3);
+        expect(result.chain[0].getMessageId()).toBe(messages[2].getMessageId());
+        expect(result.chain[1].getMessageId()).toBe(messages[3].getMessageId());
+        expect(result.chain[2].getMessageId()).toBe(messages[4].getMessageId());
+        // intercept_msg_2(15) + intercept_msg_3(15) + intercept_msg_4(15) = 45
+        expect(result.totalLength).toBe(45);
+        expect(result.totalCount).toBe(3);
+        expect(result.stopReason.reason).toBe('intercept');
+        if (result.stopReason.reason === 'intercept') {
+            expect(result.stopReason.result).toBe('include');
+        }
+    });
+
+    test("41. 应支持 onIntercept 返回 reject 截断（命中不计入链）", async () => {
+        const conversationEntity = await ConversationEntity.create<TestConversationExt>({});
+
+        const messages: MessageEntity<TestMessageExt>[] = [];
+        let parentId: string | undefined;
+        for (let i = 0; i < 5; i++) {
+            const msg = await MessageEntity.create({
+                conversation_id: conversationEntity.getConversationId(),
+                parent_message_id: parentId,
+                sender_id: `sender${i}`,
+                content: `reject_msg_${i}`,
+            });
+            messages.push(msg);
+            parentId = msg.getMessageId();
+        }
+
+        // onIntercept 在 msg2 命中返回 'reject'：msg2不计入链并截断
+        // traverseUp: msg4→msg3→msg2(命中reject,不计入)→停止
+        // chain: [msg3, msg4]
+        const result = await DialogStoreHelper.createHistChain({
+            conversationEntity,
+            messageEntity: messages[4],
+            maxLength: 10000,
+            maxCount: 100,
+            computeLength: (entity) => entity.getContent().length,
+            onIntercept: (entity) => entity.getContent().includes('msg_2') ? 'reject' : 'continue',
+        });
+
+        expect(result.chain.length).toBe(2);
+        expect(result.chain[0].getMessageId()).toBe(messages[3].getMessageId());
+        expect(result.chain[1].getMessageId()).toBe(messages[4].getMessageId());
+        // reject_msg_3(12) + reject_msg_4(12) = 24，msg2未计入
+        expect(result.totalLength).toBe(24);
+        expect(result.totalCount).toBe(2);
+        expect(result.stopReason.reason).toBe('intercept');
+        if (result.stopReason.reason === 'intercept') {
+            expect(result.stopReason.result).toBe('reject');
+        }
+    });
+
+    test("42. 应支持 onIntercept 返回 continue 不截断", async () => {
+        const conversationEntity = await ConversationEntity.create<TestConversationExt>({});
+
+        const messages: MessageEntity<TestMessageExt>[] = [];
+        let parentId: string | undefined;
+        for (let i = 0; i < 5; i++) {
+            const msg = await MessageEntity.create({
+                conversation_id: conversationEntity.getConversationId(),
+                parent_message_id: parentId,
+                sender_id: `sender${i}`,
+                content: `cont_msg_${i}`,
+            });
+            messages.push(msg);
+            parentId = msg.getMessageId();
+        }
+
+        // onIntercept 始终返回 'continue'，不截断，遍历到 FirstEntity 正常结束
+        const result = await DialogStoreHelper.createHistChain({
+            conversationEntity,
+            messageEntity: messages[4],
+            maxLength: 10000,
+            maxCount: 100,
+            computeLength: (entity) => entity.getContent().length,
+            onIntercept: () => 'continue',
+        });
+
+        expect(result.chain.length).toBe(5);
+        for (let i = 0; i < 5; i++) {
+            expect(result.chain[i].getMessageId()).toBe(messages[i].getMessageId());
+        }
+        expect(result.stopReason.reason).toBe('first');
+    });
+
+    test("43. 应支持 onIntercept 在 length/count 限制之后调用", async () => {
+        const conversationEntity = await ConversationEntity.create<TestConversationExt>({});
+
+        const messages: MessageEntity<TestMessageExt>[] = [];
+        let parentId: string | undefined;
+        for (let i = 0; i < 5; i++) {
+            const msg = await MessageEntity.create({
+                conversation_id: conversationEntity.getConversationId(),
+                parent_message_id: parentId,
+                sender_id: `sender${i}`,
+                content: `prio_msg_${i}`,
+            });
+            messages.push(msg);
+            parentId = msg.getMessageId();
+        }
+
+        // maxCount=2 优先于 onIntercept：只遍历 msg4→msg3，onIntercept 在 msg2 之前就被 count 截断
+        const result = await DialogStoreHelper.createHistChain({
+            conversationEntity,
+            messageEntity: messages[4],
+            maxLength: 10000,
+            maxCount: 2,
+            computeLength: (entity) => entity.getContent().length,
+            onIntercept: (entity) => entity.getContent().includes('msg_2') ? 'include' : 'continue',
+        });
+
+        expect(result.chain.length).toBe(2);
+        expect(result.chain[0].getMessageId()).toBe(messages[3].getMessageId());
+        expect(result.chain[1].getMessageId()).toBe(messages[4].getMessageId());
+        expect(result.stopReason.reason).toBe('count');
+    });
 });

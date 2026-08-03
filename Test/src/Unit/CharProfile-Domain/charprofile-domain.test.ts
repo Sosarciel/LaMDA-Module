@@ -172,7 +172,7 @@ describe("CharProfile-Domain 模块测试", () => {
             const accesser = await CharAccesser.create(createTestCharOption("MockChar1"));
             const config = await accesser.loadChar();
 
-            const defaultScene = config.getScene("default");
+            const defaultScene = config.getSceneFromTable("default");
             expect(defaultScene.name).toBe("default");
             expect(defaultScene.define).toBe("");
             expect(defaultScene.dialog).toEqual([
@@ -208,7 +208,7 @@ describe("CharProfile-Domain 模块测试", () => {
             const accesser = await CharAccesser.create(createTestCharOption("MockChar2"));
             const config = await accesser.loadChar();
 
-            const defaultScene = config.getScene("default");
+            const defaultScene = config.getSceneFromTable("default");
             expect(defaultScene.name).toBe("default");
             expect(defaultScene.define).toBe("");
             expect(defaultScene.dialog).toEqual([

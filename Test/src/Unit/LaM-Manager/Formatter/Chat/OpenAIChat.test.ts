@@ -30,7 +30,6 @@ describe("LaM-Manager ChatTask OpenAIChat Formatter", () => {
                 n: 1,
                 presence_penalty: 0,
                 frequency_penalty: 0,
-                logit_bias: null,
             });
         });
 
@@ -60,9 +59,6 @@ describe("LaM-Manager ChatTask OpenAIChat Formatter", () => {
                 n: 1,
                 presence_penalty: 0,
                 frequency_penalty: 0,
-                logit_bias: null,
-                reasoning_effort: undefined,
-                stop: undefined,
             });
         });
 
@@ -92,7 +88,6 @@ describe("LaM-Manager ChatTask OpenAIChat Formatter", () => {
                 n: 1,
                 presence_penalty: 0,
                 frequency_penalty: 0,
-                logit_bias: null,
                 reasoning_effort: OpenAIThinkMap["hig"],
             });
         });
@@ -123,7 +118,6 @@ describe("LaM-Manager ChatTask OpenAIChat Formatter", () => {
                 n: 1,
                 presence_penalty: 0,
                 frequency_penalty: 0,
-                logit_bias: null,
                 reasoning_effort: "minimal",
             });
         });
@@ -148,11 +142,6 @@ describe("LaM-Manager ChatTask OpenAIChat Formatter", () => {
                     { role: "assistant", content: "你好！" },
                     { role: "system", content: "assistant:" },
                 ],
-                frequency_penalty: undefined,
-                presence_penalty: undefined,
-                logit_bias: undefined,
-                reasoning_effort: undefined,
-                stop: undefined,
                 max_completion_tokens: 100,
                 temperature: 1,
                 top_p: 1,
@@ -185,11 +174,6 @@ describe("LaM-Manager ChatTask OpenAIChat Formatter", () => {
                 temperature: 1,
                 top_p: 1,
                 n: 1,
-                frequency_penalty: undefined,
-                logit_bias: undefined,
-                presence_penalty: undefined,
-                reasoning_effort: undefined,
-                stop: undefined,
             });
         });
 

@@ -24,7 +24,6 @@ describe("LaM-Manager InstructTask DeepseekText Formatter", () => {
                 top_p: 1,
                 presence_penalty: 0,
                 frequency_penalty: 0,
-                logit_bias: null,
             });
         });
 
@@ -47,7 +46,6 @@ describe("LaM-Manager InstructTask DeepseekText Formatter", () => {
                 top_p: 1,
                 presence_penalty: 0,
                 frequency_penalty: 0,
-                logit_bias: null,
                 suffix: "\n    return 'world'",
             });
         });
@@ -75,7 +73,6 @@ describe("LaM-Manager InstructTask DeepseekText Formatter", () => {
                 top_p: 1,
                 presence_penalty: 0,
                 frequency_penalty: 0,
-                logit_bias: null,
             });
         });
 
@@ -98,7 +95,6 @@ describe("LaM-Manager InstructTask DeepseekText Formatter", () => {
                 top_p: 1,
                 presence_penalty: 0,
                 frequency_penalty: 0,
-                logit_bias: null,
                 stop: ["\n"],
             });
         });

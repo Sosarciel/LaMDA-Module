@@ -25,7 +25,6 @@ describe("LaM-Manager InstructTask OpenAIText Formatter", () => {
                 n: 1,
                 presence_penalty: 0,
                 frequency_penalty: 0,
-                logit_bias: null,
             });
         });
 
@@ -49,7 +48,6 @@ describe("LaM-Manager InstructTask OpenAIText Formatter", () => {
                 n: 1,
                 presence_penalty: 0,
                 frequency_penalty: 0,
-                logit_bias: null,
                 suffix: "\n    return 'world'",
             });
         });
@@ -74,7 +72,6 @@ describe("LaM-Manager InstructTask OpenAIText Formatter", () => {
                 n: 1,
                 presence_penalty: 0,
                 frequency_penalty: 0,
-                logit_bias: null,
                 stop: ["\n", "END"],
             });
         });
@@ -99,7 +96,6 @@ describe("LaM-Manager InstructTask OpenAIText Formatter", () => {
                 n: 1,
                 presence_penalty: 0,
                 frequency_penalty: 0,
-                logit_bias: null,
                 logprobs: 5,
             });
         });
@@ -124,7 +120,6 @@ describe("LaM-Manager InstructTask OpenAIText Formatter", () => {
                 n: 1,
                 presence_penalty: 0,
                 frequency_penalty: 0,
-                logit_bias: null,
                 echo: true,
             });
         });

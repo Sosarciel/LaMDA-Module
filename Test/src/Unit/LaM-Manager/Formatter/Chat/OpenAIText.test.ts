@@ -23,7 +23,6 @@ describe("LaM-Manager ChatTask OpenAIText Formatter", () => {
                 n: 1,
                 presence_penalty: 0,
                 frequency_penalty: 0,
-                logit_bias: null,
             });
         });
 
@@ -46,7 +45,6 @@ describe("LaM-Manager ChatTask OpenAIText Formatter", () => {
                 n: 1,
                 presence_penalty: 0,
                 frequency_penalty: 0,
-                logit_bias: null,
             });
         });
 
@@ -69,7 +67,6 @@ describe("LaM-Manager ChatTask OpenAIText Formatter", () => {
                 n: 1,
                 presence_penalty: 0,
                 frequency_penalty: 0,
-                logit_bias: null,
                 stop: ["\n", "END"],
             });
         });

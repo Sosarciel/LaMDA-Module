@@ -63,8 +63,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
         // 获取历史消息列表
         const histMessages = await DialogHelper.getHistMessageList({
             defineScene,
-            maxLength: 1000,
-            maxCount: 10,
+            maxBudget: { maxTokens: 1000, maxCount: 10 },
             conversationModel: conversationModel,
             messageModel: msg3
         });
@@ -143,8 +142,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
         // FirstModel代表对话起点，此时应只返回场景预对话
         const histMessages = await DialogHelper.getHistMessageList({
             defineScene,
-            maxLength: 1000,
-            maxCount: 10,
+            maxBudget: { maxTokens: 1000, maxCount: 10 },
             conversationModel: conversationModel,
             messageModel: firstModel
         });
@@ -252,8 +250,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
         // 获取当前消息列表
         const messageList = await DialogHelper.getCurrMessageList({
             defineScene,
-            maxLength: 10000,
-            maxCount: 100,
+            maxBudget: { maxTokens: 10000, maxCount: 100 },
             conversationModel: conversationModel,
             messageModel: msg2
         });
@@ -383,8 +380,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
         // 获取历史消息
         const histMessages = await DialogHelper.getHistMessageList({
             defineScene,
-            maxLength: smallMaxLength,
-            maxCount: 100,
+            maxBudget: { maxTokens: smallMaxLength, maxCount: 100 },
             conversationModel: conversationModel,
             messageModel: messages[messages.length - 1]
         });
@@ -430,8 +426,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
         // 获取历史消息
         const histMessages = await DialogHelper.getHistMessageList({
             defineScene,
-            maxLength: 10000,
-            maxCount: smallMaxCount,
+            maxBudget: { maxTokens: 10000, maxCount: smallMaxCount },
             conversationModel: conversationModel,
             messageModel: messages[messages.length - 1]
         });
@@ -472,8 +467,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
         // 获取历史消息
         const histMessages = await DialogHelper.getHistMessageList({
             defineScene,
-            maxLength: 10000,
-            maxCount: 100,
+            maxBudget: { maxTokens: 10000, maxCount: 100 },
             conversationModel: conversationModel,
             messageModel: messages[messages.length - 1]
         });
@@ -521,8 +515,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
         // 链顺序（unshift）：[msg2, msg3, msg4]
         const histMessages = await DialogHelper.getHistMessageList({
             defineScene,
-            maxLength: 10000,
-            maxCount: 100,
+            maxBudget: { maxTokens: 10000, maxCount: 100 },
             conversationModel: conversationModel,
             messageModel: messages[4],
             onIntercept: (msg) => msg.content.includes("msg 2") ? 'include' : 'continue'
@@ -562,8 +555,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
         // 链顺序：[msg3, msg4]
         const histMessages = await DialogHelper.getHistMessageList({
             defineScene,
-            maxLength: 10000,
-            maxCount: 100,
+            maxBudget: { maxTokens: 10000, maxCount: 100 },
             conversationModel: conversationModel,
             messageModel: messages[4],
             onIntercept: (msg) => msg.content.includes("msg 2") ? 'reject' : 'continue'
@@ -600,8 +592,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
         // onIntercept 始终返回 'continue'，不截断，全部5条消息返回
         const histMessages = await DialogHelper.getHistMessageList({
             defineScene,
-            maxLength: 10000,
-            maxCount: 100,
+            maxBudget: { maxTokens: 10000, maxCount: 100 },
             conversationModel: conversationModel,
             messageModel: messages[4],
             onIntercept: () => 'continue'
@@ -642,8 +633,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
         // 链：[msg3, msg4]
         const histMessages = await DialogHelper.getHistMessageList({
             defineScene,
-            maxLength: 10000,
-            maxCount: 2,
+            maxBudget: { maxTokens: 10000, maxCount: 2 },
             conversationModel: conversationModel,
             messageModel: messages[4],
             onIntercept: (msg) => msg.content.includes("msg 2") ? 'include' : 'continue'

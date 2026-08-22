@@ -70,37 +70,32 @@ describe("Dialog-Domain DialogHelper 测试", () => {
 
         // 验证返回的是数组
         expect(Array.isArray(histMessages)).toBe(true);
+        expect(histMessages.length).toBe(3);
 
-        // 筛选用户消息进行强断言验证
-        const chatMessages = histMessages.filter(m => m.type === 'chat' && 'sender_id' in m);
-        expect(chatMessages.length).toBe(3);
-
-        // 验证第一条消息的完整结构
-        expect(chatMessages[0]).toEqual({
-            type: "chat",
-            sender_id: "user",
-            sender_type: "user",
-            content: "User message 1",
-            id: msg1.getMessageId()
-        });
-
-        // 验证第二条消息的完整结构
-        expect(chatMessages[1]).toEqual({
-            type: "chat",
-            sender_id: "char",
-            sender_type: "char",
-            content: "Character response 1",
-            id: msg2.getMessageId()
-        });
-
-        // 验证第三条消息的完整结构
-        expect(chatMessages[2]).toEqual({
-            type: "chat",
-            sender_id: "user",
-            sender_type: "user",
-            content: "User message 2",
-            id: msg3.getMessageId()
-        });
+        // 强断言验证
+        expect(histMessages).toEqual([
+            {
+                type: 'chat',
+                sender_id: 'user',
+                sender_type: 'user',
+                content: 'User message 1',
+                id: msg1.getMessageId(),
+            },
+            {
+                type: 'chat',
+                sender_id: 'char',
+                sender_type: 'char',
+                content: 'Character response 1',
+                id: msg2.getMessageId(),
+            },
+            {
+                type: 'chat',
+                sender_id: 'user',
+                sender_type: 'user',
+                content: 'User message 2',
+                id: msg3.getMessageId(),
+            }
+        ]);
     });
 
     test("21. 应成功测试DialogHelper.getHistMessageList从FirstModel开始", async () => {
@@ -149,14 +144,14 @@ describe("Dialog-Domain DialogHelper 测试", () => {
 
         // 验证返回的是数组
         expect(Array.isArray(histMessages)).toBe(true);
-
-        // 从FirstModel开始，不应有用户消息（带sender_id的）
-        const chatMessages = histMessages.filter(m => m.type === 'chat' && 'sender_id' in m);
-        expect(chatMessages.length).toBe(0);
-
-        // 应包含场景预对话（带sender_name的）
-        const sceneDialogs = histMessages.filter(m => m.type === 'chat' && 'sender_name' in m);
-        expect(sceneDialogs.length).toBeGreaterThan(0);
+        expect(histMessages).toEqual([
+            { type: "chat", content: "Define opening", sender_name: "System" },
+            {
+                type: "chat",
+                content: "Opening line from scene",
+                sender_name: "Character",
+            },
+        ]);
     });
 
     test("22. 应成功测试DialogHelper.getDialogPos和getDialogPosId", async () => {
@@ -259,52 +254,40 @@ describe("Dialog-Domain DialogHelper 测试", () => {
         expect(messageList).toBeDefined();
         expect(Array.isArray(messageList)).toBe(true);
 
-        // 分离不同类型的消息
-        const descMessages = messageList?.filter(m => m.type === 'desc') ?? [];
-        const chatWithSenderId = messageList?.filter(m => m.type === 'chat' && 'sender_id' in m) ?? [];
-        const chatWithSenderName = messageList?.filter(m => m.type === 'chat' && 'sender_name' in m && !('sender_id' in m)) ?? [];
-
-        // 验证desc消息（define + background_info + background_table条目）
-        // 顺序：defineScene.define, extScene.define, background_info, background_table条目(按order排序)
-        // ja(order=-5) → zh(纯字符串,order默认0) → en(order=10)
-        expect(descMessages.length).toBe(6);
-        const descContents = descMessages.map(m => m.content);
-        expect(descContents).toEqual([
-            "Define scene content",
-            "Scene define content",
-            "Background info content",
-            "ja:\n日本語背景",
-            "zh:\n中文背景",
-            "en:\nEnglish background"
+        //强断言
+        expect(messageList).toEqual([
+            // 内容与记忆
+            { type: "desc", content: "Define scene content" }, // 定义内容
+            { type: "chat", content: "Define memory 1", sender_name: "System" }, // 定义记忆
+            { type: "desc", content: "Scene define content" }, // 场景内容
+            { type: "chat", content: "Scene memory 1", sender_name: "System" },// 场景记忆1
+            { type: "chat", content: "Scene memory 2", sender_name: "System" },// 场景记忆2
+            // 背景
+            { type: "desc", content: "Background info content" }, // 背景信息
+            // 背景表单 按order排序
+            // ja(order=-5) → zh(纯字符串,order默认0) → en(order=10)
+            { type: "desc", content: "ja:\n日本語背景" },
+            { type: "desc", content: "zh:\n中文背景" },
+            { type: "desc", content: "en:\nEnglish background" },
+            //预对话
+            { type: "chat", content: "Define dialog 1", sender_name: "System" }, // 定义预对话
+            { type: "chat", content: "Scene dialog 1", sender_name: "Character" },// 场景预对话
+            //聊天消息
+            {
+                type: "chat",
+                sender_id: "user",
+                sender_type: "user",
+                content: "User message",
+                id: msg1.getMessageId(),
+            },
+            {
+                type: "chat",
+                sender_id: "char",
+                sender_type: "char",
+                content: "Character response",
+                id: msg2.getMessageId(),
+            },
         ]);
-
-        // 验证chat with sender_name消息（memory和dialog）
-        expect(chatWithSenderName.length).toBe(5);
-        const senderNameContents = chatWithSenderName.map(m => m.content);
-        expect(senderNameContents).toEqual([
-            "Define memory 1",
-            "Scene memory 1",
-            "Scene memory 2",
-            "Define dialog 1",
-            "Scene dialog 1"
-        ]);
-
-        // 验证chat with sender_id消息（历史消息）
-        expect(chatWithSenderId.length).toBe(2);
-        expect(chatWithSenderId[0]).toEqual({
-            type: "chat",
-            sender_id: "user",
-            sender_type: "user",
-            content: "User message",
-            id: msg1.getMessageId()
-        });
-        expect(chatWithSenderId[1]).toEqual({
-            type: "chat",
-            sender_id: "char",
-            sender_type: "char",
-            content: "Character response",
-            id: msg2.getMessageId()
-        });
     });
 
     test("25. 应成功测试DialogHelper.renderMessageList渲染逻辑", async () => {

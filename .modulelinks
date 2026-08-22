@@ -31,6 +31,9 @@
 [submodule "Common-Utility/Text-Processor"]
 	path = Common-Utility/Text-Processor
 	url = https://github.com/Sosarciel/LaMDA-Text-Processor.git
+[submodule "Common-Utility/LaM-Chain"]
+	path = Common-Utility/LaM-Chain
+	url = https://github.com/Sosarciel/LaMDA-LaM-Chain.git
 [submodule "Data-Store/Dialog-Store"]
 	path = Data-Store/Dialog-Store
 	url = https://github.com/Sosarciel/LaMDA-Dialog-Store.git

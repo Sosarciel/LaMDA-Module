@@ -1,7 +1,7 @@
 import { DBManager } from "@sosraciel-lamda/postgresql-manager";
 import { ConversationModel, MessageModel, FirstModel, DialogHelper } from "@sosraciel-lamda/dialog-domain";
 import type { CharScene } from "@sosraciel-lamda/charprofile-domain";
-import { setupTestDb, teardownTestDb } from "./Util";
+import { createTestScene, setupTestDb, teardownTestDb } from "./Util";
 
 // ─── 共享常量 ───────────────────────────────────────────────
 // 所有测试统一使用 2条memory + predialog 的标准场景结构，
@@ -9,40 +9,39 @@ import { setupTestDb, teardownTestDb } from "./Util";
 
 /**标准场景（用于 ConversationModel.create）
  * 含 define + 2条memory + 1条predialog */
-const FULL_SCENE = {
-    define: "Scene define",
-    memory: [
-        { type: "chat", content: "Scene memory 1", sender_name: "System" },
-        { type: "chat", content: "Scene memory 2", sender_name: "System" },
-    ],
-    name: "test",
-    dialog: [{ type: "chat", content: "Scene predialog", sender_name: "Character" }],
-} satisfies CharScene;
+const TEST_SCENE = createTestScene();
 
 /**标准 defineScene（用于 getHistMessageList / getCurrMessageList）
  * 含 define + 2条memory + 1条predialog */
-const FULL_DEFINE_SCENE = {
+const TEST_DEFINE = {
     define: "Define content",
     memory: [
         { type: "chat", content: "Define memory 1", sender_name: "System" },
         { type: "chat", content: "Define memory 2", sender_name: "System" },
     ],
     name: "test",
-    dialog: [{ type: "chat", content: "Define predialog", sender_name: "System" }],
+    dialog: [
+        { type: "chat", content: "Define predialog 1", sender_name: "System" },
+        { type: "chat", content: "Define predialog 2", sender_name: "System" },
+    ],
 } satisfies CharScene;
 
 /**getCurrMessageList 断言用：define 常量块（desc + 2条memory，不计入预算） */
 const DEFINE_DESC_AND_MEMORY = [
-    { type: "desc", content: "Define content" },
-    { type: "chat", content: "Define memory 1", sender_name: "System" },
-    { type: "chat", content: "Define memory 2", sender_name: "System" },
+    { type: "desc", content: TEST_DEFINE.define },
+    ...TEST_DEFINE.memory
 ] as const;
 
 /**getCurrMessageList 断言用：scene 常量块（desc + 2条memory，不计入预算） */
 const SCENE_DESC_AND_MEMORY = [
-    { type: "desc", content: "Scene define" },
-    { type: "chat", content: "Scene memory 1", sender_name: "System" },
-    { type: "chat", content: "Scene memory 2", sender_name: "System" },
+    { type: "desc", content: TEST_SCENE.define },
+    ...TEST_SCENE.memory
+] as const;
+
+/**两者的predialog */
+const PREDIALOG = [
+    ...TEST_DEFINE.dialog,
+    ...TEST_SCENE.dialog
 ] as const;
 
 // ─── 测试工具 ───────────────────────────────────────────────
@@ -89,7 +88,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
      * 检查点：消息顺序（旧→新）、sender_id/type/content/id 全字段正确
      * 验证 predialog 出现在历史消息之前（Define → Scene → history） */
     test("20. 应成功测试DialogHelper.getHistMessageList获取历史消息（强断言）", async () => {
-        const conversationModel = await ConversationModel.create({ scene: FULL_SCENE });
+        const conversationModel = await ConversationModel.create({ scene: TEST_SCENE });
         const conversationId = conversationModel.getConversationId();
 
         // 创建消息链：user → char → user
@@ -108,7 +107,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
 
         // getHistMessageList 返回：predialog(Define→Scene) + 历史消息
         const histMessages = await DialogHelper.getHistMessageList({
-            defineScene: FULL_DEFINE_SCENE,
+            defineScene: TEST_DEFINE,
             maxBudget: { maxLength: 1000, maxCount: 10 },
             conversationModel,
             messageModel: msg3
@@ -116,8 +115,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
 
         // 强断言：验证完整结构（predialog在前，历史消息在后）
         expect(histMessages).toEqual([
-            { type: "chat", content: "Define predialog", sender_name: "System" },
-            { type: "chat", content: "Scene predialog", sender_name: "Character" },
+            ...PREDIALOG,
             { type: 'chat', sender_id: 'user', sender_type: 'user', content: 'User message 1', id: msg1.getMessageId() },
             { type: 'chat', sender_id: 'char', sender_type: 'char', content: 'Character response 1', id: msg2.getMessageId() },
             { type: 'chat', sender_id: 'user', sender_type: 'user', content: 'User message 2', id: msg3.getMessageId() },
@@ -128,12 +126,12 @@ describe("Dialog-Domain DialogHelper 测试", () => {
      * 检查点：FirstModel 代表对话起点，此时无历史消息，
      * 应只返回 Define 和 Scene 的 predialog */
     test("21. 应成功测试DialogHelper.getHistMessageList从FirstModel开始", async () => {
-        const conversationModel = await ConversationModel.create({ scene: FULL_SCENE });
+        const conversationModel = await ConversationModel.create({ scene: TEST_SCENE });
         const firstModel = await FirstModel.loadOrCreate(conversationModel);
 
         // 从 FirstModel 开始获取历史消息
         const histMessages = await DialogHelper.getHistMessageList({
-            defineScene: FULL_DEFINE_SCENE,
+            defineScene: TEST_DEFINE,
             maxBudget: { maxLength: 1000, maxCount: 10 },
             conversationModel,
             messageModel: firstModel
@@ -141,15 +139,14 @@ describe("Dialog-Domain DialogHelper 测试", () => {
 
         // 从 FirstModel 开始无历史消息，只返回 predialog
         expect(histMessages).toEqual([
-            { type: "chat", content: "Define predialog", sender_name: "System" },
-            { type: "chat", content: "Scene predialog", sender_name: "Character" },
+            ...PREDIALOG,
         ]);
     });
 
     /**验证 getDialogPosId / getDialogPos 的序列化与反序列化
      * 检查点：posId 结构正确，通过 posId 能恢复出正确的 conversationModel 和 messageModel */
     test("22. 应成功测试DialogHelper.getDialogPos和getDialogPosId", async () => {
-        const conversationModel = await ConversationModel.create({ scene: FULL_SCENE });
+        const conversationModel = await ConversationModel.create({ scene: TEST_SCENE });
         const conversationId = conversationModel.getConversationId();
 
         const messageModel = await MessageModel.create({
@@ -282,7 +279,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
      * predialog 因流顺序（history → scene_predilog → define_predilog）在后，
      * budget 耗尽时不产出 */
     test("26. 应成功测试maxLength限制触发时的截断行为（含memory+predialog）", async () => {
-        const conversationModel = await ConversationModel.create({ scene: FULL_SCENE });
+        const conversationModel = await ConversationModel.create({ scene: TEST_SCENE });
         await FirstModel.loadOrCreate(conversationModel);
 
         // 创建10条消息，每条约50字符（总长约500字符）
@@ -293,7 +290,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
 
         // 设置较小的 maxLength=200，只能容纳约3条消息
         const histMessages = await DialogHelper.getHistMessageList({
-            defineScene: FULL_DEFINE_SCENE,
+            defineScene: TEST_DEFINE,
             maxBudget: { maxLength: 200, maxCount: 100 },
             conversationModel,
             messageModel: messages[messages.length - 1]
@@ -311,7 +308,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
      * 检查点：当历史消息条数超过 maxCount 时，旧消息被截断；
      * predialog 因流顺序在后，maxCount 耗尽时不产出 */
     test("27. 应成功测试maxCount限制触发时的截断行为（含memory+predialog）", async () => {
-        const conversationModel = await ConversationModel.create({ scene: FULL_SCENE });
+        const conversationModel = await ConversationModel.create({ scene: TEST_SCENE });
         await FirstModel.loadOrCreate(conversationModel);
 
         const messages = await createMsgChain(
@@ -321,7 +318,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
 
         // 设置 maxCount=3，只能保留最近3条历史
         const histMessages = await DialogHelper.getHistMessageList({
-            defineScene: FULL_DEFINE_SCENE,
+            defineScene: TEST_DEFINE,
             maxBudget: { maxLength: 10000, maxCount: 3 },
             conversationModel,
             messageModel: messages[messages.length - 1]
@@ -340,7 +337,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
      * 每条消息的 sender/content/id 全字段正确；
      * 额外验证 parent_message_id 链的正确性（DB层面） */
     test("30. 应成功测试深度消息链遍历", async () => {
-        const conversationModel = await ConversationModel.create({ scene: FULL_SCENE });
+        const conversationModel = await ConversationModel.create({ scene: TEST_SCENE });
         await FirstModel.loadOrCreate(conversationModel);
 
         // 创建15层深度的消息链
@@ -350,7 +347,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
         );
 
         const histMessages = await DialogHelper.getHistMessageList({
-            defineScene: FULL_DEFINE_SCENE,
+            defineScene: TEST_DEFINE,
             maxBudget: { maxLength: 10000, maxCount: 100 },
             conversationModel,
             messageModel: messages[messages.length - 1]
@@ -358,8 +355,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
 
         // 强断言：predialog + 15条消息的完整结构
         expect(histMessages).toEqual([
-            { type: "chat", content: "Define predialog", sender_name: "System" },
-            { type: "chat", content: "Scene predialog", sender_name: "Character" },
+            ...PREDIALOG,
             ...Array.from({ length: 15 }, (_, i) => ({
                 type: "chat",
                 sender_id: i % 2 === 0 ? "user" : "char",
@@ -382,7 +378,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
      * 流顺序为 traverseUp(msg4→msg3→msg2) → scene_predilog → define_predilog，
      * msg2 命中 include 后截断，后续 predialog 不再产出 */
     test("40. 应成功测试onIntercept的include截断（命中计入链）（含memory+predialog）", async () => {
-        const conversationModel = await ConversationModel.create({ scene: FULL_SCENE });
+        const conversationModel = await ConversationModel.create({ scene: TEST_SCENE });
         await FirstModel.loadOrCreate(conversationModel);
         const messages = await createMsgChain(
             conversationModel.getConversationId(), 5,
@@ -391,7 +387,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
 
         // onIntercept 在 msg2 命中include后截断，predialog不再产出
         const histMessages = await DialogHelper.getHistMessageList({
-            defineScene: FULL_DEFINE_SCENE,
+            defineScene: TEST_DEFINE,
             maxBudget: { maxLength: 10000, maxCount: 100 },
             conversationModel,
             messageModel: messages[4],
@@ -410,7 +406,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
      * 检查点：onIntercept 返回 'reject' 时，命中消息不计入链且流终止；
      * 与 include 不同，reject 不将命中消息加入结果 */
     test("41. 应成功测试onIntercept的reject截断（命中不计入链）（含memory+predialog）", async () => {
-        const conversationModel = await ConversationModel.create({ scene: FULL_SCENE });
+        const conversationModel = await ConversationModel.create({ scene: TEST_SCENE });
         await FirstModel.loadOrCreate(conversationModel);
         const messages = await createMsgChain(
             conversationModel.getConversationId(), 5,
@@ -419,7 +415,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
 
         // onIntercept 在 msg2 命中reject后截断，predialog不再产出
         const histMessages = await DialogHelper.getHistMessageList({
-            defineScene: FULL_DEFINE_SCENE,
+            defineScene: TEST_DEFINE,
             maxBudget: { maxLength: 10000, maxCount: 100 },
             conversationModel,
             messageModel: messages[4],
@@ -436,7 +432,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
      * 检查点：全部5条历史消息应返回；predialog 应出现在历史消息之前（Define → Scene）；
      * 这是 onIntercept 正常工作时的基准行为 */
     test("42. 应成功测试onIntercept的continue不截断（含memory+predialog）", async () => {
-        const conversationModel = await ConversationModel.create({ scene: FULL_SCENE });
+        const conversationModel = await ConversationModel.create({ scene: TEST_SCENE });
         await FirstModel.loadOrCreate(conversationModel);
         const messages = await createMsgChain(
             conversationModel.getConversationId(), 5,
@@ -445,7 +441,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
 
         // continue不截断，全部5条历史 + predialog 应返回
         const histMessages = await DialogHelper.getHistMessageList({
-            defineScene: FULL_DEFINE_SCENE,
+            defineScene: TEST_DEFINE,
             maxBudget: { maxLength: 10000, maxCount: 100 },
             conversationModel,
             messageModel: messages[4],
@@ -453,8 +449,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
         });
 
         expect(histMessages).toEqual([
-            { type: "chat", content: "Define predialog", sender_name: "System" },
-            { type: "chat", content: "Scene predialog", sender_name: "Character" },
+            ...PREDIALOG,
             ...messages.map(msg => ({
                 type: "chat",
                 sender_id: msg.getSenderId(),
@@ -469,7 +464,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
      * 检查点：maxCount=2 只保留最近2条历史，onIntercept 在此之前已被截断；
      * 即使 onIntercept 未触发，budget 耗尽后 predialog 也不产出 */
     test("43. 应成功测试onIntercept在length/count限制之后调用（含memory+predialog）", async () => {
-        const conversationModel = await ConversationModel.create({ scene: FULL_SCENE });
+        const conversationModel = await ConversationModel.create({ scene: TEST_SCENE });
         await FirstModel.loadOrCreate(conversationModel);
         const messages = await createMsgChain(
             conversationModel.getConversationId(), 5,
@@ -478,7 +473,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
 
         // maxCount=2 优先于 onIntercept
         const histMessages = await DialogHelper.getHistMessageList({
-            defineScene: FULL_DEFINE_SCENE,
+            defineScene: TEST_DEFINE,
             maxBudget: { maxLength: 10000, maxCount: 2 },
             conversationModel,
             messageModel: messages[4],
@@ -495,7 +490,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
      * 检查点：memory 是 constant 块，不计入 maxCount 预算；
      * maxCount=3 时，history 占满3条后 predilog 未产出（流顺序：history → scene_predilog → define_predilog） */
     test("50. getCurrMessageList的maxCount应仅约束hist部分，不包含memory（强断言）", async () => {
-        const conversationModel = await ConversationModel.create({ scene: FULL_SCENE });
+        const conversationModel = await ConversationModel.create({ scene: TEST_SCENE });
         await FirstModel.loadOrCreate(conversationModel);
         const messages = await createMsgChain(
             conversationModel.getConversationId(), 5,
@@ -504,7 +499,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
 
         // maxCount=3: history占满3条，predialog未产出；memory是constant不计入
         const messageList = await DialogHelper.getCurrMessageList({
-            defineScene: FULL_DEFINE_SCENE,
+            defineScene: TEST_DEFINE,
             maxBudget: { maxLength: 10000, maxCount: 3 },
             conversationModel,
             messageModel: messages[4]
@@ -524,7 +519,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
      * 检查点：onIntercept reject 后流终止，predialog 不产出；
      * memory 是 constant 块，不受截断影响 */
     test("51. getCurrMessageList的onIntercept截断后memory仍应存在，predialog不应出现（强断言）", async () => {
-        const conversationModel = await ConversationModel.create({ scene: FULL_SCENE });
+        const conversationModel = await ConversationModel.create({ scene: TEST_SCENE });
         await FirstModel.loadOrCreate(conversationModel);
         const messages = await createMsgChain(
             conversationModel.getConversationId(), 5,
@@ -533,7 +528,7 @@ describe("Dialog-Domain DialogHelper 测试", () => {
 
         // onIntercept reject msg2后流终止，predialog不产出；memory是constant不受影响
         const messageList = await DialogHelper.getCurrMessageList({
-            defineScene: FULL_DEFINE_SCENE,
+            defineScene: TEST_DEFINE,
             maxBudget: { maxLength: 10000, maxCount: 100 },
             conversationModel,
             messageModel: messages[4],

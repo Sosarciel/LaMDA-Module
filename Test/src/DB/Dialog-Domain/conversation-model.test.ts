@@ -50,7 +50,7 @@ describe("Dialog-Domain ConversationModel 测试", () => {
         // 获取初始场景
         const initialScene = conversationModel.getScene();
         expect(initialScene).toBeDefined();
-        expect(initialScene.name).toBe("test_scene");
+        expect(initialScene.name).toBe(testScene.name);
 
         // 创建新场景
         const newScene = {

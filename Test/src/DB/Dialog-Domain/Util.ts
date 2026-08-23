@@ -1,10 +1,11 @@
 import { DBManager } from "@sosraciel-lamda/postgresql-manager";
 import { DialogStore } from "@sosraciel-lamda/dialog-store";
 import type { ConversationStruct, MessageStruct, AnchorStruct, ConversationStructExt, MessageStructExt, AnchorStructExt } from "@sosraciel-lamda/dialog-store";
-import type { ConversationHeavyData, MessageModelExt, ConversationModelExt } from "@sosraciel-lamda/dialog-domain";
+import type { MessageModelExt, ConversationModelExt } from "@sosraciel-lamda/dialog-domain";
 import { DBCache } from "@sosraciel-lamda/dialog-store/dist/DBCache";
 import { UtilFunc } from "@zwa73/utils";
 import { PG_PORT } from "@/src/Constant";
+import { CharScene } from "@sosraciel-lamda/charprofile-domain";
 
 /**测试用轻数据类型 */
 export type TestLightData = {
@@ -48,18 +49,7 @@ export const createTestConversation = (options?: {
             conversation_id: options?.conversation_id || UtilFunc.genUUID(),
             heavy_data: {
                 background_info: options?.background_info,
-                scene: {
-                    define: "test_define",
-                    memory: [],
-                    name: "test_scene",
-                    dialog: [
-                        {
-                            type: "chat" as const,
-                            content: "Hello, how can I help you?",
-                            sender_name: "Assistant"
-                        }
-                    ]
-                }
+                scene: createTestScene()
             }
         }
     };
@@ -93,17 +83,17 @@ export const createTestMessage = (conversationId: string, options?: {
 /**创建测试场景结构体 */
 export const createTestScene = () => {
     return {
-        define: "test_define",
-        memory: [],
-        name: "test_scene",
+        define: "This is a test scene",
+        memory: [
+            { type: "chat", content: "Scene memory 1", sender_name: "System" },
+            { type: "chat", content: "Scene memory 2", sender_name: "System" },
+        ],
+        name: "Test Scene Name",
         dialog: [
-            {
-                type: "chat" as const,
-                content: "Hello, how can I help you?",
-                sender_name: "Assistant"
-            }
+            { type: "chat", content: "Scene predialog 1", sender_name: "Character" },
+            { type: "chat", content: "Scene predialog 2", sender_name: "Character" }
         ]
-    };
+    } satisfies CharScene;
 };
 
 /**创建测试对话结构体（泛型版本） */

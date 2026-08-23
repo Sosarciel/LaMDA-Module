@@ -174,13 +174,16 @@ describe("Dialog-Domain DialogHelper 测试", () => {
             conversationModel: conversationModel
         });
 
-        // 验证位置ID
-        expect(posId.conversationId).toBe(conversationId);
-        expect(posId.messageId).toBe(messageModel.getMessageId());
+        // 强断言：验证posId完整结构
+        expect(posId).toEqual({
+            conversationId: conversationId,
+            messageId: messageModel.getMessageId(),
+        });
 
         // 通过位置ID恢复对话位置
         const retrievedPos = await DialogHelper.getDialogPos(posId);
         expect(retrievedPos).toBeDefined();
+        // 强断言：验证恢复后的位置完整结构
         expect(retrievedPos?.conversationModel.getConversationId()).toBe(conversationId);
         expect(retrievedPos?.messageModel.getMessageId()).toBe(messageModel.getMessageId());
     });
@@ -253,6 +256,9 @@ describe("Dialog-Domain DialogHelper 测试", () => {
         // 验证返回结果
         expect(messageList).toBeDefined();
         expect(Array.isArray(messageList)).toBe(true);
+
+        console.log("=== Test 24 getCurrMessageList actual output ===");
+        console.log(JSON.stringify(messageList, null, 2));
 
         //强断言
         expect(messageList).toEqual([
@@ -332,9 +338,19 @@ describe("Dialog-Domain DialogHelper 测试", () => {
         expect(renderedList[3]).toEqual({ type: 'chat', content: "Already rendered message", sender_name: "Narrator" });
     });
 
-    test("26. 应成功测试maxLength限制触发时的截断行为", async () => {
-        // 创建无预对话的场景
-        const testScene = { define: "", memory: [], name: "test", dialog: [] };
+    test("26. 应成功测试maxLength限制触发时的截断行为（含memory+predialog）", async () => {
+        // 创建带memory和dialog的场景
+        const testScene = {
+            define: "Scene define",
+            memory: [
+                { type: "chat" as const, content: "Scene memory 1", sender_name: "System" },
+                { type: "chat" as const, content: "Scene memory 2", sender_name: "System" },
+            ],
+            name: "test",
+            dialog: [
+                { type: "chat" as const, content: "Scene predialog", sender_name: "Character" },
+            ],
+        };
         const conversationModel = await ConversationModel.create({ scene: testScene });
         const conversationId = conversationModel.getConversationId();
 
@@ -354,10 +370,19 @@ describe("Dialog-Domain DialogHelper 测试", () => {
             messages.push(msg);
         }
 
-        // 定义场景
-        const defineScene = { define: "", memory: [], name: "test", dialog: [] };
+        // 定义带memory和dialog的场景
+        const defineScene = {
+            define: "Define content",
+            memory: [
+                { type: "chat" as const, content: "Define memory 1", sender_name: "System" },
+            ],
+            name: "test",
+            dialog: [
+                { type: "chat" as const, content: "Define predialog", sender_name: "System" },
+            ],
+        };
 
-        // 设置较小的maxLength（约200字符）
+        // 设置较小的maxLength
         const smallMaxLength = 200;
 
         // 获取历史消息
@@ -368,19 +393,47 @@ describe("Dialog-Domain DialogHelper 测试", () => {
             messageModel: messages[messages.length - 1]
         });
 
-        // 验证总长度不超过maxLength
-        const totalLength = histMessages.reduce((sum, m) => sum + m.content.length, 0);
-        expect(totalLength).toBeLessThanOrEqual(smallMaxLength);
+        console.log("=== Test 26 getHistMessageList actual output ===");
+        console.log(JSON.stringify(histMessages, null, 2));
 
-        // 验证返回的是最新的消息（从后向前截断）
-        const chatMessages = histMessages.filter(m => m.type === 'chat' && 'sender_id' in m);
-        expect(chatMessages.length).toBeGreaterThan(0);
-        expect(chatMessages.length).toBeLessThan(10);
+        // 强断言：验证完整结构（predialog因budget耗尽未产出）
+        expect(histMessages).toEqual([
+            {
+                type: "chat",
+                sender_id: "char",
+                sender_type: "char",
+                content: "Message number 7 with some extra content to make it longer",
+                id: messages[7].getMessageId(),
+            },
+            {
+                type: "chat",
+                sender_id: "user",
+                sender_type: "user",
+                content: "Message number 8 with some extra content to make it longer",
+                id: messages[8].getMessageId(),
+            },
+            {
+                type: "chat",
+                sender_id: "char",
+                sender_type: "char",
+                content: "Message number 9 with some extra content to make it longer",
+                id: messages[9].getMessageId(),
+            },
+        ]);
     });
 
-    test("27. 应成功测试maxCount限制触发时的截断行为", async () => {
-        // 创建无预对话的场景
-        const testScene = { define: "", memory: [], name: "test", dialog: [] };
+    test("27. 应成功测试maxCount限制触发时的截断行为（含memory+predialog）", async () => {
+        // 创建带memory和dialog的场景
+        const testScene = {
+            define: "Scene define",
+            memory: [
+                { type: "chat" as const, content: "Scene memory 1", sender_name: "System" },
+            ],
+            name: "test",
+            dialog: [
+                { type: "chat" as const, content: "Scene predialog", sender_name: "Character" },
+            ],
+        };
         const conversationModel = await ConversationModel.create({ scene: testScene });
         const conversationId = conversationModel.getConversationId();
 
@@ -400,8 +453,17 @@ describe("Dialog-Domain DialogHelper 测试", () => {
             messages.push(msg);
         }
 
-        // 定义场景
-        const defineScene = { define: "", memory: [], name: "test", dialog: [] };
+        // 定义带memory和dialog的场景
+        const defineScene = {
+            define: "Define content",
+            memory: [
+                { type: "chat" as const, content: "Define memory 1", sender_name: "System" },
+            ],
+            name: "test",
+            dialog: [
+                { type: "chat" as const, content: "Define predialog", sender_name: "System" },
+            ],
+        };
 
         // 设置maxCount为3
         const smallMaxCount = 3;
@@ -414,12 +476,33 @@ describe("Dialog-Domain DialogHelper 测试", () => {
             messageModel: messages[messages.length - 1]
         });
 
-        // 验证消息数量不超过maxCount
-        const chatMessages = histMessages.filter(m => m.type === 'chat' && 'sender_id' in m);
-        expect(chatMessages.length).toBeLessThanOrEqual(smallMaxCount);
+        console.log("=== Test 27 getHistMessageList actual output ===");
+        console.log(JSON.stringify(histMessages, null, 2));
 
-        // 验证返回的是最新的消息
-        expect(chatMessages[chatMessages.length - 1].content).toBe("Message 9");
+        // 强断言：验证完整结构（predialog因maxCount耗尽未产出）
+        expect(histMessages).toEqual([
+            {
+                type: "chat",
+                sender_id: "char",
+                sender_type: "char",
+                content: "Message 7",
+                id: messages[7].getMessageId(),
+            },
+            {
+                type: "chat",
+                sender_id: "user",
+                sender_type: "user",
+                content: "Message 8",
+                id: messages[8].getMessageId(),
+            },
+            {
+                type: "chat",
+                sender_id: "char",
+                sender_type: "char",
+                content: "Message 9",
+                id: messages[9].getMessageId(),
+            },
+        ]);
     });
 
     test("30. 应成功测试深度消息链遍历", async () => {
@@ -456,13 +539,20 @@ describe("Dialog-Domain DialogHelper 测试", () => {
         });
 
         // 验证消息链完整性
-        const chatMessages = histMessages.filter(m => m.type === 'chat' && 'sender_id' in m);
-        expect(chatMessages.length).toBe(15);
+        console.log("=== Test 30 getHistMessageList actual output ===");
+        console.log(JSON.stringify(histMessages, null, 2));
 
-        // 验证消息顺序（从旧到新）
-        for (let i = 0; i < 15; i++) {
-            expect(chatMessages[i].content).toBe(`Deep message level ${i}`);
-        }
+        // 强断言：完整结构验证15条消息
+        expect(histMessages).toEqual([
+            ...Array.from({ length: 15 }, (_, i) => ({
+                type: "chat",
+                sender_id: i % 2 === 0 ? "user" : "char",
+                sender_type: i % 2 === 0 ? "user" : "char",
+                content: `Deep message level ${i}`,
+                id: messages[i].getMessageId(),
+                premise: undefined,
+            })),
+        ]);
 
         // 验证消息ID链的正确性
         for (let i = 1; i < messages.length; i++) {
@@ -471,9 +561,18 @@ describe("Dialog-Domain DialogHelper 测试", () => {
         }
     });
 
-    test("40. 应成功测试onIntercept的include截断（命中计入链）", async () => {
-        // 创建无预对话的场景
-        const testScene = { define: "", memory: [], name: "test", dialog: [] };
+    test("40. 应成功测试onIntercept的include截断（命中计入链）（含memory+predialog）", async () => {
+        // 创建带memory和dialog的场景
+        const testScene = {
+            define: "Scene define",
+            memory: [
+                { type: "chat" as const, content: "Scene memory 1", sender_name: "System" },
+            ],
+            name: "test",
+            dialog: [
+                { type: "chat" as const, content: "Scene predialog", sender_name: "Character" },
+            ],
+        };
         const conversationModel = await ConversationModel.create({ scene: testScene });
         const conversationId = conversationModel.getConversationId();
         await FirstModel.loadOrCreate(conversationModel);
@@ -491,11 +590,21 @@ describe("Dialog-Domain DialogHelper 测试", () => {
             messages.push(msg);
         }
 
-        const defineScene = { define: "", memory: [], name: "test", dialog: [] };
+        const defineScene = {
+            define: "Define content",
+            memory: [
+                { type: "chat" as const, content: "Define memory 1", sender_name: "System" },
+            ],
+            name: "test",
+            dialog: [
+                { type: "chat" as const, content: "Define predialog", sender_name: "System" },
+            ],
+        };
 
         // onIntercept 在 msg2 命中返回 'include'：msg2计入链并截断
-        // traverseUp 从 msg4 向前遍历：msg4→msg3→msg2(命中include)→停止
-        // 链顺序（unshift）：[msg2, msg3, msg4]
+        // stream顺序：traverseUp(msg4→msg3→msg2) → scene_predialog → define_predialog
+        // onIntercept 作用于无sender_name的chat消息
+        // msg2命中include后截断，后续scene/define predialog不再产出
         const histMessages = await DialogHelper.getHistMessageList({
             defineScene,
             maxBudget: { maxLength: 10000, maxCount: 100 },
@@ -504,17 +613,46 @@ describe("Dialog-Domain DialogHelper 测试", () => {
             onIntercept: (msg) => msg.content.includes("msg 2") ? 'include' : 'continue'
         });
 
-        const chatMessages = histMessages.filter(m => m.type === 'chat' && 'sender_id' in m);
-        expect(chatMessages.length).toBe(3);
-        expect(chatMessages.map(m => m.content)).toEqual([
-            "Intercept test msg 2",
-            "Intercept test msg 3",
-            "Intercept test msg 4"
+        console.log("=== Test 40 getHistMessageList actual output ===");
+        console.log(JSON.stringify(histMessages, null, 2));
+
+        // 强断言：include截断后predialog不应出现（流在onIntercept处终止）
+        expect(histMessages).toEqual([
+            {
+                type: "chat",
+                sender_id: "user",
+                sender_type: "user",
+                content: "Intercept test msg 2",
+                id: messages[2].getMessageId(),
+            },
+            {
+                type: "chat",
+                sender_id: "char",
+                sender_type: "char",
+                content: "Intercept test msg 3",
+                id: messages[3].getMessageId(),
+            },
+            {
+                type: "chat",
+                sender_id: "user",
+                sender_type: "user",
+                content: "Intercept test msg 4",
+                id: messages[4].getMessageId(),
+            },
         ]);
     });
 
-    test("41. 应成功测试onIntercept的reject截断（命中不计入链）", async () => {
-        const testScene = { define: "", memory: [], name: "test", dialog: [] };
+    test("41. 应成功测试onIntercept的reject截断（命中不计入链）（含memory+predialog）", async () => {
+        const testScene = {
+            define: "Scene define",
+            memory: [
+                { type: "chat" as const, content: "Scene memory 1", sender_name: "System" },
+            ],
+            name: "test",
+            dialog: [
+                { type: "chat" as const, content: "Scene predialog", sender_name: "Character" },
+            ],
+        };
         const conversationModel = await ConversationModel.create({ scene: testScene });
         const conversationId = conversationModel.getConversationId();
         await FirstModel.loadOrCreate(conversationModel);
@@ -531,11 +669,19 @@ describe("Dialog-Domain DialogHelper 测试", () => {
             messages.push(msg);
         }
 
-        const defineScene = { define: "", memory: [], name: "test", dialog: [] };
+        const defineScene = {
+            define: "Define content",
+            memory: [
+                { type: "chat" as const, content: "Define memory 1", sender_name: "System" },
+            ],
+            name: "test",
+            dialog: [
+                { type: "chat" as const, content: "Define predialog", sender_name: "System" },
+            ],
+        };
 
         // onIntercept 在 msg2 命中返回 'reject'：msg2不计入链并截断
-        // traverseUp 从 msg4 向前遍历：msg4→msg3→msg2(命中reject,不计入)→停止
-        // 链顺序：[msg3, msg4]
+        // 后续scene/define predialog也不再产出
         const histMessages = await DialogHelper.getHistMessageList({
             defineScene,
             maxBudget: { maxLength: 10000, maxCount: 100 },
@@ -544,16 +690,39 @@ describe("Dialog-Domain DialogHelper 测试", () => {
             onIntercept: (msg) => msg.content.includes("msg 2") ? 'reject' : 'continue'
         });
 
-        const chatMessages = histMessages.filter(m => m.type === 'chat' && 'sender_id' in m);
-        expect(chatMessages.length).toBe(2);
-        expect(chatMessages.map(m => m.content)).toEqual([
-            "Reject test msg 3",
-            "Reject test msg 4"
+        console.log("=== Test 41 getHistMessageList actual output ===");
+        console.log(JSON.stringify(histMessages, null, 2));
+
+        // 强断言：reject截断后predialog不应出现（流在onIntercept处终止）
+        expect(histMessages).toEqual([
+            {
+                type: "chat",
+                sender_id: "char",
+                sender_type: "char",
+                content: "Reject test msg 3",
+                id: messages[3].getMessageId(),
+            },
+            {
+                type: "chat",
+                sender_id: "user",
+                sender_type: "user",
+                content: "Reject test msg 4",
+                id: messages[4].getMessageId(),
+            },
         ]);
     });
 
-    test("42. 应成功测试onIntercept的continue不截断", async () => {
-        const testScene = { define: "", memory: [], name: "test", dialog: [] };
+    test("42. 应成功测试onIntercept的continue不截断（含memory+predialog）", async () => {
+        const testScene = {
+            define: "Scene define",
+            memory: [
+                { type: "chat" as const, content: "Scene memory 1", sender_name: "System" },
+            ],
+            name: "test",
+            dialog: [
+                { type: "chat" as const, content: "Scene predialog", sender_name: "Character" },
+            ],
+        };
         const conversationModel = await ConversationModel.create({ scene: testScene });
         const conversationId = conversationModel.getConversationId();
         await FirstModel.loadOrCreate(conversationModel);
@@ -570,9 +739,19 @@ describe("Dialog-Domain DialogHelper 测试", () => {
             messages.push(msg);
         }
 
-        const defineScene = { define: "", memory: [], name: "test", dialog: [] };
+        const defineScene = {
+            define: "Define content",
+            memory: [
+                { type: "chat" as const, content: "Define memory 1", sender_name: "System" },
+            ],
+            name: "test",
+            dialog: [
+                { type: "chat" as const, content: "Define predialog", sender_name: "System" },
+            ],
+        };
 
-        // onIntercept 始终返回 'continue'，不截断，全部5条消息返回
+        // onIntercept 始终返回 'continue'，不截断
+        // 全部5条历史消息 + scene predialog + define predialog 应返回
         const histMessages = await DialogHelper.getHistMessageList({
             defineScene,
             maxBudget: { maxLength: 10000, maxCount: 100 },
@@ -581,19 +760,62 @@ describe("Dialog-Domain DialogHelper 测试", () => {
             onIntercept: () => 'continue'
         });
 
-        const chatMessages = histMessages.filter(m => m.type === 'chat' && 'sender_id' in m);
-        expect(chatMessages.length).toBe(5);
-        expect(chatMessages.map(m => m.content)).toEqual([
-            "Continue test msg 0",
-            "Continue test msg 1",
-            "Continue test msg 2",
-            "Continue test msg 3",
-            "Continue test msg 4"
+        console.log("=== Test 42 getHistMessageList actual output ===");
+        console.log(JSON.stringify(histMessages, null, 2));
+
+        // 强断言：continue不截断时，predialog应出现在历史消息之前
+        expect(histMessages).toEqual([
+            { type: "chat", content: "Define predialog", sender_name: "System" },
+            { type: "chat", content: "Scene predialog", sender_name: "Character" },
+            {
+                type: "chat",
+                sender_id: "user",
+                sender_type: "user",
+                content: "Continue test msg 0",
+                id: messages[0].getMessageId(),
+            },
+            {
+                type: "chat",
+                sender_id: "char",
+                sender_type: "char",
+                content: "Continue test msg 1",
+                id: messages[1].getMessageId(),
+            },
+            {
+                type: "chat",
+                sender_id: "user",
+                sender_type: "user",
+                content: "Continue test msg 2",
+                id: messages[2].getMessageId(),
+            },
+            {
+                type: "chat",
+                sender_id: "char",
+                sender_type: "char",
+                content: "Continue test msg 3",
+                id: messages[3].getMessageId(),
+            },
+            {
+                type: "chat",
+                sender_id: "user",
+                sender_type: "user",
+                content: "Continue test msg 4",
+                id: messages[4].getMessageId(),
+            },
         ]);
     });
 
-    test("43. 应成功测试onIntercept在length/count限制之后调用", async () => {
-        const testScene = { define: "", memory: [], name: "test", dialog: [] };
+    test("43. 应成功测试onIntercept在length/count限制之后调用（含memory+predialog）", async () => {
+        const testScene = {
+            define: "Scene define",
+            memory: [
+                { type: "chat" as const, content: "Scene memory 1", sender_name: "System" },
+            ],
+            name: "test",
+            dialog: [
+                { type: "chat" as const, content: "Scene predialog", sender_name: "Character" },
+            ],
+        };
         const conversationModel = await ConversationModel.create({ scene: testScene });
         const conversationId = conversationModel.getConversationId();
         await FirstModel.loadOrCreate(conversationModel);
@@ -610,10 +832,18 @@ describe("Dialog-Domain DialogHelper 测试", () => {
             messages.push(msg);
         }
 
-        const defineScene = { define: "", memory: [], name: "test", dialog: [] };
+        const defineScene = {
+            define: "Define content",
+            memory: [
+                { type: "chat" as const, content: "Define memory 1", sender_name: "System" },
+            ],
+            name: "test",
+            dialog: [
+                { type: "chat" as const, content: "Define predialog", sender_name: "System" },
+            ],
+        };
 
         // maxCount=2 优先于 onIntercept：只遍历 msg4→msg3，onIntercept 在 msg2 之前就被 count 截断
-        // 链：[msg3, msg4]
         const histMessages = await DialogHelper.getHistMessageList({
             defineScene,
             maxBudget: { maxLength: 10000, maxCount: 2 },
@@ -622,11 +852,198 @@ describe("Dialog-Domain DialogHelper 测试", () => {
             onIntercept: (msg) => msg.content.includes("msg 2") ? 'include' : 'continue'
         });
 
-        const chatMessages = histMessages.filter(m => m.type === 'chat' && 'sender_id' in m);
-        expect(chatMessages.length).toBe(2);
-        expect(chatMessages.map(m => m.content)).toEqual([
-            "Priority test msg 3",
-            "Priority test msg 4"
+        console.log("=== Test 43 getHistMessageList actual output ===");
+        console.log(JSON.stringify(histMessages, null, 2));
+
+        // 强断言：maxCount=2优先于onIntercept，predialog不应出现
+        expect(histMessages).toEqual([
+            {
+                type: "chat",
+                sender_id: "char",
+                sender_type: "char",
+                content: "Priority test msg 3",
+                id: messages[3].getMessageId(),
+            },
+            {
+                type: "chat",
+                sender_id: "user",
+                sender_type: "user",
+                content: "Priority test msg 4",
+                id: messages[4].getMessageId(),
+            },
+        ]);
+    });
+
+    test("50. getCurrMessageList的maxCount应仅约束hist部分，不包含memory（强断言）", async () => {
+        // 创建带memory和dialog的场景
+        const testScene = {
+            define: "Scene define",
+            memory: [
+                { type: "chat" as const, content: "Scene memory 1", sender_name: "System" },
+                { type: "chat" as const, content: "Scene memory 2", sender_name: "System" },
+            ],
+            name: "test",
+            dialog: [
+                { type: "chat" as const, content: "Scene predialog", sender_name: "Character" },
+            ],
+        };
+        const conversationModel = await ConversationModel.create({ scene: testScene });
+        const conversationId = conversationModel.getConversationId();
+        await FirstModel.loadOrCreate(conversationModel);
+
+        // 创建5条历史消息
+        const messages: MessageModel[] = [];
+        for (let i = 0; i < 5; i++) {
+            const msg = await MessageModel.create({
+                conversation_id: conversationId,
+                parent_message_id: i === 0 ? undefined : messages[i - 1].getMessageId(),
+                sender_id: i % 2 === 0 ? "user" : "char",
+                sender_type: i % 2 === 0 ? "user" : "char",
+                content: `Hist msg ${i}`
+            });
+            messages.push(msg);
+        }
+
+        const defineScene = {
+            define: "Define content",
+            memory: [
+                { type: "chat" as const, content: "Define memory 1", sender_name: "System" },
+            ],
+            name: "test",
+            dialog: [
+                { type: "chat" as const, content: "Define predialog", sender_name: "System" },
+            ],
+        };
+
+        // maxCount=3: 仅约束hist-graph子图(含predialog+history)，memory是constant不计入
+        // 由于流顺序为 history → scene_predialog → define_predialog
+        // maxCount=3 时history占满3条，predialog未产出
+        const messageList = await DialogHelper.getCurrMessageList({
+            defineScene,
+            maxBudget: { maxLength: 10000, maxCount: 3 },
+            conversationModel: conversationModel,
+            messageModel: messages[4]
+        });
+
+        console.log("=== Test 50 getCurrMessageList actual output ===");
+        console.log(JSON.stringify(messageList, null, 2));
+
+        // 强断言：memory必须存在（constant块不计入maxCount），hist部分受maxCount=3约束
+        expect(messageList).toBeDefined();
+        expect(messageList!).toEqual([
+            // define 常量块（不计入maxCount）
+            { type: "desc", content: "Define content" },
+            { type: "chat", content: "Define memory 1", sender_name: "System" },
+            // scene 常量块（不计入maxCount）
+            { type: "desc", content: "Scene define" },
+            { type: "chat", content: "Scene memory 1", sender_name: "System" },
+            { type: "chat", content: "Scene memory 2", sender_name: "System" },
+            // hist-graph 子图（maxCount=3 约束此部分）
+            // 流顺序: history → scene_predialog → define_predialog
+            // history占满3条，predialog未产出
+            {
+                type: "chat",
+                sender_id: "user",
+                sender_type: "user",
+                content: "Hist msg 2",
+                id: messages[2].getMessageId(),
+                premise: undefined,
+            },
+            {
+                type: "chat",
+                sender_id: "char",
+                sender_type: "char",
+                content: "Hist msg 3",
+                id: messages[3].getMessageId(),
+                premise: undefined,
+            },
+            {
+                type: "chat",
+                sender_id: "user",
+                sender_type: "user",
+                content: "Hist msg 4",
+                id: messages[4].getMessageId(),
+                premise: undefined,
+            },
+        ]);
+    });
+
+    test("51. getCurrMessageList的onIntercept截断后memory仍应存在，predialog不应出现（强断言）", async () => {
+        const testScene = {
+            define: "Scene define",
+            memory: [
+                { type: "chat" as const, content: "Scene memory 1", sender_name: "System" },
+            ],
+            name: "test",
+            dialog: [
+                { type: "chat" as const, content: "Scene predialog", sender_name: "Character" },
+            ],
+        };
+        const conversationModel = await ConversationModel.create({ scene: testScene });
+        const conversationId = conversationModel.getConversationId();
+        await FirstModel.loadOrCreate(conversationModel);
+
+        // 创建5条历史消息
+        const messages: MessageModel[] = [];
+        for (let i = 0; i < 5; i++) {
+            const msg = await MessageModel.create({
+                conversation_id: conversationId,
+                parent_message_id: i === 0 ? undefined : messages[i - 1].getMessageId(),
+                sender_id: i % 2 === 0 ? "user" : "char",
+                sender_type: i % 2 === 0 ? "user" : "char",
+                content: `Intercept curr msg ${i}`
+            });
+            messages.push(msg);
+        }
+
+        const defineScene = {
+            define: "Define content",
+            memory: [
+                { type: "chat" as const, content: "Define memory 1", sender_name: "System" },
+            ],
+            name: "test",
+            dialog: [
+                { type: "chat" as const, content: "Define predialog", sender_name: "System" },
+            ],
+        };
+
+        // onIntercept 在 msg2 命中reject：截断后流终止，predialog不产出
+        // 但memory是constant块，不受onIntercept影响
+        const messageList = await DialogHelper.getCurrMessageList({
+            defineScene,
+            maxBudget: { maxLength: 10000, maxCount: 100 },
+            conversationModel: conversationModel,
+            messageModel: messages[4],
+            onIntercept: (msg) => msg.content.includes("msg 2") ? 'reject' : 'continue'
+        });
+
+        console.log("=== Test 51 getCurrMessageList actual output ===");
+        console.log(JSON.stringify(messageList, null, 2));
+
+        // 强断言：memory必须存在，predialog不应出现（onIntercept截断了流）
+        expect(messageList).toBeDefined();
+        expect(messageList!).toEqual([
+            // define 常量块（不受onIntercept影响）
+            { type: "desc", content: "Define content" },
+            { type: "chat", content: "Define memory 1", sender_name: "System" },
+            // scene 常量块（不受onIntercept影响）
+            { type: "desc", content: "Scene define" },
+            { type: "chat", content: "Scene memory 1", sender_name: "System" },
+            // hist-graph 子图：onIntercept reject msg2后流终止，predialog不产出
+            {
+                type: "chat",
+                sender_id: "char",
+                sender_type: "char",
+                content: "Intercept curr msg 3",
+                id: messages[3].getMessageId(),
+            },
+            {
+                type: "chat",
+                sender_id: "user",
+                sender_type: "user",
+                content: "Intercept curr msg 4",
+                id: messages[4].getMessageId(),
+            },
         ]);
     });
 });

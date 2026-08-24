@@ -1,6 +1,5 @@
 import { OpenAITextChatTaskFormatter } from "@sosraciel-lamda/lam-manager";
 import { MockResponseFactory, MockOptionFactory } from "@sosraciel-lamda/lam-manager/mock";
-import type { OpenAITextRequest } from "@sosraciel-lamda/lam-manager";
 
 describe("LaM-Manager ChatTask OpenAIText Formatter", () => {
     const formatter = OpenAITextChatTaskFormatter;
@@ -12,7 +11,7 @@ describe("LaM-Manager ChatTask OpenAIText Formatter", () => {
                 option,
                 modelId: "gpt-3.5-turbo-instruct",
                 tokensizerType: "cl100k_base",
-            }) as OpenAITextRequest;
+            });
 
             expect(result).toEqual({
                 model: "gpt-3.5-turbo-instruct",
@@ -34,7 +33,7 @@ describe("LaM-Manager ChatTask OpenAIText Formatter", () => {
                 option,
                 modelId: "gpt-3.5-turbo-instruct",
                 tokensizerType: "cl100k_base",
-            }) as OpenAITextRequest;
+            });
 
             expect(result).toEqual({
                 model: "gpt-3.5-turbo-instruct",
@@ -56,7 +55,7 @@ describe("LaM-Manager ChatTask OpenAIText Formatter", () => {
                 option,
                 modelId: "gpt-3.5-turbo-instruct",
                 tokensizerType: "cl100k_base",
-            }) as OpenAITextRequest;
+            });
 
             expect(result).toEqual({
                 model: "gpt-3.5-turbo-instruct",

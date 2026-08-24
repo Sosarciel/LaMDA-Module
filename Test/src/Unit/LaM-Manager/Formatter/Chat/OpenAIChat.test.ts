@@ -1,6 +1,5 @@
 import { OpenAIConversationChatTaskFormatter, OpenAIThinkMap } from "@sosraciel-lamda/lam-manager";
 import { MockResponseFactory, MockOptionFactory } from "@sosraciel-lamda/lam-manager/mock";
-import type { OpenAIChatRequest } from "@sosraciel-lamda/lam-manager";
 
 describe("LaM-Manager ChatTask OpenAIChat Formatter", () => {
     const formatter = OpenAIConversationChatTaskFormatter;
@@ -12,7 +11,7 @@ describe("LaM-Manager ChatTask OpenAIChat Formatter", () => {
                 option,
                 modelId: "gpt-3.5-turbo",
                 tokensizerType: "cl100k_base",
-            }) as OpenAIChatRequest;
+            });
 
             expect(result).toEqual({
                 model: "gpt-3.5-turbo",
@@ -41,7 +40,7 @@ describe("LaM-Manager ChatTask OpenAIChat Formatter", () => {
                 option,
                 modelId: "gpt-3.5-turbo",
                 tokensizerType: "cl100k_base",
-            }) as OpenAIChatRequest;
+            });
 
             expect(result).toEqual({
                 model: "gpt-3.5-turbo",
@@ -70,7 +69,7 @@ describe("LaM-Manager ChatTask OpenAIChat Formatter", () => {
                 option,
                 modelId: "gpt-3.5-turbo",
                 tokensizerType: "cl100k_base",
-            }) as OpenAIChatRequest;
+            });
 
             expect(result).toEqual({
                 model: "gpt-3.5-turbo",
@@ -100,7 +99,7 @@ describe("LaM-Manager ChatTask OpenAIChat Formatter", () => {
                 option,
                 modelId: "gpt-5-chat",
                 tokensizerType: "cl100k_base",
-            }) as OpenAIChatRequest;
+            });
 
             expect(result).toEqual({
                 model: "gpt-5-chat",
@@ -130,7 +129,7 @@ describe("LaM-Manager ChatTask OpenAIChat Formatter", () => {
                 option,
                 modelId: "o1-preview",
                 tokensizerType: "cl100k_base",
-            }) as OpenAIChatRequest;
+            });
 
             expect(result).toEqual({
                 model: "o1-preview",
@@ -158,7 +157,7 @@ describe("LaM-Manager ChatTask OpenAIChat Formatter", () => {
                 option,
                 modelId: "o1-preview",
                 tokensizerType: "cl100k_base",
-            }) as OpenAIChatRequest;
+            });
 
             expect(result).toEqual({
                 model: "o1-preview",

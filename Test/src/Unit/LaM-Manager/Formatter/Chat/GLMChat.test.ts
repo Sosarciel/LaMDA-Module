@@ -1,6 +1,5 @@
 import { GLMChatTaskFormatter, GLMThinkMap } from "@sosraciel-lamda/lam-manager";
 import { MockResponseFactory, MockOptionFactory } from "@sosraciel-lamda/lam-manager/mock";
-import type { GLMRequest } from "@sosraciel-lamda/lam-manager";
 
 describe("LaM-Manager ChatTask GLMChat Formatter", () => {
     const formatter = GLMChatTaskFormatter;
@@ -12,7 +11,7 @@ describe("LaM-Manager ChatTask GLMChat Formatter", () => {
                 option,
                 modelId: "glm-4.7",
                 tokensizerType: "cl100k_base",
-            }) as GLMRequest;
+            });
 
             expect(result).toEqual({
                 model: "glm-4.7",
@@ -41,7 +40,7 @@ describe("LaM-Manager ChatTask GLMChat Formatter", () => {
                 option,
                 modelId: "glm-4.7",
                 tokensizerType: "cl100k_base",
-            }) as GLMRequest;
+            });
 
             expect(result).toEqual({
                 model: "glm-4.7",
@@ -70,7 +69,7 @@ describe("LaM-Manager ChatTask GLMChat Formatter", () => {
                 option,
                 modelId: "glm-4.7",
                 tokensizerType: "cl100k_base",
-            }) as GLMRequest;
+            });
 
             expect(result).toEqual({
                 model: "glm-4.7",
@@ -99,7 +98,7 @@ describe("LaM-Manager ChatTask GLMChat Formatter", () => {
                 option,
                 modelId: "glm-4.7",
                 tokensizerType: "cl100k_base",
-            }) as GLMRequest;
+            });
 
             expect(result).toEqual({
                 model: "glm-4.7",
@@ -189,7 +188,7 @@ describe("LaM-Manager ChatTask GLMChat Formatter", () => {
 
     describe("3. formatResp 响应解析", () => {
         it("3.1 应正确解析GLM响应", () => {
-            const mockResp = MockResponseFactory.createGLMResponse();
+            const mockResp = MockResponseFactory.createGLMChatResponse();
             const result = formatter.formatResp(mockResp);
 
             expect(result).toEqual({
@@ -199,7 +198,7 @@ describe("LaM-Manager ChatTask GLMChat Formatter", () => {
         });
 
         it("3.2 应正确处理空响应", () => {
-            const mockResp = MockResponseFactory.createGLMResponse({ choices: [] });
+            const mockResp = MockResponseFactory.createGLMChatResponse({ choices: [] });
             const result = formatter.formatResp(mockResp);
 
             expect(result).toEqual({
@@ -209,7 +208,7 @@ describe("LaM-Manager ChatTask GLMChat Formatter", () => {
         });
 
         it("3.3 应正确处理带推理内容的响应", () => {
-            const mockResp = MockResponseFactory.createGLMResponse({
+            const mockResp = MockResponseFactory.createGLMChatResponse({
                 choices: [
                     {
                         index: 0,

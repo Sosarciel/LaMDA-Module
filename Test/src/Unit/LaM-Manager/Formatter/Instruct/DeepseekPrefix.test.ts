@@ -1,6 +1,5 @@
 import { DeepseekPrefix } from "@sosraciel-lamda/lam-manager";
 import { MockResponseFactory, MockOptionFactory } from "@sosraciel-lamda/lam-manager/mock";
-import type { DeepseekRequest } from "@sosraciel-lamda/lam-manager";
 
 describe("LaM-Manager InstructTask DeepseekPrefix Formatter", () => {
     const formatter = DeepseekPrefix;
@@ -14,7 +13,7 @@ describe("LaM-Manager InstructTask DeepseekPrefix Formatter", () => {
                 option,
                 modelId: "deepseek-chat",
                 tokensizerType: "deepseek",
-            }) as DeepseekRequest;
+            });
 
             expect(result).toEqual({
                 model: "deepseek-chat",
@@ -39,7 +38,7 @@ describe("LaM-Manager InstructTask DeepseekPrefix Formatter", () => {
                 option,
                 modelId: "deepseek-chat",
                 tokensizerType: "deepseek",
-            }) as DeepseekRequest;
+            });
 
             expect(result).toEqual({
                 model: "deepseek-chat",
@@ -64,7 +63,7 @@ describe("LaM-Manager InstructTask DeepseekPrefix Formatter", () => {
                 option,
                 modelId: "deepseek-chat",
                 tokensizerType: "deepseek",
-            }) as DeepseekRequest;
+            });
 
             expect(result).toEqual({
                 model: "deepseek-chat",
@@ -114,7 +113,7 @@ describe("LaM-Manager InstructTask DeepseekPrefix Formatter", () => {
 
     describe("2. formatResp 响应解析", () => {
         it("2.1 应正确解析Deepseek响应", () => {
-            const mockResp = MockResponseFactory.createDeepseekResponse();
+            const mockResp = MockResponseFactory.createDeepseekChatResponse();
             const result = formatter.formatResp(mockResp);
 
             expect(result).toEqual({
@@ -124,7 +123,7 @@ describe("LaM-Manager InstructTask DeepseekPrefix Formatter", () => {
         });
 
         it("2.2 应正确处理空响应", () => {
-            const mockResp = MockResponseFactory.createDeepseekResponse({ choices: [] });
+            const mockResp = MockResponseFactory.createDeepseekChatResponse({ choices: [] });
             const result = formatter.formatResp(mockResp);
 
             expect(result).toEqual({
@@ -134,7 +133,7 @@ describe("LaM-Manager InstructTask DeepseekPrefix Formatter", () => {
         });
 
         it("2.3 应正确处理多选项响应", () => {
-            const mockResp = MockResponseFactory.createDeepseekResponse({
+            const mockResp = MockResponseFactory.createDeepseekChatResponse({
                 choices: [
                     { index: 0, message: { role: "assistant", content: "选项1" }, finish_reason: "stop", logprobs: null },
                     { index: 1, message: { role: "assistant", content: "选项2" }, finish_reason: "stop", logprobs: null },

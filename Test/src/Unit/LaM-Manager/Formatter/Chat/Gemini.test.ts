@@ -1,6 +1,6 @@
 import { GeminiChatTaskFormatter, GeminiThinkMap, transGeminiThinkBudget, combineHint } from "@sosraciel-lamda/lam-manager";
 import { MockResponseFactory, MockOptionFactory } from "@sosraciel-lamda/lam-manager/mock";
-import type { GeminiRequest } from "@sosraciel-lamda/lam-manager";
+import type { GeminiRequest } from "@sosraciel-lamda/lam-chain";
 
 describe("LaM-Manager ChatTask Gemini Formatter", () => {
     const formatter = GeminiChatTaskFormatter;
@@ -12,7 +12,7 @@ describe("LaM-Manager ChatTask Gemini Formatter", () => {
                 option,
                 modelId: "gemini-3-pro",
                 tokensizerType: "cl100k_base",
-            }) as GeminiRequest;
+            });
 
             expect(result).toEqual({
                 system_instruction: {

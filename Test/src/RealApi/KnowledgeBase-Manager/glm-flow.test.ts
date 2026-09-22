@@ -192,6 +192,7 @@ describe("GLM 知识库完整流程", () => {
         expect(hit).toBe(true);
         SLogger.info(`检索内容校验通过, 命中关键词 "${EXPECTED_KEYWORD}"`);
     }, TIMEOUT.index);
+
     it("4. 删除文档", async () => {
         expect(knowledgeBaseId).toBeDefined();
         expect(documentId).toBeDefined();

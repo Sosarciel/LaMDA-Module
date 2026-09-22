@@ -2,7 +2,8 @@
  * 对真实 GLM 知识库服务执行「建立知识库 → 写入文档 → 读取检索 → 删除文档 → 删除知识库」的完整闭环。
  *
  * API Key 从 `data/Cred.json` 读取 (该文件已被 .gitignore 忽略)。
- * 凭据缺失时**直接报错**而非静默跳过, 避免测试"通过"的假象。
+ * 凭据缺失时在模块加载阶段抛错, 使**整个测试集直接失败** (报告 0 个用例),
+ * 而不是被静默跳过或让每个用例各报一次同样的错误。
  *
  * 运行方式 (注意不要跑全量):
  * ```
@@ -14,7 +15,6 @@
  * - 文档的 embedding_stat 与实际可检索性**不同步**, 实测恒为 1 而文档早已可检索,
  *   因此判定就绪必须以"试检索有结果"为准, 不能等 embeddingStatus 变成 completed
  * - 全程实测约 3.4 秒: 建库 0.2s / 上传 1.8s / 可检索 1.3s / 删库 0.08s
- *   因此除索引等待放宽到 20 秒外, 其余步骤均使用 jest 默认的 10 秒超时
  */
 
 import { GLMKBClient } from "@sosraciel-lamda/knowledgebase-manager";
@@ -48,11 +48,19 @@ const TEST_QUERY = "Akaset 的身高体重是多少";
 const EXPECTED_KEYWORD = "129.53";
 
 /** 各步骤的超时上限/毫秒
- * 大部分走 jest 默认的 10 秒, 仅索引等待放宽到 20 秒 (高峰期可能拥堵)
+ * 依据实测耗时设定, 留约 10 倍余量而非宽松的绝对值
  */
 const TIMEOUT = {
-    /** 等待可检索 (实测 1.3s, 高峰期留余量) */
+    /** 普通 API 调用 (实测 <0.5s) */
+    api: 10_000,
+    /** 建立知识库 (实测 0.2s) */
+    createKb: 10_000,
+    /** 上传文档 (实测 1.8s) */
+    upload: 10_000,
+    /** 等待可检索 (实测 1.3s) */
     index: 20_000,
+    /** 检索 (实测 <0.5s) */
+    retrieve: 10_000,
 };
 
 /** 上传失败时的最大重试次数 */
@@ -73,18 +81,20 @@ const INDEX_TIMEOUT_MS = 20_000;
  */
 const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** 获取 API Key
+/** 读取 API Key
+ * 在模块顶层调用, 使凭据缺失时整个测试集直接失败而不是逐用例报错
  * @returns API Key
- * @throws 未在 data/Cred.json 中配置时抛出, 避免测试被静默跳过
+ * @throws 未在 data/Cred.json 中配置时抛出
  */
-const requireApiKey = (): string => {
+const readApiKey = (): string => {
     const apiKey = getGLMApiKey();
     if (!apiKey)
-        throw new Error(
-            `未在 ${CRED_PATH} 中配置 GLM.api_key, 无法执行真实 API 测试`
-        );
+        throw new Error(`未在 ${CRED_PATH} 中配置 GLM.api_key, 无法执行真实 API 测试`);
     return apiKey;
 };
+
+/** 测试用 API Key, 模块加载时即完成校验 */
+const API_KEY = readApiKey();
 
 describe("GLM 知识库完整流程", () => {
     let client: GLMKBClient;
@@ -92,8 +102,8 @@ describe("GLM 知识库完整流程", () => {
     let documentId: string | undefined;
 
     beforeAll(() => {
-        client = new GLMKBClient({ apiKey: requireApiKey() });
-    });
+        client = new GLMKBClient({ apiKey: API_KEY });
+    }, TIMEOUT.api);
 
     afterAll(async () => {
         if (!client || !knowledgeBaseId) return;
@@ -104,7 +114,7 @@ describe("GLM 知识库完整流程", () => {
         }
         SLogger.info(`兜底清理: 删除残留知识库 ${knowledgeBaseId}`);
         await client.deleteKnowledgeBase(knowledgeBaseId);
-    });
+    },TIMEOUT.api);
 
     it("1. 建立知识库", async () => {
         const kb = await client.createKnowledgeBase({
@@ -123,7 +133,7 @@ describe("GLM 知识库完整流程", () => {
         const detail = await client.getKnowledgeBase(knowledgeBaseId);
         expect(detail).toBeDefined();
         expect(detail?.id).toBe(knowledgeBaseId);
-    });
+    },TIMEOUT.createKb);
 
     it("2. 写入文档", async () => {
         expect(knowledgeBaseId).toBeDefined();
@@ -157,7 +167,7 @@ describe("GLM 知识库完整流程", () => {
         expect(docList).toBeDefined();
         expect(docList!.total).toBeGreaterThan(0);
         SLogger.info(`文档列表读取成功, 共 ${docList!.total} 个文档`);
-    });
+    },TIMEOUT.upload);
 
     it("3. 读取检索", async () => {
         expect(knowledgeBaseId).toBeDefined();
@@ -206,7 +216,7 @@ describe("GLM 知识库完整流程", () => {
         expect(docList).toBeDefined();
         expect(docList!.total).toBe(0);
         SLogger.info("文档删除校验通过, 列表已为空");
-    });
+    },TIMEOUT.api);
 
     it("5. 删除知识库", async () => {
         expect(knowledgeBaseId).toBeDefined();
@@ -220,5 +230,5 @@ describe("GLM 知识库完整流程", () => {
         const after = await client.getKnowledgeBase(deletedId);
         expect(after).toBeUndefined();
         SLogger.info("知识库删除校验通过, 详情已不可读取");
-    });
+    },TIMEOUT.api);
 });

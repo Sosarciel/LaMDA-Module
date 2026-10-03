@@ -8,6 +8,7 @@
         "./Service-Manager/TTS-Manager",
         "./Service-Manager/Translation-Manager",
         "./Service-Manager/KnowledgeBase-Manager",
+        "./Service-Manager/AutoDL-Manager",
         "./Business-Domain/Dialog-Domain",
         "./Business-Domain/CharProfile-Domain",
         "./Common-Utility/Text-Processor",

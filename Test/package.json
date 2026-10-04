@@ -16,6 +16,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@sosraciel-lamda/autodl-manager": "^1.0.0",
     "@sosraciel-lamda/charprofile-domain": "^1.0.0",
     "@sosraciel-lamda/dialog-domain": "^1.0.0",
     "@sosraciel-lamda/dialog-store": "^1.0.0",

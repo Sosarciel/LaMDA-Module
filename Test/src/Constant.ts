@@ -7,9 +7,43 @@ export const ROOT_PATH = path.join(__dirname, '..');
 export const DATA_PATH = path.join(ROOT_PATH, 'data');
 export const CACHE_PATH = path.join(ROOT_PATH, 'cache');
 
-export const LAM_PORT = 3000;
-export const KB_PORT = 3001;
-export const PG_PORT = 5433;
+//mock的lam服务
+export const LAM_PORT = 5501;
+//mock知识库服务
+export const KB_PORT = 5502;
+//自动测试的psql
+export const PG_PORT = 5510;
+
+/** AutoDL 测试用的本地映射端口
+ *
+ * 从 5520 起连续分配, **整个 552x 段保留给 AutoDL** ——
+ * 端口映射的本地端必须全局唯一(同一时刻不能让两个测试抢同一个本地端口),
+ * 因此这里集中登记, 各测试文件只引用常量、不再自带字面量。
+ *
+ * 远端端口无此约束(在容器内部, 各测试互不影响), 统一用 6006。
+ */
+export const AUTODL_LOCAL_PORT = {
+    /** SSH 链路测试: 单端口映射 */
+    sshA: 5520,
+    /** SSH 链路测试: 第二端口映射 */
+    sshB: 5521,
+    /** Jupyter 终端测试 */
+    jupyter: 5522,
+    /** 多实例测试: 实例 A 的两个端口 */
+    multiA1: 5523,
+    multiA2: 5524,
+    /** 多实例测试: 实例 B 的端口(与 multiA1 映射同一远端服务以验证互不干扰) */
+    multiB1: 5525,
+    /** 全路径测试 */
+    flow: 5526,
+} as const;
+
+/** AutoDL 测试用的远端服务端口
+ *
+ * 与本地端口不同, 远端端口在容器内部, 各测试互不影响, 故统一用 6006。
+ * 测试服务由测试自己拉起(见 helpers.ts 的 buildServiceScript), 不依赖实例预置环境。
+ */
+export const AUTODL_REMOTE_PORT = 6006;
 
 /** 凭据配置文件路径
  * 该文件已被 .gitignore 忽略, 不会随仓库分发

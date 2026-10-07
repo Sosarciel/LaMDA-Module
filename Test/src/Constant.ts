@@ -7,12 +7,16 @@ export const ROOT_PATH = path.join(__dirname, '..');
 export const DATA_PATH = path.join(ROOT_PATH, 'data');
 export const CACHE_PATH = path.join(ROOT_PATH, 'cache');
 
+//5500 - 5509划定为mock服务
 //mock的lam服务
-export const LAM_PORT = 5501;
+export const LAM_PORT = 5500;
 //mock知识库服务
-export const KB_PORT = 5502;
+export const KB_PORT = 5501;
+
+//5510 - 5519划定为参与测试的真是psql
 //自动测试的psql
 export const PG_PORT = 5510;
+//test-server的pslq为5511
 
 /** AutoDL 测试用的本地映射端口
  *

@@ -14,7 +14,7 @@ export const LAM_PORT = 5501;
 //mock知识库服务
 export const KB_PORT = 5502;
 
-//5510 - 5519划定为参与测试的真是psql
+//5510 - 5519划定为参与测试的psql
 //自动测试的psql
 export const PG_PORT = 5510;
 //test-server的pslq为5511

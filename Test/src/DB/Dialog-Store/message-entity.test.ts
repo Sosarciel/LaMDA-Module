@@ -18,7 +18,7 @@ describe("Dialog-Store MessageEntity 测试", () => {
     }, 30000);
 
     describe("Entity 泛型测试", () => {
-        test("14. MessageEntity 应正确处理泛型 heavy_data", async () => {
+        test("1. MessageEntity 应正确处理泛型 heavy_data", async () => {
             // 创建对话实体
             const convEntity = await ConversationEntity.create<TestConversationExt>({
                 light_data: {}
@@ -37,7 +37,7 @@ describe("Dialog-Store MessageEntity 测试", () => {
             expect(firstMsg.getHeavyField('translate_content_table')?.zh).toBe('你好');
         });
 
-        test("15. FirstEntity 应正确工作", async () => {
+        test("2. FirstEntity 应正确工作", async () => {
             // 创建对话实体
             const convEntity = await ConversationEntity.create<TestConversationExt>({
                 light_data: {}
@@ -67,7 +67,7 @@ describe("Dialog-Store MessageEntity 测试", () => {
     });
 
     describe("Entity.updateData 深层合并行为测试", () => {
-        test("30. MessageEntity.updateData传入undefined删除heavy_data中的key", async () => {
+        test("3. MessageEntity.updateData传入undefined删除heavy_data中的key", async () => {
             // 创建对话实体
             const convEntity = await ConversationEntity.create<TestConversationExt>({});
 
@@ -101,7 +101,7 @@ describe("Dialog-Store MessageEntity 测试", () => {
             expect(loadedMsg?.getHeavyField('translate_content_table')).toEqual({ en: 'Hello', zh: '你好' });
         });
 
-        test("32. MessageEntity.updateData传入空对象不删除字段", async () => {
+        test("4. MessageEntity.updateData传入空对象不删除字段", async () => {
             // 创建对话实体
             const convEntity = await ConversationEntity.create<TestConversationExt>({});
 

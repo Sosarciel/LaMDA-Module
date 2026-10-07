@@ -14,7 +14,7 @@ describe("Dialog-Store DialogStoreHelper 测试", () => {
         await teardownTestDb(manager);
     }, 30000);
 
-    test("25. 应在遇到 FirstEntity 时正常结束", async () => {
+    test("1. 应在遇到 FirstEntity 时正常结束", async () => {
         // 创建对话
         const conversationEntity = await ConversationEntity.create<TestConversationExt>({});
 
@@ -48,7 +48,7 @@ describe("Dialog-Store DialogStoreHelper 测试", () => {
         expect(result.chain[1].getMessageId()).toBe(msg2.getMessageId());
     });
 
-    test("26. 应在消息条数超限时停止", async () => {
+    test("2. 应在消息条数超限时停止", async () => {
         // 创建对话
         const conversationEntity = await ConversationEntity.create<TestConversationExt>({});
 
@@ -84,7 +84,7 @@ describe("Dialog-Store DialogStoreHelper 测试", () => {
         }
     });
 
-    test("27. 应在总长度超限时停止", async () => {
+    test("3. 应在总长度超限时停止", async () => {
         // 创建对话
         const conversationEntity = await ConversationEntity.create<TestConversationExt>({});
 
@@ -127,7 +127,7 @@ describe("Dialog-Store DialogStoreHelper 测试", () => {
         }
     });
 
-    test("28. 应支持自定义 computeLength 计算", async () => {
+    test("4. 应支持自定义 computeLength 计算", async () => {
         // 创建对话
         const conversationEntity = await ConversationEntity.create<TestConversationExt>({});
 
@@ -175,7 +175,7 @@ describe("Dialog-Store DialogStoreHelper 测试", () => {
         }
     });
 
-    test("40. 应支持 onIntercept 返回 include 截断（命中计入链）", async () => {
+    test("5. 应支持 onIntercept 返回 include 截断（命中计入链）", async () => {
         const conversationEntity = await ConversationEntity.create<TestConversationExt>({});
 
         const messages: MessageEntity<TestMessageExt>[] = [];
@@ -216,7 +216,7 @@ describe("Dialog-Store DialogStoreHelper 测试", () => {
         }
     });
 
-    test("41. 应支持 onIntercept 返回 reject 截断（命中不计入链）", async () => {
+    test("6. 应支持 onIntercept 返回 reject 截断（命中不计入链）", async () => {
         const conversationEntity = await ConversationEntity.create<TestConversationExt>({});
 
         const messages: MessageEntity<TestMessageExt>[] = [];
@@ -256,7 +256,7 @@ describe("Dialog-Store DialogStoreHelper 测试", () => {
         }
     });
 
-    test("42. 应支持 onIntercept 返回 continue 不截断", async () => {
+    test("7. 应支持 onIntercept 返回 continue 不截断", async () => {
         const conversationEntity = await ConversationEntity.create<TestConversationExt>({});
 
         const messages: MessageEntity<TestMessageExt>[] = [];
@@ -289,7 +289,7 @@ describe("Dialog-Store DialogStoreHelper 测试", () => {
         expect(result.stopReason.reason).toBe('first');
     });
 
-    test("43. 应支持 onIntercept 在 length/count 限制之后调用", async () => {
+    test("8. 应支持 onIntercept 在 length/count 限制之后调用", async () => {
         const conversationEntity = await ConversationEntity.create<TestConversationExt>({});
 
         const messages: MessageEntity<TestMessageExt>[] = [];

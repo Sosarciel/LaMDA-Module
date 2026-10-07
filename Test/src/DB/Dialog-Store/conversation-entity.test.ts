@@ -18,7 +18,7 @@ describe("Dialog-Store ConversationEntity 测试", () => {
     }, 30000);
 
     describe("Entity 泛型测试", () => {
-        test("13. ConversationEntity 应正确处理泛型 light_data（深合并）", async () => {
+        test("1. ConversationEntity 应正确处理泛型 light_data（深合并）", async () => {
             // 创建带有泛型 light_data 的对话实体
             const entity = await ConversationEntity.create<TestConversationExt>({
                 light_data: { sender_type: 'char', status: 'active' }
@@ -58,7 +58,7 @@ describe("Dialog-Store ConversationEntity 测试", () => {
     });
 
     describe("Entity.updateData 深层合并行为测试", () => {
-        test("29. ConversationEntity.updateData传入undefined删除heavy_data中的key", async () => {
+        test("2. ConversationEntity.updateData传入undefined删除heavy_data中的key", async () => {
             // 创建带有多个heavy_data字段的对话
             const entity = await ConversationEntity.create<TestConversationExt>({
                 heavy_data: {
@@ -88,7 +88,7 @@ describe("Dialog-Store ConversationEntity 测试", () => {
             expect(loadedEntity?.getHeavyField('metadata')).toEqual({ key: 'value1' });
         });
 
-        test("31. ConversationEntity.updateData传入空对象不删除字段", async () => {
+        test("3. ConversationEntity.updateData传入空对象不删除字段", async () => {
             // 创建带有heavy_data的对话
             const entity = await ConversationEntity.create<TestConversationExt>({
                 heavy_data: {

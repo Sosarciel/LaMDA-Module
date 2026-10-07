@@ -17,7 +17,7 @@ describe("Dialog-Store AnchorEntity 测试", () => {
     }, 30000);
 
     describe("Entity 泛型测试", () => {
-        test("16. AnchorEntity 应正确处理泛型 light_data（深合并）", async () => {
+        test("1. AnchorEntity 应正确处理泛型 light_data（深合并）", async () => {
             // 创建带有泛型 light_data 的锚点实体
             const anchorId = `test-anchor-${UtilFunc.genUUID()}`;
             const entity = await AnchorEntity.create<TestAnchorExt>(anchorId);
@@ -59,7 +59,7 @@ describe("Dialog-Store AnchorEntity 测试", () => {
             expect(loadedEntity?.getLightField('sender_type')).toBe('char');
         });
 
-        test("17. AnchorEntity 应正确处理 conversation_id 和 message_id", async () => {
+        test("2. AnchorEntity 应正确处理 conversation_id 和 message_id", async () => {
             // 创建锚点实体
             const anchorId = `test-anchor-conv-${UtilFunc.genUUID()}`;
             const entity = await AnchorEntity.create<TestAnchorExt>(anchorId);

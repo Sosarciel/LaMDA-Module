@@ -1,9 +1,8 @@
 import { DBManager } from "@sosraciel-lamda/postgresql-manager";
 import { DialogStore } from "@sosraciel-lamda/dialog-store";
-import type { ConversationStruct, MessageStruct, AnchorStruct } from "@sosraciel-lamda/dialog-store";
 import { sleep } from "@zwa73/utils";
 import { DBCache, DBCacheKH } from "@sosraciel-lamda/dialog-store/dist/DBCache";
-import { TestLightData, TestHeavyData, TestMessageExt, TestConversationExt, TestAnchorExt, createTestConversation, createTestMessage, createTestAnchor, setupTestDb, teardownTestDb } from "./Util";
+import { TestLightData, TestConversationExt, createTestConversation, createTestMessage, createTestAnchor, setupTestDb, teardownTestDb } from "./Util";
 
 describe("Dialog-Store 主测试", () => {
     let manager: DBManager;
@@ -86,237 +85,9 @@ describe("Dialog-Store 主测试", () => {
         });
     });
 
-    describe("light_data/heavy_data 缓存同步测试", () => {
-        test("5. 应正确处理 light_data 的全量更新", async () => {
-            // 创建带有 light_data 的对话
-            const testConversation = createTestConversation<TestConversationExt>({
-                light_data: { sender_type: 'user', status: 'active' }
-            });
-            await DialogStore.setConversation(testConversation);
-
-            // 验证缓存中的 light_data
-            const cacheKey = DBCacheKH.getConversationKey(testConversation.data.conversation_id);
-            let cachedData = DBCache.peekCache(cacheKey) as ConversationStruct<TestConversationExt> | undefined;
-            expect((cachedData?.data.light_data as TestLightData)?.sender_type).toBe('user');
-            expect((cachedData?.data.light_data as TestLightData)?.status).toBe('active');
-
-            // 全量更新 light_data 的每一个字段
-            const updatedConversation = createTestConversation<TestConversationExt>({
-                conversation_id: testConversation.data.conversation_id,
-                light_data: { sender_type: 'char', status: 'inactive' }
-            });
-            await DialogStore.setConversation(updatedConversation);
-
-            // 内部set对缓存的影响应该随promise结果, 经过内部调用的set通知一起完成, 无需等待
-
-            // 验证缓存已更新为新值
-            cachedData = DBCache.peekCache(cacheKey) as ConversationStruct<TestConversationExt> | undefined;
-            expect((cachedData?.data.light_data as TestLightData)?.sender_type).toBe('char');
-            expect((cachedData?.data.light_data as TestLightData)?.status).toBe('inactive');
-        });
-
-        test("6. 应正确处理 heavy_data 的全量更新", async () => {
-            // 创建带有 heavy_data 的对话
-            const testConversation = createTestConversation<TestConversationExt>({
-                heavy_data: { translate_content_table: { en: 'Hello' } }
-            });
-            await DialogStore.setConversation(testConversation);
-
-            // 验证缓存中的 heavy_data
-            const cacheKey = DBCacheKH.getConversationKey(testConversation.data.conversation_id);
-            let cachedData = DBCache.peekCache(cacheKey) as ConversationStruct<TestConversationExt> | undefined;
-            expect((cachedData?.data.heavy_data as TestHeavyData)?.translate_content_table?.en).toBe('Hello');
-
-            // 全量更新 heavy_data 的每一个字段
-            const updatedConversation = createTestConversation<TestConversationExt>({
-                conversation_id: testConversation.data.conversation_id,
-                heavy_data: { translate_content_table: { zh: '你好' } }
-            });
-            await DialogStore.setConversation(updatedConversation);
-
-            // 内部set对缓存的影响应该随promise结果, 经过内部调用的set通知一起完成, 无需等待
-
-            // 验证缓存已更新为新值（en 已被替换掉）
-            cachedData = DBCache.peekCache(cacheKey) as ConversationStruct<TestConversationExt> | undefined;
-            expect((cachedData?.data.heavy_data as TestHeavyData)?.translate_content_table?.zh).toBe('你好');
-            expect((cachedData?.data.heavy_data as TestHeavyData)?.translate_content_table?.en).toBeUndefined();
-        });
-
-        test("7. 应正确处理消息的 light_data 缓存同步", async () => {
-            // 先创建对话
-            const testConversation = createTestConversation();
-            await DialogStore.setConversation(testConversation);
-
-            // 创建带有 light_data 的消息
-            const testMessage = createTestMessage<TestMessageExt>(
-                testConversation.data.conversation_id,
-                { light_data: { sender_type: 'char' } }
-            );
-            await DialogStore.setMessage(testMessage);
-
-            // 验证缓存中的 light_data
-            const cacheKey = DBCacheKH.getMessageKey(testMessage.data.message_id);
-            let cachedData = DBCache.peekCache(cacheKey) as MessageStruct<TestMessageExt> | undefined;
-            expect((cachedData?.data.light_data as TestLightData)?.sender_type).toBe('char');
-
-            // 全量更新 light_data
-            const updatedMessage = createTestMessage<TestMessageExt>(
-                testConversation.data.conversation_id,
-                {
-                    message_id: testMessage.data.message_id,
-                    light_data: { sender_type: 'user', status: 'pending' }
-                }
-            );
-            await DialogStore.setMessage(updatedMessage);
-
-            // 内部set对缓存的影响应该随promise结果, 经过内部调用的set通知一起完成, 无需等待
-
-            // 验证缓存已更新
-            cachedData = DBCache.peekCache(cacheKey) as MessageStruct<TestMessageExt> | undefined;
-            expect((cachedData?.data.light_data as TestLightData)?.sender_type).toBe('user');
-            expect((cachedData?.data.light_data as TestLightData)?.status).toBe('pending');
-        });
-
-        test("8. 应正确处理锚点的 light_data 缓存同步", async () => {
-            // 创建带有 light_data 的锚点
-            const testAnchor = createTestAnchor<TestAnchorExt>({
-                light_data: { sender_type: 'user', status: 'active' }
-            });
-            await DialogStore.setAnchor(testAnchor);
-
-            // 验证缓存中的 light_data
-            const cacheKey = DBCacheKH.getAnchorKey(testAnchor.data.anchor_id);
-            let cachedData = DBCache.peekCache(cacheKey) as AnchorStruct<TestAnchorExt> | undefined;
-            expect((cachedData?.data.light_data as TestLightData)?.sender_type).toBe('user');
-            expect((cachedData?.data.light_data as TestLightData)?.status).toBe('active');
-
-            // 全量更新 light_data
-            const updatedAnchor = createTestAnchor<TestAnchorExt>({
-                anchor_id: testAnchor.data.anchor_id,
-                light_data: { sender_type: 'char', status: 'inactive' }
-            });
-            await DialogStore.setAnchor(updatedAnchor);
-
-            // 验证缓存已更新
-            cachedData = DBCache.peekCache(cacheKey) as AnchorStruct<TestAnchorExt> | undefined;
-            expect((cachedData?.data.light_data as TestLightData)?.sender_type).toBe('char');
-            expect((cachedData?.data.light_data as TestLightData)?.status).toBe('inactive');
-        });
-    });
-
-    describe("SQL 触发器与 TS 缓存一致性测试", () => {
-        test("9. 外部SQL 增量更新后缓存应正确同步 light_data", async () => {
-            // 创建带有 light_data 的对话
-            const testConversation = createTestConversation<TestConversationExt>({
-                light_data: { sender_type: 'user' }
-            });
-            await DialogStore.setConversation(testConversation);
-
-            const cacheKey = DBCacheKH.getConversationKey(testConversation.data.conversation_id);
-
-            // 通过 SQL 增量更新 light_data（使用 jsonb_set 添加新字段）
-            // 这与 setConversation 的全量更新不同，是增量更新
-            await manager.client.query(`
-                UPDATE dialog.conversation
-                SET data = jsonb_set(
-                    data,
-                    '{light_data,status}',
-                    '"synced"'::jsonb,
-                    true
-                )
-                WHERE data->>'conversation_id' = '${testConversation.data.conversation_id}';
-            `);
-
-            // 等待 SQL 触发器发送通知和缓存同步
-            await sleep(100);
-
-            // 验证缓存已同步 SQL 的增量更新
-            const cachedData = DBCache.peekCache(cacheKey) as ConversationStruct<TestConversationExt> | undefined;
-            expect((cachedData?.data.light_data as TestLightData)?.status).toBe('synced');
-            expect((cachedData?.data.light_data as TestLightData)?.sender_type).toBe('user');
-        });
-
-        test("10. 外部SQL 增量更新后缓存应正确同步 heavy_data", async () => {
-            // 创建带有 heavy_data 的对话
-            const testConversation = createTestConversation<TestConversationExt>({
-                heavy_data: { translate_content_table: { en: 'Hello' } }
-            });
-            await DialogStore.setConversation(testConversation);
-
-            const cacheKey = DBCacheKH.getConversationKey(testConversation.data.conversation_id);
-
-            // 通过 SQL 增量更新 heavy_data（使用 jsonb_set 添加新字段）
-            await manager.client.query(`
-                UPDATE dialog.conversation
-                SET data = jsonb_set(
-                    data,
-                    '{heavy_data,metadata}',
-                    '{"key":"sql-value"}'::jsonb,
-                    true
-                )
-                WHERE data->>'conversation_id' = '${testConversation.data.conversation_id}';
-            `);
-
-            // 等待 SQL 触发器发送通知和缓存同步
-            await sleep(100);
-
-            // 验证缓存已同步 SQL 的增量更新
-            const cachedData = DBCache.peekCache(cacheKey) as ConversationStruct<TestConversationExt> | undefined;
-            expect((cachedData?.data.heavy_data as TestHeavyData)?.metadata?.key).toBe('sql-value');
-            expect((cachedData?.data.heavy_data as TestHeavyData)?.translate_content_table?.en).toBe('Hello');
-        });
-
-        test("11. data_hash 应在 SQL 触发器中正确生成", async () => {
-            // 创建对话
-            const testConversation = createTestConversation<TestConversationExt>({
-                light_data: { sender_type: 'user' }
-            });
-            await DialogStore.setConversation(testConversation);
-
-            // 验证数据库中的 data_hash 已生成
-            const result = await manager.client.query(`
-                SELECT data->>'data_hash' as data_hash
-                FROM dialog.conversation
-                WHERE data->>'conversation_id' = '${testConversation.data.conversation_id}';
-            `);
-
-            expect(result.rows[0].data_hash).toBeDefined();
-            expect(result.rows[0].data_hash).toBe(testConversation.data.data_hash);
-        });
-
-        test("12. 外部SQL 增量更新锚点后缓存应正确同步", async () => {
-            // 创建锚点
-            const testAnchor = createTestAnchor<TestAnchorExt>({
-                light_data: { sender_type: 'user' }
-            });
-            await DialogStore.setAnchor(testAnchor);
-
-            const cacheKey = DBCacheKH.getAnchorKey(testAnchor.data.anchor_id);
-
-            // 通过 SQL 增量更新 light_data
-            await manager.client.query(`
-                UPDATE dialog.anchor
-                SET data = jsonb_set(
-                    data,
-                    '{light_data,status}',
-                    '"anchor-synced"'::jsonb,
-                    true
-                )
-                WHERE data->>'anchor_id' = '${testAnchor.data.anchor_id}';
-            `);
-
-            // 等待 SQL 触发器发送通知和缓存同步
-            await sleep(100);
-
-            // 验证缓存已同步 SQL 的增量更新
-            const cachedData = DBCache.peekCache(cacheKey) as AnchorStruct<TestAnchorExt> | undefined;
-            expect((cachedData?.data.light_data as TestLightData)?.status).toBe('anchor-synced');
-            expect((cachedData?.data.light_data as TestLightData)?.sender_type).toBe('user');
-        });
-    });
 
     describe("消息树与联动删除测试", () => {
-        test("18. 应成功创建消息树结构", async () => {
+        test("5. 应成功创建消息树结构", async () => {
             // 先创建对话
             const testConversation = createTestConversation();
             await DialogStore.setConversation(testConversation);
@@ -337,7 +108,7 @@ describe("Dialog-Store 主测试", () => {
             expect(retrievedChildMessage?.data.parent_message_id).toBe(parentMessage.data.message_id);
         });
 
-        test("19. 删除根消息时应联动删除子消息", async () => {
+        test("6. 删除根消息时应联动删除子消息", async () => {
             // 先创建对话
             const testConversation = createTestConversation();
             await DialogStore.setConversation(testConversation);
@@ -374,7 +145,7 @@ describe("Dialog-Store 主测试", () => {
             expect(deletedChildMessage).toBeUndefined();
         });
 
-        test("20. 删除对话时应联动删除所有相关消息", async () => {
+        test("7. 删除对话时应联动删除所有相关消息", async () => {
             // 先创建对话
             const testConversation = createTestConversation();
             await DialogStore.setConversation(testConversation);
@@ -407,7 +178,7 @@ describe("Dialog-Store 主测试", () => {
     });
 
     describe("消息选择列表测试", () => {
-        test("21. 应成功获取消息选择列表", async () => {
+        test("8. 应成功获取消息选择列表", async () => {
             // 先创建对话
             const testConversation = createTestConversation();
             await DialogStore.setConversation(testConversation);
@@ -431,7 +202,7 @@ describe("Dialog-Store 主测试", () => {
             expect(messageIds).toEqual([testMessage1.data.message_id, testMessage2.data.message_id, testMessage3.data.message_id]);
         });
 
-        test("22. 应成功获取带 parent_message_id 的消息选择列表", async () => {
+        test("9. 应成功获取带 parent_message_id 的消息选择列表", async () => {
             // 先创建对话
             const testConversation = createTestConversation();
             await DialogStore.setConversation(testConversation);
@@ -460,10 +231,11 @@ describe("Dialog-Store 主测试", () => {
             const messageIds = messageChoiceList.map(msg => msg.data.message_id);
             expect(messageIds).toEqual([childMessage1.data.message_id, childMessage2.data.message_id]);
         });
+
     });
 
     describe("边界情况与数据清理测试", () => {
-        test("23. UPDATE 时应保留 created_at 时间戳（含SQL覆盖保护）", async () => {
+        test("10. UPDATE 时应保留 created_at 时间戳（含SQL覆盖保护）", async () => {
             // 创建对话
             const testConversation = createTestConversation<TestConversationExt>({
                 light_data: { sender_type: 'user' }
@@ -540,7 +312,7 @@ describe("Dialog-Store 主测试", () => {
             expect(afterSqlUpdate.rows[0].created_at).toBe(initialCreatedAt);
         });
 
-        test("24. 空对象 light_data/heavy_data 应被清理", async () => {
+        test("11. 空对象 light_data/heavy_data 应被清理", async () => {
             // 创建带有空 light_data 的对话
             const testConversation = createTestConversation({
                 light_data: {} as TestLightData

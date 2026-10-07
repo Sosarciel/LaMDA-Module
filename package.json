@@ -10,6 +10,7 @@
         "./Service-Manager/KnowledgeBase-Manager",
         "./Service-Manager/AutoDL-Manager",
         "./Business-Domain/Dialog-Domain",
+        "./Business-Domain/User-Domain",
         "./Business-Domain/CharProfile-Domain",
         "./Common-Utility/Text-Processor",
         "./Common-Utility/LaM-Chain",

@@ -7,11 +7,12 @@ export const ROOT_PATH = path.join(__dirname, '..');
 export const DATA_PATH = path.join(ROOT_PATH, 'data');
 export const CACHE_PATH = path.join(ROOT_PATH, 'cache');
 
-//5500 - 5509划定为mock服务
+//5501 - 5509划定为mock服务
+//5500是liveserver默认端口需避开
 //mock的lam服务
-export const LAM_PORT = 5500;
+export const LAM_PORT = 5501;
 //mock知识库服务
-export const KB_PORT = 5501;
+export const KB_PORT = 5502;
 
 //5510 - 5519划定为参与测试的真是psql
 //自动测试的psql

@@ -44,10 +44,23 @@ export const AUTODL_LOCAL_PORT = {
 
 /** AutoDL 测试用的远端服务端口
  *
- * 与本地端口不同, 远端端口在容器内部, 各测试互不影响, 故统一用 6006。
- * 测试服务由测试自己拉起(见 helpers.ts 的 buildServiceScript), 不依赖实例预置环境。
+ * 与本地端口不同，远端端口在容器内部，各测试互不影响，故统一用 6006。
+ * 测试服务由测试自己拉起（见 helpers.ts 的 buildServiceScript），不依赖实例预置环境。
+ *
+ * ⚠️ 实例上 **6007 被镜像自带的 TensorBoard 占用**（实测返回 TensorBoard 页面），
+ * 6006 空闲可用，因此第二个测试服务用 `AUTODL_REMOTE_PORT + 1` 之外的值时需注意避开 6007。
+ * 各测试文件的第二个服务端口固定在 6007 即可 ——
+ * 因为测试启动服务前会用共享标记清掉所有测试服务，不会互相抢占。
  */
 export const AUTODL_REMOTE_PORT = 6006;
+
+/** AutoDL 测试用的第二个远端服务端口
+ *
+ * 用于「同一实例上两个端口映射到不同服务」的场景，
+ * 必须是 6006 之外的、且**不被镜像自带服务占用**的端口。
+ * （6007 是 TensorBoard，故避开）
+ */
+export const AUTODL_REMOTE_PORT_B = 6008;
 
 /** 凭据配置文件路径
  * 该文件已被 .gitignore 忽略, 不会随仓库分发

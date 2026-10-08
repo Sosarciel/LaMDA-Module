@@ -16,6 +16,9 @@
 [submodule "Service-Manager/KnowledgeBase-Manager"]
 	path = Service-Manager/KnowledgeBase-Manager
 	url = https://github.com/Sosarciel/LaMDA-KnowledgeBase-Manager.git
+[submodule "Service-Manager/AutoDL-Manager"]
+	path = Service-Manager/AutoDL-Manager
+	url = https://github.com/Sosarciel/LaMDA-AutoDL-Manager.git
 [submodule "CommPlatform-ProtoClient/OneBot11-ProtoClient"]
 	path = CommPlatform-ProtoClient/OneBot11-ProtoClient
 	url = https://github.com/Sosarciel/LaMDA-OneBot11-ProtoClient.git
@@ -28,6 +31,9 @@
 [submodule "Business-Domain/CharProfile-Domain"]
 	path = Business-Domain/CharProfile-Domain
 	url = https://github.com/Sosarciel/LaMDA-CharProfile-Domain.git
+[submodule "Business-Domain/User-Domain"]
+	path = Business-Domain/User-Domain
+	url = https://github.com/Sosarciel/LaMDA-User-Domain.git
 [submodule "Common-Utility/Text-Processor"]
 	path = Common-Utility/Text-Processor
 	url = https://github.com/Sosarciel/LaMDA-Text-Processor.git

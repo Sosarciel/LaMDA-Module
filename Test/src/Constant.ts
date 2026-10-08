@@ -7,21 +7,22 @@ export const ROOT_PATH = path.join(__dirname, '..');
 export const DATA_PATH = path.join(ROOT_PATH, 'data');
 export const CACHE_PATH = path.join(ROOT_PATH, 'cache');
 
-//5501 - 5509划定为mock服务
 //5500是liveserver默认端口需避开
-//mock的lam服务
-export const LAM_PORT = 5501;
-//mock知识库服务
-export const KB_PORT = 5502;
 
-//5510 - 5519划定为参与测试的psql
+//26500 - 26509划定为mock服务
+//mock的lam服务
+export const LAM_PORT = 26500;
+//mock知识库服务
+export const KB_PORT = 26502;
+
+//26510 - 26519划定为参与测试的psql
 //自动测试的psql
-export const PG_PORT = 5510;
-//test-server的pslq为5511
+export const PG_PORT = 26510;
+//test-server的pslq为26511
 
 /** AutoDL 测试用的本地映射端口
  *
- * 从 5520 起连续分配, **整个 552x 段保留给 AutoDL** ——
+ * 从 26520 起连续分配, **整个 2652x 段保留给 AutoDL** ——
  * 端口映射的本地端必须全局唯一(同一时刻不能让两个测试抢同一个本地端口),
  * 因此这里集中登记, 各测试文件只引用常量、不再自带字面量。
  *
@@ -29,18 +30,18 @@ export const PG_PORT = 5510;
  */
 export const AUTODL_LOCAL_PORT = {
     /** SSH 链路测试: 单端口映射 */
-    sshA: 5520,
+    sshA: 26520,
     /** SSH 链路测试: 第二端口映射 */
-    sshB: 5521,
+    sshB: 26521,
     /** Jupyter 终端测试 */
-    jupyter: 5522,
+    jupyter: 26522,
     /** 多实例测试: 实例 A 的两个端口 */
-    multiA1: 5523,
-    multiA2: 5524,
+    multiA1: 26523,
+    multiA2: 26524,
     /** 多实例测试: 实例 B 的端口(与 multiA1 映射同一远端服务以验证互不干扰) */
-    multiB1: 5525,
+    multiB1: 26525,
     /** 全路径测试 */
-    flow: 5526,
+    flow: 26526,
 } as const;
 
 /** AutoDL 测试用的远端服务端口

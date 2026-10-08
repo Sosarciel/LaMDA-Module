@@ -1,1 +1,1 @@
-postgres -D data/pgsql -p 5510
+postgres -D data/pgsql -p 26510

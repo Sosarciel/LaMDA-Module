@@ -116,12 +116,17 @@ describe('CmdParser', () => {
                 expect(result.mainArg).toBe('这是主参数');
             });
 
-            it('2.2.3 应返回原消息对于无指令的消息', () => {
+            it('2.2.3 应在无前缀时正确提取指令前的主参数', () => {
+                const result = CmdParser.parseCmd({ message: '这是主参数cmd:reset' });
+                expect(result.mainArg).toBe('这是主参数');
+            });
+
+            it('2.2.4 应返回原消息对于无指令的消息', () => {
                 const result = CmdParser.parseCmd({ message: '这是一条普通消息' });
                 expect(result.mainArg).toBe('这是一条普通消息');
             });
 
-            it('2.2.4 应处理指令在中间的情况', () => {
+            it('2.2.5 应处理指令在中间的情况', () => {
                 const result = CmdParser.parseCmd({ message: '前缀 cmd:test;; 后缀' });
                 expect(result.mainArg).toBe('前缀后缀');
             });

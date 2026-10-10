@@ -176,6 +176,18 @@ describeFlow("AutoDL-Manager 全路径(调用即拉起 → TTL 自动释放)", (
 
     it("2. 开机(有卡模式, 官方不支持无卡开机)", async () => {
         const ok = await AutoDLManager.powerOn(INSTANCE);
+
+        // 无库存时 API 返回 HTTP 200 但 code=InternalError、msg="当前算力规格暂无库存"。
+        // 这种失败很常见(该区该规格的卡被抢光), 给出可操作的提示而不是干瘪的断言失败。
+        if (!ok) {
+            const status = await ins.getStatus();
+            throw new Error(
+                `开机失败。API 返回 code=InternalError，最常见原因是**当前算力规格暂无库存**\n` +
+                `（原始 msg: "当前算力规格暂无库存, 请修改配置或稍等再试"）。\n` +
+                `实例当前状态: ${status}\n` +
+                `处理建议: 稍后重试, 或在 AutoDL 控制台换用其他可用规格/区域。\n` +
+                `这不是代码缺陷 —— AutoDLProClient.powerOn 已正确把非 Success 的 code 反映为 false。`);
+        }
         expect(ok).toBe(true);
 
         // 等到确实 running, 而不是盲等固定时长

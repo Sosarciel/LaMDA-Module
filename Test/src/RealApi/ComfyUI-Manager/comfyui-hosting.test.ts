@@ -32,8 +32,8 @@ import { SLogger } from "@zwa73/utils";
 import { COMFY_LOCAL_PORT } from "@/src/Constant";
 
 import {
-    INSTANCE, assertInstanceRunning, autodlInstanceData, checkDeployed, instanceData,
-    services, summarize,
+    INSTANCE, SERVICE_TAG_PREFIX, assertInstanceRunning, autodlInstanceData, checkDeployed,
+    instanceData, services, summarize,
 } from "./Util";
 
 /** AutoDL 侧实例名 */
@@ -180,13 +180,65 @@ describe("ComfyUI-Manager 可用性", () => {
         }
     }, TIMEOUT.api);
 
-    it("7. clash 就绪后代理应真的能出网", async () => {
+    it("7. probe 报出的 pid 应与远端 /proc 实况吻合(交叉验证)", async () => {
+        // ## 测试对象是**本地代码**, 不是远端软件
+        // 指挥官指出过本用例早先的错法：
+        // > 你可以看到我们居然在用自己造的 ssh 指令做 clash 的 probe…
+        // > 你测一个远端软件行为实际上是完全无意义的, 我们肯定是预期远端无误,
+        // > 测试的主题应该是我们本地服务能否正确接上
+        //
+        // 因此这里**不再**自己写 `pgrep -f '[C]OMFYUI_MANAGER_SVC_clash'`
+        // 去复刻 `probeService` 的判据（那等于把实现抄一遍，还要顺带抄
+        // `SERVICE_TAG_PREFIX`、`[x]` 防自匹配这些细节）。
+        //
+        // 改为**交叉验证**：拿 `probe()` 自己报出的 `procPid` 去 `/proc` 核对。
+        // 这样测的是「本地探测链条（SSH → 远端脚本 → 解析）是否自洽」——
+        // 若解析错位、正则跑偏、字段串行，pid 就对不上 /proc 里的实际进程。
+        const probe = await ComfyUIManager.probe(INSTANCE);
+        expect(probe).toBeDefined();
+        const clash = probe!.clash;
+
+        // clash 未配 probe 脚本 ⇒ 判据退化为「进程存在」
+        expect(clash.probeUsed).toBe(false);
+        expect(clash.ready).toBe(clash.alive);
+
+        if (!clash.alive) {
+            // 进程不在时无从交叉验证 —— 本用例只断言「无 pid 残留」这一自洽性
+            expect(clash.procPid).toBeUndefined();
+            SLogger.info(`  clash 未运行, 跳过 pid 交叉验证`);
+            return;
+        }
+
+        // 本地解析出的 pid 必须是个正整数
+        expect(typeof clash.procPid).toBe("number");
+        expect(clash.procPid!).toBeGreaterThan(0);
+
+        // 拿这个 pid 去远端核对：进程确实存在，且命令行含我们的 tag
         const ins = await AutoDLManager.getInstance(HOST_INSTANCE);
         const ssh = await ins!.getSshClient();
         const r = await ssh!.exec(
-            "curl -s -o /dev/null -w '%{http_code}' --max-time 15"
-            + " -x http://127.0.0.1:7890 https://www.google.com");
-        expect(r.stdout.trim()).toBe("200");
+            `cat /proc/${clash.procPid}/cmdline 2>/dev/null | tr '\\0' ' '`);
+        expect(r.stdout).toContain(SERVICE_TAG_PREFIX + "clash");
+
+        // ## pid 与 sid 的关系（实测修正了此前的错误认知）
+        // 曾以为「前台 exec 让服务顶替终端 shell，故 pid == sid」——
+        // 实测**并非如此**。`ps -eo pid,ppid,sid,args` 的真实输出：
+        // ```
+        //   5184   1819   1819  COMFYUI_MANAGER_SVC_clash
+        //   5221   1887   1887  COMFYUI_MANAGER_SVC_middleware index.js ...
+        //         ↑ppid  ↑sid   （两者相等，而 pid 不同）
+        // ```
+        // 即**父进程才是会话首进程**：Jupyter 的终端本身还套了一层 shell，
+        // `exec` 顶替的是那条命令行，服务仍是它 fork 出来的子进程。
+        //
+        // 这不是缺陷 —— 「服务由托管终端承载」这一语义依然成立（sid 与 ppid
+        // 一致正说明它挂在同一个会话里）。此处**只断言 sid 存在**，
+        // 不断言 pid/sid 的具体相等关系，以免把实现细节写死进测试。
+        expect(typeof clash.procSid).toBe("number");
+        expect(clash.procSid!).toBeGreaterThan(0);
+
+        SLogger.info(`  clash 交叉验证: pid=${clash.procPid} sid=${clash.procSid}`
+            + ` cmdline=${r.stdout.trim()}`);
     }, TIMEOUT.api);
 
     it("8. 重复 ensureReady 应幂等(复用已就绪的服务)", async () => {

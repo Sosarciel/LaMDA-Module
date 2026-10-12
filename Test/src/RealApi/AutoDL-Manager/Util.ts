@@ -15,6 +15,11 @@ import { SLogger } from "@zwa73/utils";
 import { getAutoDLCred } from "@/src/Constant";
 
 /** 构建 instance_table 条目所需的公共字段
+ *
+ * 含 `keep_alive_sec` —— 它是**必填项**（不给默认值，因为保活时长直接关系到
+ * GPU 费用，用隐式回退替使用者做决定是危险的）。
+ * 测试里给一个够长的值，避免测试过程中被守护循环判定为过期。
+ *
  * @returns 凭据字段
  */
 export const credFields = () => {
@@ -23,6 +28,8 @@ export const credFields = () => {
         token: cred.token,
         instance_uuid: cred.instance_uuid,
         region_name: cred.region_name,
+        /** 测试期间的保活时长/秒; 取 30 分钟, 足够跑完任何单个测试文件 */
+        keep_alive_sec: 1800,
     };
 };
 

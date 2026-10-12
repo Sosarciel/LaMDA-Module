@@ -44,6 +44,25 @@ export const AUTODL_LOCAL_PORT = {
     flow: 26526,
 } as const;
 
+/** ComfyUI-Manager 测试用的本地映射端口
+ *
+ * **与 AutoDL 的 2652x 段分开占用 2653x** ——
+ * ComfyUI-Manager 被测的是「托管服务」这一层（clash 代理、Middleware 网关、
+ * ComfyUI 本体），与 AutoDL-Manager 的「隧道/终端」基础能力不是一回事，
+ * 端口分段落便于一眼看出是哪个模块在占用。
+ *
+ * 远端端口是**服务自身的端口**（clash 7890 / Middleware 6006 / ComfyUI 6005），
+ * 由服务的启动命令决定，不是测试可以随意改的，故不在此登记。
+ */
+export const COMFY_LOCAL_PORT = {
+    /** Jupyter 终端(用于在托管终端里启动服务) */
+    jupyter: 26530,
+    /** Middleware 网关(远端 6006, ComfyUI 的统一入口) */
+    middleware: 26531,
+    /** ComfyUI 本体(远端 6005); 仅在需要绕过网关直连时使用 */
+    comfyui: 26532,
+} as const;
+
 /** AutoDL 测试用的远端服务端口
  *
  * 与本地端口不同，远端端口在容器内部，各测试互不影响，故统一用 6006。

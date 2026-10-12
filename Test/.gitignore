@@ -5,4 +5,5 @@ cache
 data/pgsql
 src/**/*.backup.test.ts
 data/Cred.json
+data/Cred.json.bak
 /backup

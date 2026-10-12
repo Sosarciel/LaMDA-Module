@@ -96,10 +96,10 @@ describe("AutoDL-Manager SSH 链路", () => {
                         name: INSTANCE,
                         data: {
                             ...credFields(),
-                            port_forwards: [
-                                { local_port: LOCAL_PORT_A, remote_port: REMOTE_PORT_A },
-                                { local_port: LOCAL_PORT_B, remote_port: REMOTE_PORT_B },
-                            ],
+                            local_port_forward: {
+                                [LOCAL_PORT_A]: String(REMOTE_PORT_A),
+                                [LOCAL_PORT_B]: String(REMOTE_PORT_B),
+                            },
                         },
                     },
                 },
@@ -126,10 +126,10 @@ describe("AutoDL-Manager SSH 链路", () => {
     }, TIMEOUT.api);
 
     it("2. 应能读回实例的端口映射配置", async () => {
-        expect(ins.getData().port_forwards).toEqual([
-            { local_port: LOCAL_PORT_A, remote_port: REMOTE_PORT_A },
-            { local_port: LOCAL_PORT_B, remote_port: REMOTE_PORT_B },
-        ]);
+        expect(ins.getData().local_port_forward).toEqual({
+            [LOCAL_PORT_A]: String(REMOTE_PORT_A),
+            [LOCAL_PORT_B]: String(REMOTE_PORT_B),
+        });
     }, TIMEOUT.api);
 
     it("3. 应能通过 SSH 在实例内执行指令", async () => {

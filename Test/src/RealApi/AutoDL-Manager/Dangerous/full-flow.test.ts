@@ -128,8 +128,8 @@ describeFlow("AutoDL-Manager 全路径(调用即拉起 → TTL 自动释放)", (
                         idle_timeout: IDLE_TIMEOUT_SEC,
                         data: {
                             ...credFields(),
-                            jupyter_port: 8888,
-                            port_forwards: [{ local_port: LOCAL_PORT, remote_port: REMOTE_PORT }],
+                            jupyter_remote_port: 8888,
+                            local_port_forward: {  },
                         },
                     },
                 },

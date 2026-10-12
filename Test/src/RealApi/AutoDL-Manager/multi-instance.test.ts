@@ -28,7 +28,8 @@ import {
     fetchLocal,
     startTestServices,
 } from "@/src/RealApi/AutoDL-Manager/Util";
-import { AUTODL_LOCAL_PORT, AUTODL_REMOTE_PORT, AUTODL_REMOTE_PORT_B, getAutoDLCred } from "@/src/Constant";
+import { AUTODL_LOCAL_PORT, AUTODL_REMOTE_PORT_MI, AUTODL_REMOTE_PORT_MI_B,
+    getAutoDLCred } from "@/src/Constant";
 
 /** 缺少凭据时在模块加载阶段抛错, 让整个测试集直接失败 */
 const CRED = getAutoDLCred();
@@ -48,10 +49,13 @@ const PORT_B1 = AUTODL_LOCAL_PORT.multiB1;
 
 /** 远端服务端口与返回内容
  * 两个端口用两个**不同内容**的服务, 才能证明映射没有串到同一个上
- * (第二个端口避开 6007 —— 那是镜像自带 TensorBoard)
+ *
+ * ⚠️ 用本套件**独占**的端口对（6026/6028），与 `ssh-tunnel` 的 (6016/6018) 错开。
+ * 共用端口会让两个套件的 `startTestServices` 互相清理对方正在用的服务，
+ * 表现为间歇性的整组失败。详见 Constant.ts 里 `AUTODL_REMOTE_PORT` 的说明。
  */
-const REMOTE_PORT_A = AUTODL_REMOTE_PORT;
-const REMOTE_PORT_B = AUTODL_REMOTE_PORT_B;
+const REMOTE_PORT_A = AUTODL_REMOTE_PORT_MI;
+const REMOTE_PORT_B = AUTODL_REMOTE_PORT_MI_B;
 const SERVICE_BODY_A = "AKASET_TEST_SVC_A";
 const SERVICE_BODY_B = "AKASET_TEST_SVC_B";
 const REMOTE_SVC = { [REMOTE_PORT_A]: SERVICE_BODY_A, [REMOTE_PORT_B]: SERVICE_BODY_B };
@@ -90,26 +94,28 @@ describe("AutoDL-Manager 多实例与脱离式执行", () => {
                         name: INST_A,
                         data: {
                             ...credFields(),
-                            port_forwards: [
-                                { local_port: PORT_A1, remote_port: REMOTE_PORT_A },
-                                { local_port: PORT_A2, remote_port: REMOTE_PORT_B },
-                            ],
+                            local_port_forward: {
+                                [PORT_A1]: String(REMOTE_PORT_A),
+                                [PORT_A2]: String(REMOTE_PORT_B),
+                            },
                         },
                     },
-                    // B: 单个端口映射
+                    // B: 单个端口映射(与 A 的第一个端口映射同一远端服务, 验证互不干扰)
                     [INST_B]: {
                         type: "ProInstance",
                         name: INST_B,
                         data: {
                             ...credFields(),
-                            port_forwards: [{ local_port: PORT_B1, remote_port: REMOTE_PORT_A }],
+                            local_port_forward: {
+                                [PORT_B1]: String(REMOTE_PORT_A),
+                            },
                         },
                     },
                     // C: 不配任何端口映射, 用于验证不会平白建空隧道
                     [INST_C]: {
                         type: "ProInstance",
                         name: INST_C,
-                        data: { ...credFields(), port_forwards: [] },
+                        data: { ...credFields(), local_port_forward: {} },
                     },
                 },
             },
@@ -145,14 +151,14 @@ describe("AutoDL-Manager 多实例与脱离式执行", () => {
         }, TIMEOUT.api);
 
         it("1.2 各实例应各自持有独立的端口映射配置", async () => {
-            expect(insA.getData().port_forwards).toEqual([
-                { local_port: PORT_A1, remote_port: REMOTE_PORT_A },
-                { local_port: PORT_A2, remote_port: REMOTE_PORT_B },
-            ]);
-            expect(insB.getData().port_forwards).toEqual([
-                { local_port: PORT_B1, remote_port: REMOTE_PORT_A },
-            ]);
-            expect(insC.getData().port_forwards).toEqual([]);
+            expect(insA.getData().local_port_forward).toEqual({
+                [PORT_A1]: String(REMOTE_PORT_A),
+                [PORT_A2]: String(REMOTE_PORT_B),
+            });
+            expect(insB.getData().local_port_forward).toEqual({
+                [PORT_B1]: String(REMOTE_PORT_A),
+            });
+            expect(insC.getData().local_port_forward).toEqual({});
         }, TIMEOUT.api);
 
         it("1.3 应能为各实例分别建立隧道", async () => {

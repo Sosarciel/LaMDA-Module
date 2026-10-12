@@ -73,8 +73,13 @@ describe("AutoDL-Manager Jupyter 终端", () => {
                         name: INSTANCE,
                         data: {
                             ...credFields(),
-                            jupyter_port: REMOTE_JUPYTER,
-                            port_forwards: [{ local_port: LOCAL_JUPYTER, remote_port: REMOTE_JUPYTER }],
+                            // 本测试要验证「经 SSH 隧道访问 Jupyter」这条路径,
+                            // 故显式声明远端端口并在转发表里建一条映射
+                            // （不配的话会走 AutoDL 自动暴露的公网地址）
+                            jupyter_remote_port: REMOTE_JUPYTER,
+                            local_port_forward: {
+                                [LOCAL_JUPYTER]: String(REMOTE_JUPYTER),
+                            },
                         },
                     },
                 },

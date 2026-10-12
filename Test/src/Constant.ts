@@ -63,25 +63,57 @@ export const COMFY_LOCAL_PORT = {
     comfyui: 26532,
 } as const;
 
-/** AutoDL 测试用的远端服务端口
+/** AutoDL 测试用的远端服务端口（**基础值**）
  *
- * 与本地端口不同，远端端口在容器内部，各测试互不影响，故统一用 6006。
- * 测试服务由测试自己拉起（见 helpers.ts 的 buildServiceScript），不依赖实例预置环境。
+ * 测试服务由测试自己拉起（见 Util.ts 的 `buildServiceScript`），不依赖实例预置环境。
  *
- * ⚠️ 实例上 **6007 被镜像自带的 TensorBoard 占用**（实测返回 TensorBoard 页面），
- * 6006 空闲可用，因此第二个测试服务用 `AUTODL_REMOTE_PORT + 1` 之外的值时需注意避开 6007。
- * 各测试文件的第二个服务端口固定在 6007 即可 ——
- * 因为测试启动服务前会用共享标记清掉所有测试服务，不会互相抢占。
+ * ## ⚠️ 为什么避开 6006/6008（曾被「统一用 6006」害过）
+ * 原先的理由是「远端端口在容器内部，各测试互不影响」，但那个前提**只在
+ * 「远端只有本套测试在跑」时成立**。实际上同一实例上还可能有别的模块的服务：
+ * 实测 `ComfyUI-Manager` 的 Middleware 网关**必然监听 6006**（那是它的设计端口，
+ * 不该为测试让步），于是本组测试起服务时报
+ * `OSError: [Errno 98] Address already in use` 而全部失败。
+ *
+ * 因此本组改用与那些**都不冲突**的端口段：
+ * - `6006` 被 ComfyUI 的 Middleware 网关占用 → **避开**
+ * - `6007` 被镜像自带的 TensorBoard 占用（实测返回 TensorBoard 页面）→ **避开**
+ * - `6008` 是 AutoDL **自动映射到公网**的端口，测试它需要专门的目的 → **避开**
+ *
+ * ## ⚠️⚠️ 每个测试文件必须用**自己独占**的一对端口
+ * 仅避开 6006/6008 还不够。若两个测试文件共用同一对端口，**后者的
+ * `startTestServices` 会把前者正在用的服务杀掉**（它按端口反查占用者并清理），
+ * 于是前者在后续用例里连不上服务而整组失败。
+ *
+ * 实测（2026-10-12）：`ssh-tunnel` 与 `multi-instance` 共用 6016/6018 时，
+ * 跑 4 次里有 2 次出现 15 个用例齐挂 —— 因为失败的两个套件恰好前后相接。
+ *
+ * 故按测试文件分配互不重叠的**端口对**：
+ * - `ssh-tunnel`   → {@link AUTODL_REMOTE_PORT}      (6016 / 6018)
+ * - `multi-instance` → {@link AUTODL_REMOTE_PORT_MI}  (6026 / 6028)
+ *
+ * 新增用例请继续按 +10 的步长错开。
  */
-export const AUTODL_REMOTE_PORT = 6006;
+export const AUTODL_REMOTE_PORT = 6016;
 
 /** AutoDL 测试用的第二个远端服务端口
  *
- * 用于「同一实例上两个端口映射到不同服务」的场景，
- * 必须是 6006 之外的、且**不被镜像自带服务占用**的端口。
- * （6007 是 TensorBoard，故避开）
+ * 用于「同一实例上两个端口映射到不同服务」的场景。
+ * 与 `AUTODL_REMOTE_PORT` 一样避开 6006/6007/6008，理由见上。
  */
-export const AUTODL_REMOTE_PORT_B = 6008;
+export const AUTODL_REMOTE_PORT_B = 6018;
+
+/** `multi-instance` 测试独占的远端端口对
+ *
+ * **必须与 `ssh-tunnel` 那对错开** —— 两个套件各有自己的
+ * `startTestServices`，会按端口清理占用者，共用端口就会互相残杀。
+ * 详见 {@link AUTODL_REMOTE_PORT} 的说明。
+ */
+export const AUTODL_REMOTE_PORT_MI = 6026;
+
+/** `multi-instance` 测试独占的第二个远端端口
+ * @see AUTODL_REMOTE_PORT_MI
+ */
+export const AUTODL_REMOTE_PORT_MI_B = 6028;
 
 /** 凭据配置文件路径
  * 该文件已被 .gitignore 忽略, 不会随仓库分发

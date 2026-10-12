@@ -98,10 +98,16 @@ describe("ComfyUI-Manager 可用性", () => {
 
         // 三个服务都应有配置
         for (const kind of SERVICE_ORDER) expect(svc[kind]).toBeDefined();
-        // 默认值来自 ipynb 的逐字转录
-        expect(svc.clash.command).toBe("/root/clash/mihomo");
-        expect(svc.middleware.command).toContain("-p 6006 -t 6005");
-        expect(svc.middleware.work_dir).toBe("/root/Middleware");
+        // 默认值来自远端脚本目录（本地不硬编码任何启动细节）
+        expect(svc.clash.start).toBe("/root/ComfyUI-Manager/start_clash.sh");
+        expect(svc.middleware.start).toBe("/root/ComfyUI-Manager/start_middleware.sh");
+        expect(svc.comfyui.start).toBe("/root/ComfyUI-Manager/start_comfyui.sh");
+        // ComfyUI 有可选 probe（用于原生 API 探测，进程在≠能用）
+        expect(svc.comfyui.probe).toBe("/root/ComfyUI-Manager/probe_comfyui.sh");
+        // 前台模型下每个服务有独立终端
+        expect(svc.clash.terminal).toBe("comfyui_manager_clash");
+        expect(svc.middleware.terminal).toBe("comfyui_manager_middleware");
+        expect(svc.comfyui.terminal).toBe("comfyui_manager_comfyui");
     }, TIMEOUT.api);
 
     it("3. 应能在实例上找到服务的部署文件", async () => {
@@ -125,10 +131,19 @@ describe("ComfyUI-Manager 可用性", () => {
         for (const kind of ["clash", "middleware"] as const) {
             const r = probe![kind];
             expect(r).toBeDefined();
-            // 三种状态的 detail 必须互斥且自洽
-            if (r.ready) expect(r.procAlive).toBe(true);
-            if (!r.ready && !r.procAlive) expect(r.detail).toContain("进程不存在");
-            if (!r.ready && r.procAlive) expect(r.detail).toContain("未响应");
+            // detail 必须与观测**自洽**：ready ⇒ 进程在；不 ready ⇒ 进程在时称"启动中"，
+            // 进程不在则称"不存在"。三者互斥且覆盖全部情形。
+            if (r.ready) {
+                expect(r.alive).toBe(true);
+                expect(r.detail).toBe("服务就绪");
+            } else if (r.alive) {
+                // 进程在但没就绪 —— ComfyUI 启动要数十秒时会落在这里
+                expect(r.detail).toContain("尚未就绪");
+            } else {
+                expect(r.detail).toContain("进程不存在");
+            }
+            // clash / middleware 未配 probe 脚本 → 走特征匹配
+            expect(r.probeUsed).toBe(false);
         }
     }, TIMEOUT.api);
 
@@ -184,9 +199,25 @@ describe("ComfyUI-Manager 可用性", () => {
     }, 300_000);
 
     afterAll(async () => {
-        // 服务**保持运行** —— 指挥官可能需要在 JupyterLab 面板上查看它们，
-        // 且其他客户端随时可复用。
-        // 只收掉本地隧道, 不碰远端任何东西。
+        // ## 必须清理 —— 这是「内容竞态」的根治
+        // 本组测试是「预期实例已启动」的语义：自己不管理实例生命周期，
+        // 但 **`ensureReady` 会留下正在运行的服务**（刻意的，服务在托管终端里
+        // 长期存活以支持多客户端复用）。
+        //
+        // 若不清理，紧随其后的测试（尤其是 AutoDL-Manager 那组，它预期
+        // 「远端是干净的」）就会在**本组留下的状态**上做判定 ——
+        // 这不是端口抢占那种资源冲突，而是**判定依据被污染**。
+        //
+        // `teardown()` 是 `ensureReady()` 的对称收尾，且保证幂等：
+        // 服务本就没起时不报错。
+        try {
+            const cleaned = await ComfyUIManager.teardown(INSTANCE);
+            SLogger.info(`收尾清理: ${JSON.stringify(cleaned)}`);
+        } catch (e) {
+            SLogger.warn(`收尾清理失败: ${e}`);
+        }
+
+        // 收掉本地隧道
         try {
             const ins = await AutoDLManager.getInstance(HOST_INSTANCE);
             await ins?.closeTunnel();

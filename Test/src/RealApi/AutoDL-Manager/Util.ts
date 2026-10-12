@@ -33,6 +33,69 @@ export const credFields = () => {
     };
 };
 
+/** 清理远端测试端口上的**遗留进程**
+ *
+ * ## 为什么需要
+ * 本组测试的语义是「**远端是干净的**」—— 测试会自己在
+ * `AUTODL_REMOTE_PORT`(6006) / `AUTODL_REMOTE_PORT_B`(6008) 上拉起极简 HTTP 服务。
+ *
+ * 但这两个端口可能被**别的东西**占着（实测：`ComfyUI-Manager` 的
+ * Middleware 网关正好监听 6006），于是测试服务报
+ * `OSError: [Errno 98] Address already in use` 而全部失败。
+ *
+ * 这属于「测试环境未隔离」的遗留问题，不是被测代码的缺陷 ——
+ * 因此在这里显式清理，让本组测试能独立运行。
+ *
+ * ⚠️ 只清理**占用目标端口**的进程，不做宽泛 pkill。
+ * 用 `/proc/net/tcp` 反查 inode → pid，是 `ss`/`lsof` 缺失时唯一可靠的办法
+ * （实测该镜像上 `ss`/`lsof`/`netstat`/`nc` 全部不可用）。
+ *
+ * @param ssh   - SSH 客户端
+ * @param ports - 要确保空闲的远端端口
+ */
+export const freeRemotePorts = async (
+    ssh: { exec: (cmd: string) => Promise<{ stdout: string }> },
+    ports: number[],
+): Promise<void> => {
+    for (const port of ports) {
+        // 十六进制端口号, /proc/net/tcp 里是大写形式; 状态 0A = LISTEN
+        const hex = port.toString(16).toUpperCase().padStart(4, "0");
+        // ⚠️ 必须用**换行**连接 —— 用空格压成一行时 `for ... done` 与后续语句
+        // 之间会缺分隔符, 整段报语法错误且**什么都不执行**(此处踩过两次)。
+        const script = [
+            `INODE=$(awk '$2 ~ /:${hex}$/ && $4 == "0A" {print $10}' /proc/net/tcp 2>/dev/null | head -1)`,
+            `if [ -z "$INODE" ]; then`,
+            `  echo "${port}: FREE"`,
+            `  exit 0`,
+            `fi`,
+            // 用 inode 反查 pid: 遍历 /proc/<pid>/fd。
+            // ⚠️ 不能用 `ls -l /proc/*/fd | grep pid` —— ls 在这种通配展开下
+            // **不输出文件名**, 拿不到 pid(实测踩过)。
+            `PID=""`,
+            `for p in /proc/[0-9]*; do`,
+            `  if ls -l $p/fd 2>/dev/null | grep -q "socket:\\\\[$INODE\\\\]"; then`,
+            `    PID=$(basename $p)`,
+            `    break`,
+            `  fi`,
+            `done`,
+            `if [ -z "$PID" ]; then`,
+            `  echo "${port}: ORPHAN(无法定位进程)"`,
+            `  exit 0`,
+            `fi`,
+            `NAME=$(cat /proc/$PID/comm 2>/dev/null)`,
+            `kill -9 $PID 2>/dev/null`,
+            `sleep 1`,
+            `if kill -0 $PID 2>/dev/null; then`,
+            `  echo "${port}: KILL-FAILED pid=$PID $NAME"`,
+            `else`,
+            `  echo "${port}: FREED(原为 pid=$PID $NAME)"`,
+            `fi`,
+        ].join("\n");
+        const r = await ssh.exec(script);
+        SLogger.info(`  释放远端端口 ${port}: ${r.stdout.trim()}`);
+    }
+};
+
 /** 同步查询实例状态
  *
  * 用同步子进程而非 await，是为了能在**模块顶层**做前置校验：
@@ -148,6 +211,11 @@ export const buildServiceScript = (port: number, body: string, remoteDir: string
  *    脚本内的 `nohup ... &` 会影响整行的返回时机，导致后一条根本没执行
  * 3. **`pkill` 单独执行并忽略结果** —— 没匹配到进程时返回非零，会截断同一行后续命令
  *
+ * ## 为什么还要额外释放端口
+ * 共享标记只能清掉**本套测试自己**起的服务。若目标端口被**别的模块**占着
+ * （实测：`ComfyUI-Manager` 的 Middleware 网关正好监听 6006），
+ * 清标记也无济于事 —— 必须按端口反查并终止占用者。
+ *
  * @param ins       - 实例
  * @param remoteDir - 远端工作目录
  * @param services  - 端口 → 该端口应返回的内容
@@ -166,6 +234,13 @@ export const startTestServices = async (
     }
 
     await killAllTestServices(ssh);
+    // 清掉可能被其他模块占用的目标端口, 保证测试服务能正常绑定
+    await freeRemotePorts(ssh, Object.keys(services).map(Number));
+    // ⚠️ 释放后要**等到端口真的可绑**再起服务。
+    // 杀进程只是让监听消失, socket 可能还处于 TIME_WAIT 等状态,
+    // 立刻 bind 会 `OSError: [Errno 98] Address already in use`。
+    // 实测这导致了间歇性的「测试服务未能就绪」。
+    await waitPortBindable(ssh, Object.keys(services).map(Number));
     for (const portStr of Object.keys(services))
         await ssh.exec(`bash ${remoteDir}/svc_${Number(portStr)}.sh`);
 
@@ -185,6 +260,51 @@ export const startTestServices = async (
         }
     }
     SLogger.info(`测试服务已就绪: ${Object.keys(services).join(", ")}`);
+};
+
+/** 等待若干远端端口**真的可以绑定**
+ *
+ * ## 为什么释放后还要等
+ * `freeRemotePorts` 只是把占用者杀掉，但：
+ * 1. 进程退出与内核回收监听之间有一小段间隙
+ * 2. 若上一条连接刚结束，socket 会处于 `TIME_WAIT`
+ *
+ * 此时立刻 `bind()` 会得到 `OSError: [Errno 98] Address already in use` ——
+ * **即使 `ps` 里已经看不到任何进程**。实测这造成了间歇性的
+ * 「测试服务未能就绪」，且难以复现（取决于前后两个测试的时序）。
+ *
+ * 判定方式是**真的去试绑一次**，而不是看 `ps` 或 `/proc/net/tcp` ——
+ * 只有真正 bind 成功才说明可用。
+ *
+ * @param ssh        - SSH 客户端
+ * @param ports      - 要等待的端口
+ * @param timeoutSec - 总超时/秒
+ * @throws 超时仍有端口不可绑时抛出
+ */
+export const waitPortBindable = async (
+    ssh: { exec: (cmd: string) => Promise<{ stdout: string }> },
+    ports: number[],
+    timeoutSec = 30,
+): Promise<void> => {
+    const py = "/root/miniconda3/bin/python3";
+    for (const port of ports) {
+        const deadline = Date.now() + timeoutSec * 1000;
+        let ok = false;
+        while (Date.now() < deadline) {
+            // 用 SO_REUSEADDR 试探: 能绑上即说明端口可用
+            const r = await ssh.exec(
+                `${py} -c "import socket;`
+                + `s=socket.socket();`
+                + `s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1);`
+                + `s.bind(('0.0.0.0',${port}));`
+                + `s.close();`
+                + `print('BINDABLE')" 2>/dev/null || true`);
+            if (r.stdout.includes("BINDABLE")) { ok = true; break; }
+            await new Promise(res => setTimeout(res, 500));
+        }
+        if (!ok) throw new Error(`远端端口 ${port} 在 ${timeoutSec}s 内仍不可绑定`);
+    }
+    SLogger.info(`  远端端口已可绑定: ${ports.join(", ")}`);
 };
 
 /** 停掉自建服务并删除整个工作目录

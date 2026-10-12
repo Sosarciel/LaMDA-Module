@@ -105,12 +105,11 @@ const main = async () => {
                         token: cred.token,
                         instance_uuid: cred.uuid,
                         keep_alive_sec: 1800,
-                        port_forwards: [
-                            // 两个进程用**不同**的本地端口，模拟两台物理机 ——
-                            // 它们各自的隧道映射到同一个远端服务
-                            { local_port: 26600 + Number(WORKER_ID.charCodeAt(0) % 10), remote_port: 8888 },
-                            { local_port: 26610 + Number(WORKER_ID.charCodeAt(0) % 10), remote_port: 6006 },
-                        ],
+                        // 两个进程用**不同**的本地端口，模拟两台物理机 ——
+                        // 它们各自的隧道映射到同一个远端服务(6006)
+                        local_port_forward: {
+                            [26610 + Number(WORKER_ID.charCodeAt(0) % 10)]: "6006",
+                        },
                     },
                 },
             },
@@ -128,11 +127,9 @@ const main = async () => {
                     name: "CloudA",
                     data: {
                         autodl_instance: "BJ",
-                        terminal_name: "akaset_services",
-                        port_forwards: [
-                            { local_port: 26600 + Number(WORKER_ID.charCodeAt(0) % 10), remote_port: 8888 },
-                            { local_port: 26610 + Number(WORKER_ID.charCodeAt(0) % 10), remote_port: 6006 },
-                        ],
+                        terminal_name: "comfyui_manager",
+                        gateway_remote_port: 6006,
+                        gateway_local_port: 26610 + Number(WORKER_ID.charCodeAt(0) % 10),
                     },
                 },
             },
@@ -145,7 +142,7 @@ const main = async () => {
     const before = await ComfyUIManager.probe("CloudA");
     const snapshot = before == undefined
         ? "不可用"
-        : Object.entries(before).map(([k, v]) => `${k}=${v.ready ? "ready" : v.procAlive ? "proc" : "none"}`).join(",");
+        : Object.entries(before).map(([k, v]) => `${k}=${v.ready ? "ready" : v.alive ? "starting" : "none"}`).join(",");
     record("probe-before", snapshot);
 
     // ── 确保就绪：需要时自己去叫终端拉起 ──────────────────────
@@ -160,15 +157,18 @@ const main = async () => {
     const after = await ComfyUIManager.probe("CloudA");
     const snapAfter = after == undefined
         ? "不可用"
-        : Object.entries(after).map(([k, v]) => `${k}=${v.ready ? "ready" : v.procAlive ? "proc" : "none"}`).join(",");
+        : Object.entries(after).map(([k, v]) => `${k}=${v.ready ? "ready" : v.alive ? "starting" : "none"}`).join(",");
     record("probe-after", snapAfter);
 
     record("exit", `ok=${ep != undefined}`);
 
     // ── 收尾：关闭自己的隧道 ──────────────────────────────────
-    // ⚠️ 必须做 —— 否则本进程退出后，它占用的本地端口（2660x/2661x）
-    // 会残留，令后续测试（用别的端口）之外的一切端口分配变乱，
-    // 实测表现为 `本地端口 26530 已被其它进程占用`。
+    // ⚠️ **不停服务** —— 服务是两个 worker 共享的，一个 worker 停掉会
+    // 影响另一个（本测试正是要验证它们能互不干扰地共用）。
+    // 服务的清理由父测试的 afterAll 统一负责。
+    //
+    // 但**必须关掉自己的隧道**，否则本进程退出后它占用的本地端口（2661x）
+    // 会残留，影响后续测试的端口分配。
     try {
         const hostIns = await AutoDLManager.getInstance("BJ");
         await hostIns?.closeTunnel();

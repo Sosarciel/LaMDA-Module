@@ -117,7 +117,7 @@ describe("ComfyUI-Manager 多进程并发接入", () => {
 
         const ins = await AutoDLManager.getInstance(HOST_INSTANCE);
         const ssh = await ins!.getSshClient();
-        await stopRemoteServices(ssh!, ["middleware", "clash"], services());
+        await stopRemoteServices(ssh!, ["middleware", "clash"]);
         await new Promise(r => setTimeout(r, 2_000));
 
         // 用只读探测确认竞争条件成立 —— 若服务仍就绪, 两个进程都会走复用路径,
@@ -215,28 +215,24 @@ describe("ComfyUI-Manager 多进程并发接入", () => {
     }, 30_000);
 
     afterAll(async () => {
-        // ## 为什么必须在这里恢复服务
-        // 本测试**故意停掉**了远端服务以制造竞争条件。
-        // 若不恢复，紧随其后的其他测试套件会撞上服务启动窗口而失败 ——
-        // 这是真实的测试间干扰，不是被测代码的问题。
+        // ## 收尾必须清理, 而不是「恢复」
+        // 本测试**故意停掉**了远端服务以制造竞争条件, 跑完时服务是被
+        // 两个 worker 重新拉起的。此处**不该把它们留着** ——
+        // 留下的服务会让后续测试在「本套件留下的状态」上做判定(内容竞态)。
         //
-        // 恢复方式就是走一遍正常路径（ensureReady），
-        // 顺便也验证了「冷启动后仍能恢复可用」。
+        // 早先的做法是「恢复服务供下一组复用」, 那是错的: 复用别人拉起的服务
+        // 意味着无法保证其配置与自己预期一致, 判定依据被污染。
         try {
-            const ep = await ComfyUIManager.ensureReady(INSTANCE, {
-                require: ["clash", "middleware"],
-                timeoutSec: 120,
-            });
-            SLogger.info(`多进程测试收尾: 服务已恢复, 端点=${ep ?? "失败"}`);
+            const cleaned = await ComfyUIManager.teardown(INSTANCE);
+            SLogger.info(`多进程测试收尾: ${JSON.stringify(cleaned)}`);
         } catch (e) {
-            SLogger.warn(`多进程测试收尾恢复服务失败: ${e}`);
+            SLogger.warn(`多进程测试收尾清理失败: ${e}`);
         }
 
         // ## 必须关闭本套件自己的隧道
         // jest 的 `--runInBand` **复用同一个模块实例与进程**，
         // 因此本套件开的隧道（占用 26530）若不关，会残留到下一个测试套件，
         // 让它们的 `openTunnel` 报「本地端口已被其它进程占用」。
-        // 实测：多进程测试跑完后，comfyui-hosting 与 file-tool 双双失败。
         try {
             const ins = await AutoDLManager.getInstance(HOST_INSTANCE);
             await ins?.closeTunnel();

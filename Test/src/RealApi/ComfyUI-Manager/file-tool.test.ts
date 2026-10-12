@@ -19,6 +19,7 @@
  */
 
 import { AutoDLManager, ComfyUIManager } from "@sosraciel-lamda/autodl-manager";
+import { SLogger } from "@zwa73/utils";
 
 import { COMFY_LOCAL_PORT } from "@/src/Constant";
 
@@ -31,7 +32,7 @@ const HOST_INSTANCE = "AutoDLHost";
 assertInstanceRunning("file-tool.test.ts");
 
 /** 本测试使用的文件前缀（便于精确清理, 不误伤他人产物） */
-const TEST_PREFIX = "akaset_gateway_test";
+const TEST_PREFIX = "comfyui_manager_gateway_test";
 
 /** 超时上限/毫秒 */
 const TIMEOUT = {
@@ -52,7 +53,7 @@ const HOST = () => `http://127.0.0.1:${COMFY_LOCAL_PORT.middleware}`;
  * @returns 测试文本
  */
 const buildContent = (stamp: string): string => [
-    "AKASET_GATEWAY_FILE_TEST",
+    "COMFYUI_MANAGER_GATEWAY_FILE_TEST",
     `stamp=${stamp}`,
     "中文内容校验行",
     "特殊字符: \t tab | \\ backslash | \" quote",
@@ -119,7 +120,7 @@ describe("ComfyUI-Manager 网关文件工具", () => {
             success: boolean; filename: string; path: string; size: number;
         };
         expect(result.success).toBe(true);
-        // 文件名形如 akaset_gateway_test_01.txt —— 前缀_序号.扩展名
+        // 文件名形如 comfyui_manager_gateway_test_01.txt —— 前缀_序号.扩展名
         expect(result.filename).toMatch(new RegExp(`^${TEST_PREFIX}_\\d+\\.txt$`));
         expect(result.path).toBe(`${TOOL_ROOT}/${result.filename}`);
         expect(result.size).toBeGreaterThan(0);
@@ -169,6 +170,15 @@ describe("ComfyUI-Manager 网关文件工具", () => {
             }
         } catch {
             // 清理失败不应让测试结果变红 —— 用例本身已全部断言完毕
+        }
+
+        // 清理本组拉起/复用的服务 —— 与 comfyui-hosting 同理,
+        // 不清理会让后续测试在「本组留下的状态」上做判定(内容竞态)。
+        try {
+            const cleaned = await ComfyUIManager.teardown(INSTANCE);
+            SLogger.info(`收尾清理: ${JSON.stringify(cleaned)}`);
+        } catch (e) {
+            SLogger.warn(`收尾清理失败: ${e}`);
         }
     }, TIMEOUT.api);
 });

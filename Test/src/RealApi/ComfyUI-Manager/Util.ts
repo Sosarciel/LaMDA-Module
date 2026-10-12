@@ -28,12 +28,37 @@ import { COMFY_LOCAL_PORT, getAutoDLCred } from "@/src/Constant";
 /** 测试用实例名（ComfyUI-Manager 侧的实例名） */
 export const INSTANCE = "TestComfyHost";
 
-/** 承载服务的 Jupyter 终端名
+/** 实例级终端名（服务**不再共用**它，见下）
  *
- * ⚠️ 只能用 `[A-Za-z0-9_]` —— Jupyter 的 WS 路由 `\w+` 不匹配连字符。
- * 与模块内 `SERVICE_TERMINAL` 常量保持一致（此处独立声明以免测试单向依赖模块内部约定）。
+ * ⚠️ 只能用 `[A-Za-z0-9_]` —— Jupyter 的 WS 路由是
+ * `/terminals/websocket/(\w+)`，不接受连字符等字符。
+ * 非法名在 create 时不会报错，要到连 WS 时才失败（详见模块内
+ * `JupyterClient.TERMINAL_NAME_RE` 的说明），故务必守住这个字符集。
  */
-export const TERMINAL = "akaset_services";
+export const TERMINAL = "comfyui_manager";
+
+/** 各服务**各自专用**的终端名
+ *
+ * ## 为什么不再共用一个终端
+ * 服务是**前台运行**的 —— 启动脚本用 `exec` 让服务顶替终端 shell，
+ * 于是「终端进程 == 服务进程」，Jupyter 面板上能直接看到状态。
+ * 代价是终端被服务占住，**一个终端放不下第二个服务**。
+ *
+ * 与模块内 `serviceTerminal()` 的默认值保持一致
+ * （此处独立声明以免测试单向依赖模块内部约定）。
+ */
+export const SERVICE_TERMINAL: Record<ServiceKind, string> = {
+    clash: "comfyui_manager_clash",
+    middleware: "comfyui_manager_middleware",
+    comfyui: "comfyui_manager_comfyui",
+};
+
+/** 服务进程的唯一特征串前缀（探测与停止都靠它）
+ *
+ * 由启动脚本用 `exec -a` 写进进程命令行，mgr 用 `pgrep -f` 扫它。
+ * 与模块内 `SERVICE_TAG_PREFIX` 保持一致。
+ */
+export const SERVICE_TAG_PREFIX = "COMFYUI_MANAGER_SVC_";
 
 /** 远端端口（由服务自身的启动参数决定，测试不可改） */
 export const REMOTE_PORT = {
@@ -43,13 +68,20 @@ export const REMOTE_PORT = {
     comfyui: 6005,
 } as const;
 
-/** 本测试使用的端口映射表
- * @returns 端口映射数组
+/** 本测试使用的网关端口配置
+ *
+ * ## 为什么网关显式配了本地端口
+ * 不配就走 AutoDL 自动暴露的公网地址 —— 那是**生产常态**。
+ * 但测试要验证的是「我们自己的链路」（隧道 + 网关 + 服务），
+ * 配本地端口能确保走的是 SSH 隧道这条可控路径。
+ *
+ * Jupyter 则**不配** —— 实测公网 Jupyter 带 token 直连返回 200 完整可用，
+ * 映射它是多余的。
  */
-export const portForwards = () => [
-    { local_port: COMFY_LOCAL_PORT.jupyter, remote_port: REMOTE_PORT.jupyter },
-    { local_port: COMFY_LOCAL_PORT.middleware, remote_port: REMOTE_PORT.middleware },
-];
+export const GATEWAY = {
+    remote: REMOTE_PORT.middleware,
+    local: COMFY_LOCAL_PORT.middleware,
+} as const;
 
 /** ComfyUI-Manager 侧实例的配置数据
  * @returns 云端 ComfyUI 实例的接入数据
@@ -57,7 +89,8 @@ export const portForwards = () => [
 export const instanceData = () => ({
     autodl_instance: "AutoDLHost",
     terminal_name: TERMINAL,
-    port_forwards: portForwards(),
+    gateway_remote_port: GATEWAY.remote,
+    gateway_local_port: GATEWAY.local,
 });
 
 /** 解析出测试使用的服务配置（用于前置校验与断言）
@@ -72,10 +105,22 @@ const SERVICE_BINARY: Record<ServiceKind, string> = {
     comfyui: "/root/ComfyUI/main.py",
 };
 
+/** AutoDL 侧需要的端口映射表（由 ComfyUI 侧配置翻译而来）
+ *
+ * 只有显式填了本地端口的才产生映射 —— 与 `getPortForwards()` 的语义一致。
+ * @returns 远端→本地 的端口映射表
+ */
+export const portForwards = () => ({
+    [GATEWAY.local]: String(GATEWAY.remote),
+});
+
 /** AutoDL-Manager 侧实例的配置数据
  *
  * ComfyUI-Manager 通过它取得 AutoDL 实例 —— 两个 Manager 各自持有
  * 自己职责范围内的配置，这正是指挥官要求的边界。
+ *
+ * ⚠️ 核心侧的 `port_forward` 是**列表**（它对 AutoDL 负责，支持任意多端口），
+ * 上面的语义化字段在此翻译成列表条目。
  * @returns AutoDL 实例的配置数据
  */
 export const autodlInstanceData = () => {
@@ -84,7 +129,7 @@ export const autodlInstanceData = () => {
         token: cred.token,
         instance_uuid: cred.instance_uuid,
         keep_alive_sec: 1800,
-        port_forwards: portForwards(),
+        local_port_forward: portForwards(),
     };
 };
 
@@ -190,50 +235,52 @@ export const checkDeployed = async (
  * @param probe - 探测结果表
  * @returns 形如 "clash=ready middleware=none"
  */
-export const summarize = (probe: Record<string, { ready: boolean; procAlive: boolean }>): string =>
+export const summarize = (
+    probe: Record<string, { ready: boolean; alive: boolean; probeUsed?: boolean }>,
+): string =>
     Object.entries(probe)
-        .map(([k, v]) => `${k}=${v.ready ? "ready" : v.procAlive ? "proc" : "none"}`)
+        .map(([k, v]) => `${k}=${v.ready ? "ready" : v.alive ? "starting" : "none"}`
+            + (v.probeUsed ? "(probe)" : ""))
         .join(" ");
 
 /** 停掉测试涉及的远端服务（制造冷启动条件的公共部分）
  *
- * ## 为什么优先用 pgrep 而非 pid 文件
- * 实测发现只按 pid 文件杀**不可靠**：pid 文件可能已被之前的清理逻辑删掉，
- * 于是 `kill $(cat ...)` 落空、服务其实还活着 ——
- * 这会让「冷启动」类测试**静默地测不到想测的东西**（假绿）。
+ * ## 改按「进程特征」而非 pid 文件
+ * 服务改为**前台运行在专用终端里**后：
+ * - **没有 pid 文件**了（前台进程的 pid 就是终端 pid，无需记录）
+ * - 停止统一按 `COMFYUI_MANAGER_SVC_<kind>` 特征 `pkill`
  *
- * 因此改为**先按 pid 文件，再按进程特征兜底**，并用 `[x]` 技巧避免
- * pgrep 匹配到探测命令自身。
+ * 这与模块内 `stopService` 的做法一致 —— 特征串由启动脚本用
+ * `exec -a` 写进命令行，是唯一稳定的锚点。
+ *
+ * ## 为什么还要确认 STILL_ALIVE
+ * 只 `pkill` 不复查会让「其实没杀掉」静默通过，
+ * 于是「冷启动」类测试**测不到想测的东西**（假绿）。
  *
  * @param ssh   - SSH 客户端
  * @param kinds - 要停止的服务
- * @param cfg   - 各服务的配置（取 proc_pattern 做兜底匹配）
  */
 export const stopRemoteServices = async (
     ssh: { exec: (cmd: string) => Promise<{ stdout: string }> },
     kinds: ServiceKind[],
-    cfg?: Partial<Record<ServiceKind, { proc_pattern: string }>>,
 ): Promise<void> => {
     for (const kind of kinds) {
-        const pattern = cfg?.[kind]?.proc_pattern;
-        // 进程特征串同样要防自匹配
-        const safe = pattern == undefined
-            ? undefined
-            : `[${pattern[0]}]${pattern.slice(1)}`;
+        const tag = `${SERVICE_TAG_PREFIX}${kind}`;
+        // 特征串同样要防自匹配: [C]OMFYUI_... 与 COMFYUI_... 等价但不会匹配到本命令
+        const safe = `[${tag[0]}]${tag.slice(1)}`;
 
-        const cmd = [
-            `if [ -f /root/akaset_${kind}.pid ]; then`,
-            `  kill $(cat /root/akaset_${kind}.pid) 2>/dev/null;`,
-            `  rm -f /root/akaset_${kind}.pid;`,
-            `fi;`,
-            safe == undefined ? "" : `pkill -f '${safe}' 2>/dev/null;`,
-            `sleep 1;`,
-            safe == undefined
-                ? `echo done;`
-                : `pgrep -f '${safe}' >/dev/null 2>&1 && echo STILL_ALIVE || echo GONE;`,
-        ].join(" ");
+        // ⚠️ 用换行连接 —— 空格压成一行会让 if/fi 缺分隔符而整段不执行
+        const script = [
+            `pkill -9 -f '${safe}' 2>/dev/null`,
+            `sleep 1`,
+            `if pgrep -f '${safe}' >/dev/null 2>&1; then`,
+            `  echo STILL_ALIVE`,
+            `else`,
+            `  echo GONE`,
+            `fi`,
+        ].join("\n");
 
-        const r = await ssh.exec(cmd);
+        const r = await ssh.exec(script);
         const out = r.stdout.trim();
         SLogger.info(`停止 ${kind}: ${out}`);
         if (out.includes("STILL_ALIVE"))

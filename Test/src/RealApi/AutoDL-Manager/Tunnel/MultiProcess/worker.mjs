@@ -12,7 +12,7 @@
  * 关键风险是**竞态**：两个进程同时探测到「服务没起」，
  * 于是都去启动，造成端口抢占、进程翻倍、`Address already in use` 之类的事故。
  *
- * 本进程只做一件事：**按 ComfyUIManager 的正常用法接入并确保就绪**，
+ * 本进程只做一件事：**按 TunnelManager 的正常用法接入并确保就绪**，
  * 然后把观测到的过程以 JSON 报给父进程做时间线比对。
  *
  * ## 为什么用独立 js 文件而非 jest 内联
@@ -59,10 +59,28 @@ const record = (phase, detail = "") => {
  * 那发生在 `ensureService` 内部。因此把 SLogger 的输出也挂钩下来，
  * 凡是含关键字的日志都记成事件，供父进程断言「锁真的起了作用」。
  *
+ * ## ⚠️ 关键词必须是**带来源前缀的完整串**
+ * 早先用的是 `"启动 clash"` 这种裸串，于是新增的调度器日志
+ * `Scheduler 调度 clash 启动 (预期 5s 内就绪)` 也被算作「真的执行了启动」，
+ * 导致两个 worker 都被计成启动者 —— 判定完全失效。
+ *
+ * 现在一律带模块前缀：只有 `TunnelLauncher` 打的才算「执行了启动」，
+ * 调度器只是**决定**要启动，真正拉起的是 Launcher。
+ *
  * @param SLogger - 被测模块使用的 logger
  */
 const hookLogger = (SLogger) => {
-    const KEYWORDS = ["已有其他进程在启动", "启动 clash", "启动 middleware", "复用现有服务"];
+    const KEYWORDS = [
+        // 抢锁失败的信号 —— 出现它说明锁真的协调了两个进程
+        "TunnelLauncher clash 已有其他进程在启动",
+        "TunnelLauncher middleware 已有其他进程在启动",
+        // 真正执行了启动(抢到锁且复查为 dead 之后才打)
+        "TunnelLauncher 启动 clash",
+        "TunnelLauncher 启动 middleware",
+        // 复查发现已有进程 —— 也是「没重复启动」的证据
+        "TunnelLauncher clash 抢锁后复查有变化",
+        "TunnelLauncher middleware 抢锁后复查有变化",
+    ];
     const origInfo = SLogger.info.bind(SLogger);
     SLogger.info = (msg, ...rest) => {
         const text = String(msg);
@@ -88,7 +106,7 @@ const main = async () => {
     const cred = readCred();
     // 走包名解析 —— Test 项目已在 workspace 中 link 了该模块,
     // 用相对路径会因 worker 位于 src/ 深层而算错。
-    const { AutoDLManager, ComfyUIManager } = require("@sosraciel-lamda/autodl-manager");
+    const { AutoDLManager, TunnelManager, comfyuiService } = require("@sosraciel-lamda/autodl-manager");
     // 挂钩 logger 以观察模块内部的决策路径(走等待还是走启动)
     hookLogger(require("@zwa73/utils").SLogger);
 
@@ -118,28 +136,30 @@ const main = async () => {
     await AutoDLManager.sm.inited;
     record("autodl-init");
 
-    ComfyUIManager.initInject({
-        host: AutoDLManager,
+    TunnelManager.initInject({
+        // 不再传 host —— TunnelManager 直接依赖 AutoDLManager 全局单例
         serviceTable: {
             instance_table: {
                 CloudA: {
-                    type: "CloudComfyUI",
+                    type: "TunnelInstance",
                     name: "CloudA",
                     data: {
                         autodl_instance: "BJ",
-                        terminal_name: "comfyui_manager",
-                        gateway_remote_port: 6006,
-                        gateway_local_port: 26610 + Number(WORKER_ID.charCodeAt(0) % 10),
+                        script_dir: "/root/ComfyUI-Manager",
+                        // 两个 worker 用**同一个** prefix —— 它们连的是同一台机器上的
+                        // 同一组服务，本就该看到同样的进程特征（这正是竞态测试的前提）
+                        prefix: "comfyui_manager_",
+                        service: comfyuiService("/root/ComfyUI-Manager"),
                     },
                 },
             },
         },
     });
-    await ComfyUIManager.sm.inited;
+    await TunnelManager.sm.inited;
     record("comfyuimgr-init");
 
     // ── 只读探测：此刻远端服务是什么状态？ ────────────────────
-    const before = await ComfyUIManager.probe("CloudA");
+    const before = await TunnelManager.probe("CloudA");
     const snapshot = before == undefined
         ? "不可用"
         : Object.entries(before).map(([k, v]) => `${k}=${v.ready ? "ready" : v.alive ? "starting" : "none"}`).join(",");
@@ -149,12 +169,12 @@ const main = async () => {
     // 只要求 clash + middleware —— 本测试验证的是「并发接入与竞态」,
     // ComfyUI 本体在无卡模式下必然失败, 与竞态无关。
     record("ensure-start");
-    const ep = await ComfyUIManager.ensureReady("CloudA",
+    const ep = await TunnelManager.ensureReady("CloudA",
         { require: ["clash", "middleware"], timeoutSec: 60 });
     record("ensure-done", `endpoint=${ep ?? "undefined"}`);
 
     // ── 事后探测 ──────────────────────────────────────────────
-    const after = await ComfyUIManager.probe("CloudA");
+    const after = await TunnelManager.probe("CloudA");
     const snapAfter = after == undefined
         ? "不可用"
         : Object.entries(after).map(([k, v]) => `${k}=${v.ready ? "ready" : v.alive ? "starting" : "none"}`).join(",");

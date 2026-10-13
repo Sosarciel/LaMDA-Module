@@ -27,7 +27,7 @@ import { AutoDLManager, isPortListening, stripAnsi } from "@sosraciel-lamda/auto
 import type { AutoDLDrive } from "@sosraciel-lamda/autodl-manager";
 import { SLogger } from "@zwa73/utils";
 
-import { cleanupTestServices, credFields, assertInstanceRunning } from "@/src/RealApi/AutoDL-Manager/Util";
+import { cleanupTestServices, credFields, assertInstanceRunning } from "@/src/RealApi/AutoDL-Manager/AutoDL/Util";
 import { AUTODL_LOCAL_PORT, getAutoDLCred } from "@/src/Constant";
 
 /** 缺少凭据时在模块加载阶段抛错, 让整个测试集直接失败 */
@@ -66,6 +66,8 @@ describe("AutoDL-Manager Jupyter 终端", () => {
 
     beforeAll(async () => {
         AutoDLManager.initInject({
+            // 本组预期实例已启动, 绝不应对真实实例开关机(显式声明, 虽为默认值)
+            allowPowerControl: false,
             serviceTable: {
                 instance_table: {
                     [INSTANCE]: {

@@ -1,4 +1,4 @@
-/** 网关文件工具测试：只验证「上传 → 探针 → 下载」这条链路
+﻿/** 网关文件工具测试：只验证「上传 → 探针 → 下载」这条链路
  *
  * ## 为什么不依赖真实 ComfyUI
  * Middleware 网关的 `/tool/probe` `/tool/save` `/tool/download` 三个端点
@@ -18,7 +18,7 @@
  * 它以 CLI 形式做同样的「上传文件 → uid → 下载目录」流程。
  */
 
-import { AutoDLManager, ComfyUIManager } from "@sosraciel-lamda/autodl-manager";
+import { AutoDLManager, TunnelManager } from "@sosraciel-lamda/autodl-manager";
 import { SLogger } from "@zwa73/utils";
 
 import { COMFY_LOCAL_PORT } from "@/src/Constant";
@@ -60,7 +60,7 @@ const buildContent = (stamp: string): string => [
     "",
 ].join("\n");
 
-describe("ComfyUI-Manager 网关文件工具", () => {
+describe("Tunnel 网关文件工具", () => {
 
     /** 本次测试上传的文件名, 供后续步骤定位 */
     let uploadedName = "";
@@ -70,6 +70,8 @@ describe("ComfyUI-Manager 网关文件工具", () => {
 
     beforeAll(async () => {
         AutoDLManager.initInject({
+            // 本组预期实例已启动, 绝不应对真实实例开关机(显式声明, 虽为默认值)
+            allowPowerControl: false,
             serviceTable: {
                 instance_table: {
                     [HOST_INSTANCE]: {
@@ -82,22 +84,21 @@ describe("ComfyUI-Manager 网关文件工具", () => {
         });
         await AutoDLManager.sm.inited;
 
-        ComfyUIManager.initInject({
-            host: AutoDLManager,
+        TunnelManager.initInject({
             serviceTable: {
                 instance_table: {
                     [INSTANCE]: {
-                        type: "CloudComfyUI",
+                        type: "TunnelInstance",
                         name: INSTANCE,
                         data: instanceData(),
                     },
                 },
             },
         });
-        await ComfyUIManager.sm.inited;
+        await TunnelManager.sm.inited;
 
         // 文件工具只依赖网关, 不需要 ComfyUI 本体(无卡模式下它也无法启动)
-        const endpoint = await ComfyUIManager.ensureReady(
+        const endpoint = await TunnelManager.ensureReady(
             INSTANCE, { require: ["clash", "middleware"], timeoutSec: 120 });
         if (endpoint == undefined) throw new Error("Middleware 网关未能就绪, 文件工具不可用");
     }, TIMEOUT.setup);
@@ -172,10 +173,10 @@ describe("ComfyUI-Manager 网关文件工具", () => {
             // 清理失败不应让测试结果变红 —— 用例本身已全部断言完毕
         }
 
-        // 清理本组拉起/复用的服务 —— 与 comfyui-hosting 同理,
+        // 清理本组拉起/复用的服务 —— 与 tunnel-hosting 同理,
         // 不清理会让后续测试在「本组留下的状态」上做判定(内容竞态)。
         try {
-            const cleaned = await ComfyUIManager.teardown(INSTANCE);
+            const cleaned = await TunnelManager.teardown(INSTANCE);
             SLogger.info(`收尾清理: ${JSON.stringify(cleaned)}`);
         } catch (e) {
             SLogger.warn(`收尾清理失败: ${e}`);

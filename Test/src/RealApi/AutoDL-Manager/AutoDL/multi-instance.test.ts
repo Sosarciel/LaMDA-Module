@@ -27,7 +27,7 @@ import {
     credFields,
     fetchLocal,
     startTestServices,
-} from "@/src/RealApi/AutoDL-Manager/Util";
+} from "@/src/RealApi/AutoDL-Manager/AutoDL/Util";
 import { AUTODL_LOCAL_PORT, AUTODL_REMOTE_PORT_MI, AUTODL_REMOTE_PORT_MI_B,
     getAutoDLCred } from "@/src/Constant";
 
@@ -86,6 +86,8 @@ describe("AutoDL-Manager 多实例与脱离式执行", () => {
 
     beforeAll(async () => {
         AutoDLManager.initInject({
+            // 本组预期实例已启动, 绝不应对真实实例开关机(显式声明, 虽为默认值)
+            allowPowerControl: false,
             serviceTable: {
                 instance_table: {
                     // A: 两个端口映射

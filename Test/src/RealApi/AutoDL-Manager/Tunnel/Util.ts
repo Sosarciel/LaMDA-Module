@@ -1,15 +1,25 @@
-/** ComfyUI-Manager 测试共用工具
+/** Tunnel（服务托管）测试共用工具
  *
- * ## 测试分组（与 AutoDL-Manager 的既有做法一致）
+ * ## 测试目录对齐 `src/`
+ * 本模块（AutoDL-Manager）的 `src/` 下有两个并列的包，测试目录与之一一对应：
+ * | `src/` | 测试目录 | 测什么 |
+ * |--------|---------|--------|
+ * | `AutoDL/` | `src/RealApi/AutoDL-Manager/AutoDL/` | 接管、开关机、隧道、终端 |
+ * | `Tunnel/` | `src/RealApi/AutoDL-Manager/Tunnel/` | 服务启停协定与托管编排 |
+ * | `Scheduler.ts` | `src/Unit/AutoDL-Manager/` | **服务无关**的 Promise 依赖解析 |
+ *
+ * 故本目录里**没有** `ComfyUI-Manager` 这样的独立分组 ——
+ * 托管 ComfyUI 只是 Tunnel 的一个**用例**，不是与 AutoDL 并列的另一件事。
+ *
  * | 组 | 目录 | 语义 |
  * |----|------|------|
- * | **可用性** | `src/RealApi/ComfyUI-Manager/` | 预期实例**已在无卡模式启动**，直接测服务可用性 |
- * | **危险·生命周期** | `.../Dangerous/` | 完全管理实例启停，**会产生 GPU 费用**，默认禁用 |
- * | **多进程** | `.../MultiProcess/` | 两个独立进程无 IPC 接入同一实例 |
+ * | **可用性** | `Tunnel/` | 预期实例**已在无卡模式启动**，直接测服务可用性 |
+ * | **危险·生命周期** | `Tunnel/Dangerous/` | 完全管理实例启停，**会产生 GPU 费用**，默认禁用 |
+ * | **多进程** | `Tunnel/MultiProcess/` | 两个独立进程无 IPC 接入同一实例 |
  *
- * ## 与 AutoDL-Manager 测试的区别
- * AutoDL-Manager 测的是**基础能力**（隧道、终端），测试自己拉一个极简 HTTP 服务即可。
- * ComfyUI-Manager 测的是**托管服务**（clash / Middleware / ComfyUI），
+ * ## 与 `AutoDL/` 那组测试的区别
+ * `AutoDL/` 测的是**基础能力**（隧道、终端），测试自己拉一个极简 HTTP 服务即可。
+ * `Tunnel/` 测的是**托管服务**（本用例里是 clash / Middleware / ComfyUI），
  * 这三者不是 AutoDL 镜像自带的基础设施 —— 它们必须**由使用方部署**到实例上。
  *
  * 因此遵循与 AutoDL 相同的原则：**不依赖远端预置环境** ——
@@ -20,12 +30,12 @@
 import { execFileSync } from "node:child_process";
 
 import { SLogger } from "@zwa73/utils";
-import { resolveServices } from "@sosraciel-lamda/autodl-manager";
+import { comfyuiService } from "@sosraciel-lamda/autodl-manager";
 import type { ServiceKind } from "@sosraciel-lamda/autodl-manager";
 
 import { COMFY_LOCAL_PORT, getAutoDLCred } from "@/src/Constant";
 
-/** 测试用实例名（ComfyUI-Manager 侧的实例名） */
+/** 测试用实例名（Tunnel 侧的实例名） */
 export const INSTANCE = "TestComfyHost";
 
 /** 实例级终端名（服务**不再共用**它，见下）
@@ -37,28 +47,33 @@ export const INSTANCE = "TestComfyHost";
  */
 export const TERMINAL = "comfyui_manager";
 
+/** 本用例的 Unique 特征前缀（终端名与进程特征共用同一个）
+ *
+ * ## 为什么终端名与进程特征同一个串
+ * 指挥官指出它们在语义上就是同一件事：
+ * > 服务终端实例和进程实例的 prefix 我认为没必要区分，
+ * > 他们在语义上应该是相同的即为服务 Unique 特征
+ *
+ * 启动脚本用 `exec -a` 把它写进进程命令行，mgr 用 `pgrep -f` 扫它；
+ * 同一个串也直接作终端名。故此处只有**一个**前缀。
+ *
+ * ⚠️ 曾误用大写 `COMFYUI_MANAGER_SVC_` —— 那种新旧特征串不一致的状态
+ * 会让 `pgrep` 扫不到旧进程，进而重复启动导致端口冲突而卡满超时。
+ */
+export const PREFIX = "comfyui_manager_";
+
 /** 各服务**各自专用**的终端名
  *
  * ## 为什么不再共用一个终端
  * 服务是**前台运行**的 —— 启动脚本用 `exec` 让服务顶替终端 shell，
  * 于是「终端进程 == 服务进程」，Jupyter 面板上能直接看到状态。
  * 代价是终端被服务占住，**一个终端放不下第二个服务**。
- *
- * 与模块内 `serviceTerminal()` 的默认值保持一致
- * （此处独立声明以免测试单向依赖模块内部约定）。
  */
 export const SERVICE_TERMINAL: Record<ServiceKind, string> = {
-    clash: "comfyui_manager_clash",
-    middleware: "comfyui_manager_middleware",
-    comfyui: "comfyui_manager_comfyui",
+    clash: `${PREFIX}clash`,
+    middleware: `${PREFIX}middleware`,
+    comfyui: `${PREFIX}comfyui`,
 };
-
-/** 服务进程的唯一特征串前缀（探测与停止都靠它）
- *
- * 由启动脚本用 `exec -a` 写进进程命令行，mgr 用 `pgrep -f` 扫它。
- * 与模块内 `SERVICE_TAG_PREFIX` 保持一致。
- */
-export const SERVICE_TAG_PREFIX = "COMFYUI_MANAGER_SVC_";
 
 /** 远端端口（由服务自身的启动参数决定，测试不可改） */
 export const REMOTE_PORT = {
@@ -83,20 +98,24 @@ export const GATEWAY = {
     local: COMFY_LOCAL_PORT.middleware,
 } as const;
 
-/** ComfyUI-Manager 侧实例的配置数据
- * @returns 云端 ComfyUI 实例的接入数据
+/** ComfyUI 用例的实例配置数据
+ *
+ * ⚠️ 服务表 `service` 现在是**必填**的 —— 本模块不再有「模块默认值」，
+ * 服务清单完全由调用方声明。`comfyuiService()` 是本用例的现成预设。
+ *
+ * `prefix` 是可选的：不填就回退为实例名。
+ *
+ * @returns 隧道实例的接入数据
  */
 export const instanceData = () => ({
     autodl_instance: "AutoDLHost",
-    terminal_name: TERMINAL,
-    gateway_remote_port: GATEWAY.remote,
-    gateway_local_port: GATEWAY.local,
+    script_dir: SCRIPT_DIR,
+    prefix: "comfyui_manager_",
+    service: comfyuiService(SCRIPT_DIR),
 });
 
-/** 解析出测试使用的服务配置（用于前置校验与断言）
- * @returns 各服务的最终配置
- */
-export const services = () => resolveServices(instanceData());
+/** 本用例的远端脚本目录 */
+export const SCRIPT_DIR = "/root/ComfyUI-Manager";
 
 /** 各服务的二进制路径（用于前置校验） */
 const SERVICE_BINARY: Record<ServiceKind, string> = {
@@ -265,7 +284,7 @@ export const stopRemoteServices = async (
     kinds: ServiceKind[],
 ): Promise<void> => {
     for (const kind of kinds) {
-        const tag = `${SERVICE_TAG_PREFIX}${kind}`;
+        const tag = `${PREFIX}${kind}`;
         // 特征串同样要防自匹配: [C]OMFYUI_... 与 COMFYUI_... 等价但不会匹配到本命令
         const safe = `[${tag[0]}]${tag.slice(1)}`;
 

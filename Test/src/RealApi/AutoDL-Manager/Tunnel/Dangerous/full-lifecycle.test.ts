@@ -5,7 +5,7 @@
  * 本测试会**真实开关机**，有卡模式下约 **1.68 元/小时**，故默认禁用。
  *
  * ## 与常规测试的语义区别
- * 常规测试（`../comfyui-hosting.test.ts`）写的是「**预期已打开**」：
+ * 常规测试（`../tunnel-hosting.test.ts`）写的是「**预期已打开**」：
  * 调用前实例必须已在运行，否则在模块顶层抛错。
  *
  * 本测试的语义是「**调用即拉起**」：调用前断言实例是关的，调用后断言它已可用。
@@ -21,12 +21,12 @@
  * ## 运行方式（解决上述阻断后）
  * ```
  * # 1. 环境变量
- * cross-env WITH_API=true AUTODL_COMFY_FLOW=true npm run test -- --selectProjects real-api src/RealApi/ComfyUI-Manager/Dangerous --runInBand --forceExit
+ * cross-env WITH_API=true AUTODL_COMFY_FLOW=true npm run test -- --selectProjects real-api src/RealApi/AutoDL-Manager/Tunnel/Dangerous --runInBand --forceExit
  * # 2. 把下面的 MANUAL_CONFIRM 改成 true 后直接跑
  * ```
  */
 
-import { AutoDLManager, ComfyUIManager } from "@sosraciel-lamda/autodl-manager";
+import { AutoDLManager, TunnelManager } from "@sosraciel-lamda/autodl-manager";
 import { SLogger } from "@zwa73/utils";
 
 import { INSTANCE, autodlInstanceData, instanceData, summarize } from "../Util";
@@ -74,16 +74,19 @@ const TIMEOUT = {
 
 if (!ENABLED) {
     SLogger.warn(
-        `ComfyUI-Manager 危险测试已跳过。`
+        `Tunnel 危险测试已跳过。`
         + `原因: ${BLOCKED_BY_GPU_MODE
             ? "实例为无卡模式, 关机后无法经 API 开启(硬性阻断)"
             : "未人工确认(MANUAL_CONFIRM=false 且未设 AUTODL_COMFY_FLOW=true)"}`);
 }
 
-describeFlow("ComfyUI-Manager 完全生命周期(危险)", () => {
+describeFlow("Tunnel 完全生命周期(危险)", () => {
 
     beforeAll(async () => {
         AutoDLManager.initInject({
+            // ⚠️ **本组必须允许真实开关机** —— 它管理实例生命周期。
+            // 若沿用默认的 false, 开关机会被安全闸门静默拦下, 变成假绿。
+            allowPowerControl: true,
             serviceTable: {
                 instance_table: {
                     [HOST_INSTANCE]: {
@@ -96,19 +99,18 @@ describeFlow("ComfyUI-Manager 完全生命周期(危险)", () => {
         });
         await AutoDLManager.sm.inited;
 
-        ComfyUIManager.initInject({
-            host: AutoDLManager,
+        TunnelManager.initInject({
             serviceTable: {
                 instance_table: {
                     [INSTANCE]: {
-                        type: "CloudComfyUI",
+                        type: "TunnelInstance",
                         name: INSTANCE,
                         data: instanceData(),
                     },
                 },
             },
         });
-        await ComfyUIManager.sm.inited;
+        await TunnelManager.sm.inited;
     }, TIMEOUT.setup);
 
     it("1. 前置: 实例应处于关机状态", async () => {
@@ -120,14 +122,14 @@ describeFlow("ComfyUI-Manager 完全生命周期(危险)", () => {
     }, TIMEOUT.api);
 
     it("2. ensureReady 应自动开机并把服务拉起", async () => {
-        const endpoint = await ComfyUIManager.ensureReady(INSTANCE, {
+        const endpoint = await TunnelManager.ensureReady(INSTANCE, {
             // 有卡模式下三个服务都应可用
             require: ["clash", "middleware", "comfyui"],
             timeoutSec: 240,
         });
 
         if (endpoint == undefined) {
-            const probe = await ComfyUIManager.probe(INSTANCE);
+            const probe = await TunnelManager.probe(INSTANCE);
             throw new Error(
                 `ensureReady 失败。当前状态: `
                 + `${probe == undefined ? "实例不可用" : summarize(probe)}`);

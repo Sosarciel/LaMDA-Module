@@ -59,7 +59,7 @@ import { AutoDLManager, isPortListening } from "@sosraciel-lamda/autodl-manager"
 import type { AutoDLDrive, SshClient } from "@sosraciel-lamda/autodl-manager";
 import { SLogger } from "@zwa73/utils";
 
-import { buildServiceScript, credFields } from "@/src/RealApi/AutoDL-Manager/Util";
+import { buildServiceScript, credFields } from "@/src/RealApi/AutoDL-Manager/AutoDL/Util";
 import { AUTODL_LOCAL_PORT, AUTODL_REMOTE_PORT, getAutoDLCred } from "@/src/Constant";
 
 /** ⚠️ 危险测试总开关：人工确认后才置 true
@@ -119,6 +119,10 @@ describeFlow("AutoDL-Manager 全路径(调用即拉起 → TTL 自动释放)", (
 
     beforeAll(async () => {
         AutoDLManager.initInject({
+            // ⚠️ **本组必须允许真实开关机** —— 它管理实例生命周期,
+            // 会真实调用 powerOffAndConfirm / powerOn。
+            // 若沿用默认的 false, 这些调用会被安全闸门静默拦下, 变成假绿。
+            allowPowerControl: true,
             serviceTable: {
                 instance_table: {
                     [INSTANCE]: {

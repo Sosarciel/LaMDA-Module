@@ -20,9 +20,9 @@ export const KB_PORT = 26502;
 export const PG_PORT = 26510;
 //test-server的pslq为26511
 
-/** AutoDL 测试用的本地映射端口
+/** `AutoDL/` 那组测试用的本地映射端口
  *
- * 从 26520 起连续分配, **整个 2652x 段保留给 AutoDL** ——
+ * 从 26520 起连续分配, **整个 2652x 段保留给这组** ——
  * 端口映射的本地端必须全局唯一(同一时刻不能让两个测试抢同一个本地端口),
  * 因此这里集中登记, 各测试文件只引用常量、不再自带字面量。
  *
@@ -44,12 +44,15 @@ export const AUTODL_LOCAL_PORT = {
     flow: 26526,
 } as const;
 
-/** ComfyUI-Manager 测试用的本地映射端口
+/** Tunnel（服务托管）测试用的本地映射端口
  *
  * **与 AutoDL 的 2652x 段分开占用 2653x** ——
- * ComfyUI-Manager 被测的是「托管服务」这一层（clash 代理、Middleware 网关、
- * ComfyUI 本体），与 AutoDL-Manager 的「隧道/终端」基础能力不是一回事，
- * 端口分段落便于一眼看出是哪个模块在占用。
+ * Tunnel 被测的是「托管服务」这一层（本用例里是 clash 代理、Middleware 网关、
+ * ComfyUI 本体），与 `AutoDL/` 那组的「隧道/终端」基础能力不是一回事，
+ * 端口分段落便于一眼看出是哪个包在占用。
+ *
+ * ⚠️ 与 `src/` 的组织对齐：`AutoDL/` 与 `Tunnel/` 是同一模块下并列的两个包，
+ * 测试目录也一一对应（`AutoDL-Manager/AutoDL/` 与 `AutoDL-Manager/Tunnel/`）。
  *
  * 远端端口是**服务自身的端口**（clash 7890 / Middleware 6006 / ComfyUI 6005），
  * 由服务的启动命令决定，不是测试可以随意改的，故不在此登记。

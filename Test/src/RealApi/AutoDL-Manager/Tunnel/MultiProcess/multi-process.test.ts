@@ -28,10 +28,10 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 
-import { AutoDLManager, ComfyUIManager } from "@sosraciel-lamda/autodl-manager";
+import { AutoDLManager, TunnelManager } from "@sosraciel-lamda/autodl-manager";
 import { SLogger } from "@zwa73/utils";
 
-import { INSTANCE, assertInstanceRunning, autodlInstanceData, instanceData, services,
+import { INSTANCE, assertInstanceRunning, autodlInstanceData, instanceData,
     stopRemoteServices, summarize } from "../Util";
 
 const execFileAsync = promisify(execFile);
@@ -74,7 +74,7 @@ const runWorker = async (id: string, outDir: string): Promise<WorkerEvent[]> => 
     return JSON.parse(fs.readFileSync(eventFile, "utf8")) as WorkerEvent[];
 };
 
-describe("ComfyUI-Manager 多进程并发接入", () => {
+describe("Tunnel 多进程并发接入", () => {
 
     /** 临时目录：存放各工作进程的事件文件 */
     let outDir: string;
@@ -89,6 +89,8 @@ describe("ComfyUI-Manager 多进程并发接入", () => {
         // 把远端服务**停掉**, 制造「两个进程都需要拉起」的竞争条件。
         // 这是本测试的核心前提: 若服务已就绪, 两者都走复用路径, 测不出竞态。
         AutoDLManager.initInject({
+            // 本组预期实例已启动, 绝不应对真实实例开关机(显式声明, 虽为默认值)
+            allowPowerControl: false,
             serviceTable: {
                 instance_table: {
                     [HOST_INSTANCE]: {
@@ -101,19 +103,18 @@ describe("ComfyUI-Manager 多进程并发接入", () => {
         });
         await AutoDLManager.sm.inited;
 
-        ComfyUIManager.initInject({
-            host: AutoDLManager,
+        TunnelManager.initInject({
             serviceTable: {
                 instance_table: {
                     [INSTANCE]: {
-                        type: "CloudComfyUI",
+                        type: "TunnelInstance",
                         name: INSTANCE,
                         data: instanceData(),
                     },
                 },
             },
         });
-        await ComfyUIManager.sm.inited;
+        await TunnelManager.sm.inited;
 
         const ins = await AutoDLManager.getInstance(HOST_INSTANCE);
         const ssh = await ins!.getSshClient();
@@ -122,7 +123,7 @@ describe("ComfyUI-Manager 多进程并发接入", () => {
 
         // 用只读探测确认竞争条件成立 —— 若服务仍就绪, 两个进程都会走复用路径,
         // 本测试就测不到竞态了（假绿）。
-        const probe = await ComfyUIManager.probe(INSTANCE);
+        const probe = await TunnelManager.probe(INSTANCE);
         const summary = probe == undefined ? "(实例探测不可用)" : summarize(probe);
         SLogger.info(`多进程测试前置: 服务已停止 → ${summary}`);
         if (probe?.clash.ready || probe?.middleware.ready) {
@@ -199,19 +200,31 @@ describe("ComfyUI-Manager 多进程并发接入", () => {
         // 这是最有说服力的一条: 从两个进程各自的日志里确认
         // 「确实有进程走了等待路径」—— 否则说明它们只是碰巧错开,
         // 并没真正验证锁的作用。
+        //
+        // ⚠️ 匹配串必须带 `TunnelLauncher` 前缀。
+        // 早先用裸串 `"启动 clash"` 时，调度器的
+        // `Scheduler 调度 clash 启动 (预期 5s 内就绪)` 也含该子串，
+        // 于是两个 worker 都被误判成启动者 —— 断言形同虚设。
+        // 只有 Launcher 打的 `TunnelLauncher 启动 clash` 才代表「真的执行了启动」。
         const waitA = eventsA.some(e => e.detail.includes("已有其他进程在启动"));
         const waitB = eventsB.some(e => e.detail.includes("已有其他进程在启动"));
-        const startA = eventsA.some(e => e.detail.includes("启动 clash"));
-        const startB = eventsB.some(e => e.detail.includes("启动 clash"));
+        const startA = eventsA.some(e => e.detail.includes("TunnelLauncher 启动 clash"));
+        const startB = eventsB.some(e => e.detail.includes("TunnelLauncher 启动 clash"));
+        // 复查发现对方已起 —— 同样是「没重复启动」的正面证据
+        const recheckA = eventsA.some(e => e.detail.includes("抢锁后复查有变化"));
+        const recheckB = eventsB.some(e => e.detail.includes("抢锁后复查有变化"));
 
-        SLogger.info(`  A: 等待=${waitA} 启动=${startA}`);
-        SLogger.info(`  B: 等待=${waitB} 启动=${startB}`);
+        SLogger.info(`  A: 等待=${waitA} 启动=${startA} 复查复用=${recheckA}`);
+        SLogger.info(`  B: 等待=${waitB} 启动=${startB} 复查复用=${recheckB}`);
 
         // 两者合计只应有一个真正执行了启动。
-        // 注意: 即使都走了「等待」也属正常(依赖链会让其中一个先启动 clash,
-        // 另一个在 middleware 那层等待), 关键是**不能两个都启动同一个服务**。
+        // 注意: 即使都走了「等待」也属正常, 关键是**不能两个都启动同一个服务**。
         const clashStarters = [startA, startB].filter(Boolean).length;
         expect(clashStarters).toBeLessThanOrEqual(1);
+
+        // 且至少有一个进程**观察到**了另一个的存在 ——
+        // 否则说明它们只是碰巧错开, 本条并未真正验证锁在起作用。
+        expect([waitA, waitB, recheckA, recheckB].some(Boolean)).toBe(true);
     }, 30_000);
 
     afterAll(async () => {
@@ -223,7 +236,7 @@ describe("ComfyUI-Manager 多进程并发接入", () => {
         // 早先的做法是「恢复服务供下一组复用」, 那是错的: 复用别人拉起的服务
         // 意味着无法保证其配置与自己预期一致, 判定依据被污染。
         try {
-            const cleaned = await ComfyUIManager.teardown(INSTANCE);
+            const cleaned = await TunnelManager.teardown(INSTANCE);
             SLogger.info(`多进程测试收尾: ${JSON.stringify(cleaned)}`);
         } catch (e) {
             SLogger.warn(`多进程测试收尾清理失败: ${e}`);

@@ -150,7 +150,7 @@ describeFlow("AutoDL-Manager 全路径(调用即拉起 → TTL 自动释放)", (
             const status = await ins?.getStatus();
             if (status !== "shutdown") {
                 SLogger.warn(`afterAll: 实例仍处于 ${status}, 执行关机`);
-                await AutoDLManager.powerOffAndConfirm(INSTANCE, { interval: 5_000, timeout: 120_000 });
+                await AutoDLManager.powerOffAndConfirm({ instanceName: INSTANCE, interval: 5_000, timeout: 120_000 });
             }
         } catch (e) {
             SLogger.error(`afterAll 关机失败, 请手动检查! ${e}`);
@@ -165,7 +165,8 @@ describeFlow("AutoDL-Manager 全路径(调用即拉起 → TTL 自动释放)", (
         // 若实例本就开着, 先关掉 —— 否则测不出「自动拉起」
         if (status !== "shutdown") {
             SLogger.warn(`实例当前为 ${status}, 先关机以保证测试从"未启动"开始`);
-            const ok = await AutoDLManager.powerOffAndConfirm(INSTANCE, {
+            const ok = await AutoDLManager.powerOffAndConfirm({
+                instanceName: INSTANCE,
                 interval: 5_000,
                 timeout: 120_000,
             });
@@ -179,7 +180,7 @@ describeFlow("AutoDL-Manager 全路径(调用即拉起 → TTL 自动释放)", (
     }, TIMEOUT.powerOn);
 
     it("2. 开机(有卡模式, 官方不支持无卡开机)", async () => {
-        const ok = await AutoDLManager.powerOn(INSTANCE);
+        const ok = await AutoDLManager.powerOn({ instanceName: INSTANCE });
 
         // 无库存时 API 返回 HTTP 200 但 code=InternalError、msg="当前算力规格暂无库存"。
         // 这种失败很常见(该区该规格的卡被抢光), 给出可操作的提示而不是干瘪的断言失败。
@@ -270,7 +271,8 @@ describeFlow("AutoDL-Manager 全路径(调用即拉起 → TTL 自动释放)", (
         await ssh.removeRemoteDir(REMOTE_DIR);
         expect(await ssh.remoteExists(REMOTE_DIR)).toBe(false);
 
-        const ok = await AutoDLManager.powerOffAndConfirm(INSTANCE, {
+        const ok = await AutoDLManager.powerOffAndConfirm({
+            instanceName: INSTANCE,
             interval: 5_000,
             timeout: 120_000,
         });

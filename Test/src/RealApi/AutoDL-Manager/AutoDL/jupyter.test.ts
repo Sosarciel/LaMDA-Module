@@ -130,7 +130,7 @@ describe("AutoDL-Manager Jupyter 终端", () => {
 
     it("2. 应能在终端执行指令并取回纯结果", async () => {
         const jc = (await ins.getJupyterClient())!;
-        const out = await jc.run("echo JEST_JUPYTER_OK && whoami", { timeout: TIMEOUT.jupyter });
+        const out = await jc.run({ command: "echo JEST_JUPYTER_OK && whoami", timeout: TIMEOUT.jupyter });
 
         expect(out).toContain("JEST_JUPYTER_OK");
         expect(out).toContain("root");
@@ -141,7 +141,7 @@ describe("AutoDL-Manager Jupyter 终端", () => {
 
     it("3. 终端应保留在服务端, 可在 JupyterLab 界面看到", async () => {
         const jc = (await ins.getJupyterClient())!;
-        await jc.run("echo KEEP_TERMINAL", { timeout: TIMEOUT.jupyter });
+        await jc.run({ command: "echo KEEP_TERMINAL", timeout: TIMEOUT.jupyter });
 
         const name = jc.terminalName;
         expect(name).toBeDefined();
@@ -178,7 +178,7 @@ describe("AutoDL-Manager Jupyter 终端", () => {
 
     it("5. 通道断开后应自动重连到同一终端", async () => {
         const jc = (await ins.getJupyterClient())!;
-        await jc.run("echo BEFORE_DROP", { timeout: TIMEOUT.jupyter });
+        await jc.run({ command: "echo BEFORE_DROP", timeout: TIMEOUT.jupyter });
         expect(jc.connected).toBe(true);
 
         const nameBefore = jc.terminalName;
@@ -195,7 +195,7 @@ describe("AutoDL-Manager Jupyter 终端", () => {
 
         // 重连的是**同一个终端**(终端进程在服务端独立存活), 因此名称不变
         expect(jc.terminalName).toBe(nameBefore);
-        const out = await jc.run("echo AFTER_RECONNECT", { timeout: TIMEOUT.jupyter });
+        const out = await jc.run({ command: "echo AFTER_RECONNECT", timeout: TIMEOUT.jupyter });
         expect(out).toContain("AFTER_RECONNECT");
     }, TIMEOUT.reconnect);
 

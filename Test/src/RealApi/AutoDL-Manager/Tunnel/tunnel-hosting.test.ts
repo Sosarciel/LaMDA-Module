@@ -174,8 +174,8 @@ describe("Tunnel 可用性", () => {
         // > 我们全部的服务都 ensure。至于具体哪个是实际的服务，这个属于端口协定
         //
         // 故 `ensureReady` 只报告「是否全部就绪」；要连哪个端口由调用方自己的协定决定。
-        const ok = await TunnelManager.ensureReady(
-            INSTANCE, { require: ["clash", "middleware"], timeoutSec: 120 });
+        const ok = await TunnelManager.ensureReady({
+            instanceName: INSTANCE, require: ["clash", "middleware"], timeoutSec: 120 });
 
         if (!ok) {
             // 失败时给出各服务的实际状态, 便于定位
@@ -270,9 +270,9 @@ describe("Tunnel 可用性", () => {
     it("8. 重复 ensureReady 应幂等(复用已就绪的服务)", async () => {
         // 只要求 clash + middleware —— 加入 comfyui 会让每次调用都等满超时
         // (无卡模式下它必然启动失败), 那是另一维度的问题, 不应混入幂等性验证。
-        const opt = { require: ["clash", "middleware"] as const, timeoutSec: 120 };
-        const first = await TunnelManager.ensureReady(INSTANCE, { ...opt, require: [...opt.require] });
-        const second = await TunnelManager.ensureReady(INSTANCE, { ...opt, require: [...opt.require] });
+        const base = { instanceName: INSTANCE, require: ["clash", "middleware"], timeoutSec: 120 };
+        const first = await TunnelManager.ensureReady({ ...base, require: [...base.require] });
+        const second = await TunnelManager.ensureReady({ ...base, require: [...base.require] });
         expect(second).toBe(first);
     }, 300_000);
 

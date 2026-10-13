@@ -1,4 +1,4 @@
-﻿/** 网关文件工具测试：只验证「上传 → 探针 → 下载」这条链路
+/** 网关文件工具测试：只验证「上传 → 探针 → 下载」这条链路
  *
  * ## 为什么不依赖真实 ComfyUI
  * Middleware 网关的 `/tool/probe` `/tool/save` `/tool/download` 三个端点
@@ -98,8 +98,8 @@ describe("Tunnel 网关文件工具", () => {
         await TunnelManager.sm.inited;
 
         // 文件工具只依赖网关, 不需要 ComfyUI 本体(无卡模式下它也无法启动)
-        const endpoint = await TunnelManager.ensureReady(
-            INSTANCE, { require: ["clash", "middleware"], timeoutSec: 120 });
+        const endpoint = await TunnelManager.ensureReady({
+            instanceName: INSTANCE, require: ["clash", "middleware"], timeoutSec: 120 });
         if (endpoint == undefined) throw new Error("Middleware 网关未能就绪, 文件工具不可用");
     }, TIMEOUT.setup);
 

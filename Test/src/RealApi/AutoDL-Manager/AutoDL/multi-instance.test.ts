@@ -218,10 +218,11 @@ describe("AutoDL-Manager 多实例与脱离式执行", () => {
             await sshC.exec(`rm -f ${DETACH_LOG}`);
 
             const started = Date.now();
-            const res = await sshC.execDetached(
-                `bash -c 'for i in $(seq 1 60); do echo tick $i >> ${DETACH_LOG}; sleep 1; done'`,
-                { log: `${DETACH_LOG}.outer`, name: "jest-detached" },
-            );
+            const res = await sshC.execDetached({
+                command: `bash -c 'for i in $(seq 1 60); do echo tick $i >> ${DETACH_LOG}; sleep 1; done'`,
+                log: `${DETACH_LOG}.outer`,
+                name: "jest-detached",
+            });
             const elapsed = Date.now() - started;
 
             expect(res.ok).toBe(true);

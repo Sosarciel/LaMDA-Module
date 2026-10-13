@@ -122,7 +122,8 @@ describeFlow("Tunnel 完全生命周期(危险)", () => {
     }, TIMEOUT.api);
 
     it("2. ensureReady 应自动开机并把服务拉起", async () => {
-        const endpoint = await TunnelManager.ensureReady(INSTANCE, {
+        const endpoint = await TunnelManager.ensureReady({
+            instanceName: INSTANCE,
             // 有卡模式下三个服务都应可用
             require: ["clash", "middleware", "comfyui"],
             timeoutSec: 240,

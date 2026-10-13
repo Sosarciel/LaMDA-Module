@@ -31,28 +31,28 @@ import type { ServiceFunc, ServiceFuncTable } from "@sosraciel-lamda/autodl-mana
 
 /** 造一个可控的假服务
  *
- * @param opt.readyAfterTries - start 之后第几次 prob 返回 Success（默认 1 = 起完即就绪）
- * @param opt.log             - 事件记录数组
- * @param opt.name            - 服务名（写日志用）
- * @param opt.startMs         - start 耗时
- * @param opt.failForever     - 一直 Failed（模拟起不来）
- * @param opt.terminated      - prob 直接返回 Terminated
- * @param opt.expectReadySec  - 预期启动耗时（秒），缺省 10（测试里的假服务都很快）
- * @param opt.pollIntervalMs  - 轮询间隔（毫秒），缺省 10
- *
  * ⚠️ `readyAfterTries` 缺省是 **1** 而非 0 —— 0 表示「一开始就就绪」，
  * 那会让调度器**跳过 start**（这正是 case 6 验证的行为），
  * 于是其余用例里根本不会有 `start` 事件，断言全部落空。
  */
 const fakeService = (opt: {
+    /** 服务名（写日志用） */
     name: string;
+    /** 事件记录数组 */
     log: string[];
+    /** start 之后第几次 prob 返回 Success（默认 1 = 起完即就绪） */
     readyAfterTries?: number;
+    /** start 耗时/毫秒 */
     startMs?: number;
+    /** 一直 Failed（模拟起不来） */
     failForever?: boolean;
+    /** prob 直接返回 Terminated */
     terminated?: boolean;
+    /** 依赖的服务名 */
     deps?: string[];
+    /** 预期启动耗时（秒），缺省 10（测试里的假服务都很快） */
     expectReadySec?: number;
+    /** 轮询间隔（毫秒），缺省 10 */
     pollIntervalMs?: number;
 }) => {
     const {

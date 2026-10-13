@@ -169,8 +169,11 @@ const main = async () => {
     // 只要求 clash + middleware —— 本测试验证的是「并发接入与竞态」,
     // ComfyUI 本体在无卡模式下必然失败, 与竞态无关。
     record("ensure-start");
-    const ep = await TunnelManager.ensureReady("CloudA",
-        { require: ["clash", "middleware"], timeoutSec: 60 });
+    const ep = await TunnelManager.ensureReady({
+        instanceName: "CloudA",
+        require: ["clash", "middleware"],
+        timeoutSec: 60,
+    });
     record("ensure-done", `endpoint=${ep ?? "undefined"}`);
 
     // ── 事后探测 ──────────────────────────────────────────────

@@ -38,21 +38,24 @@ import { INSTANCE, autodlInstanceData, instanceData, summarize } from "../Util";
  */
 const MANUAL_CONFIRM: boolean = false;
 
-/** ⚠️⚠️ 硬性阻断：无卡模式实例无法经 API 重新开启
+/** ⚠️ 硬性阻断：**无卡模式**实例无法经 API 重新开启
  *
- * AutoDL 的 `power_on` 的 payload **只接受 `"gpu"`**，
- * 无卡模式必须人工在控制台开。
+ * AutoDL 的 `power_on` 的 payload **只接受 `"gpu"`** ——
+ * 即 API 只能用**有卡模式**开机，无卡模式必须人工在控制台开。
  *
- * 因此**只要目标实例是无卡模式，本测试就绝不能跑** ——
- * 它会把实例关掉且开不回来。
+ * 故本开关拦的是「目标实例是无卡模式」这一情形：
+ * 那种实例被关掉后**开不回来**，跑本测试是纯粹的破坏。
  *
- * 需要跑本测试时，必须满足其一：
- * 1. 目标实例本身就是**有卡**常驻的（改测试指向那个实例）
- * 2. 已确认可以人工在控制台重新开启（人在场盯着）
+ * ## 现为 `false`（指挥官裁定）
+ * 实测目标实例是**有卡**的（`name` 形如「北京BProvGPU32GComfyUI1」、
+ * `snapshot_gpu_alias_name` 为 `vGPU-32GB`，`nvidia-smi` 返回
+ * RTX 4080 SUPER 32GB），经 API `power_on` 5 秒即进入 running。
+ * 故「无卡开不回来」这个顾虑对本实例不成立 —— 而本测试本就是
+ * **需要 GPU 的完整业务测试**，不该被防呆开关卡住。
  *
- * 把它设成 `true` 之前请先确认上面两点。
+ * 换成无卡实例时，把它改回 `true`。
  */
-const BLOCKED_BY_GPU_MODE: boolean = true;
+const BLOCKED_BY_GPU_MODE: boolean = false;
 
 /** 是否启用本危险测试（人工开关 或 环境变量，且未被阻断） */
 const ENABLED: boolean =
@@ -122,21 +125,25 @@ describeFlow("Tunnel 完全生命周期(危险)", () => {
     }, TIMEOUT.api);
 
     it("2. ensureReady 应自动开机并把服务拉起", async () => {
-        const endpoint = await TunnelManager.ensureReady({
+        const ok = await TunnelManager.ensureReady({
             instanceName: INSTANCE,
             // 有卡模式下三个服务都应可用
             require: ["clash", "middleware", "comfyui"],
             timeoutSec: 240,
         });
 
-        if (endpoint == undefined) {
+        // ⚠️ 断言 `=== false` 而非 `== undefined` ——
+        // `ensureReady` 返回的是布尔, `undefined` 检查对本类型恒不成立,
+        // 失败时会静默放过（假绿）。指挥官早已去掉「入口/端点」概念,
+        // 故这里也不再断言返回 URL, 只断「是否全部就绪」。
+        if (ok === false) {
             const probe = await TunnelManager.probe(INSTANCE);
             throw new Error(
                 `ensureReady 失败。当前状态: `
                 + `${probe == undefined ? "实例不可用" : summarize(probe)}`);
         }
-        expect(endpoint).toContain("http://127.0.0.1:");
-        SLogger.info(`  生图入口: ${endpoint}`);
+        expect(ok).toBe(true);
+        SLogger.info(`  三个服务全部就绪`);
     }, TIMEOUT.boot + TIMEOUT.launch);
 
     it("3. 拉起后 AutoDL 实例应处于运行中", async () => {

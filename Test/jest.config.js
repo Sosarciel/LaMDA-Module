@@ -5,6 +5,10 @@ const { compilerOptions } = require('./tsconfig.json');
 // 通用基础配置
 const commonConfig = {
     roots: ['<rootDir>/src'],
+    // `backup/` 是归档区（指挥官定：把设计真实生图的测试集与 Conductor 丢去 backup，
+    // 只保留自行拉起的测试）。`testMatch` 的 `**` 会递归匹配到归档文件，
+    // 不排除的话它们仍会被当作测试执行 —— 归档就失去了意义。
+    testPathIgnorePatterns: ['/node_modules/', '/backup/'],
     transform: {
         '^.+\\.tsx?$': 'ts-jest',
     },

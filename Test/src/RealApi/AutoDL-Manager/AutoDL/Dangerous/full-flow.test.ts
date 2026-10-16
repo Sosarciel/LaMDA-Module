@@ -34,7 +34,7 @@
  * const result = await pak.instance[fd](...);   // 执行目标函数
  * this.touchIns(pak);                           // ← 调用**之后**才起算 TTL
  * ```
- * 而 `touchIns` 里是 `expireAt = now + idle_timeout * 1000`。
+ * 而 `touchIns` 里是 `expireAt = now + idle_timeout_sec * 1000`。
  * 所以 **TTL 从「调用完成瞬间」起算**，不是从真正打开开始。
  * 这也意味着若实例拉起本身很慢（有卡开机约 30s），TTL 不会因此被吃掉。
  *

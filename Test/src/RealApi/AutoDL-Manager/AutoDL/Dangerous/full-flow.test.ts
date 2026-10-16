@@ -129,7 +129,7 @@ describeFlow("AutoDL-Manager 全路径(调用即拉起 → TTL 自动释放)", (
                         type: "ProInstance",
                         name: INSTANCE,
                         // TTL 挂在实例上; 也可放全局
-                        idle_timeout: IDLE_TIMEOUT_SEC,
+                        idle_timeout_sec: IDLE_TIMEOUT_SEC,
                         data: {
                             ...credFields(),
                             jupyter_remote_port: 8888,

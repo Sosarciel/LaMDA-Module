@@ -1,4 +1,4 @@
-﻿/** Tunnel 托管机制测试（服务无关）
+/** Tunnel 托管机制测试（服务无关）
  *
  * ## 本组测什么
  * `TunnelManager` 的**托管契约**：配置解析 → 探测 → 拉起 → 幂等复用 → 收尾。
@@ -206,7 +206,22 @@ describe("Tunnel 托管机制", () => {
         // 不等它 —— 直接去看那 6 秒窗口内的探测结果
         const startP = TunnelManager.ensureReady({
             instanceName: INSTANCE, require: ["slow"], timeoutSec: 90 });
-        await new Promise(r => setTimeout(r, 2_000));
+
+        // ## 轮询等「会话已建」, 而不是死等固定秒数
+        // `ensureReady` 内部要先探测、抢锁、再下发脚本，这一串耗时随远端负载浮动。
+        // 写死 2 秒在整套串行跑时不够 —— 实测会话还没建出来就取了 probe，
+        // `alive` 拿到 false，整条断言白费。
+        // 故以**可观测的最终状态**为判据：会话出现即进入窗口。
+        const tag = FIXTURE_TAG.slow;
+        let sessions = 0;
+        for (let i = 0; i < 40; i++) {
+            const r = await ssh!.exec(
+                `screen -ls 2>/dev/null | grep -c '[.]${tag}[[:space:]]'`);
+            sessions = Number(r.stdout.trim());
+            if (sessions >= 1) break;
+            await new Promise(r2 => setTimeout(r2, 250));
+        }
+        expect(sessions).toBeGreaterThanOrEqual(1);
 
         const mid = await TunnelManager.probe(INSTANCE);
         const slow = mid!.slow;

@@ -123,9 +123,21 @@ describe("Tunnel 服务启动锁", () => {
     }, TIMEOUT.setup);
 
     afterAll(async () => {
-        const ins = await AutoDLManager.getInstance(HOST_INSTANCE);
-        const ssh = await ins?.getSshClient();
-        if (ssh != undefined) await cleanupFixtures(ssh);
+        // ## 必须先关隧道再清服务
+        // jest 的 `--runInBand` / `maxWorkers:1` 让所有套件**共用同一进程与端口空间**。
+        // 本套件 `ensureReady` 会开隧道占用本地端口，若不关，
+        // 下一个套件的 `openTunnel` 就会撞上「本地端口已被其它进程占用」，
+        // 建成失败 → `probe` 返回 undefined → 表现为「服务不可用」的假失败。
+        // 实测踩到：26531 被本套件占着，`tunnel-hosting` 随即整组崩。
+        try {
+            const ins = await AutoDLManager.getInstance(HOST_INSTANCE);
+            const ssh = await ins?.getSshClient();
+            if (ssh != undefined) await cleanupFixtures(ssh);
+            await ins?.closeTunnel();
+        } catch (e) {
+            // 收尾失败不该让测试变红 —— 用例本身已断言完毕
+            SLogger.warn(`锁测试收尾失败: ${e}`);
+        }
     }, TIMEOUT.api);
 
     /** 取 SSH 客户端（各用例都要用） */

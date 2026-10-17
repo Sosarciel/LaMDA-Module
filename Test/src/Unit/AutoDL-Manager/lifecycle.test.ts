@@ -24,9 +24,12 @@
  * 故这里把契约边界全部钉死 —— 纯判断逻辑，不需要 SSH、不需要真实例。
  */
 
-import {
+import { Lifecycle } from "@sosraciel-lamda/autodl-manager";
+
+// 生命周期工具集是按 namespace 导出的；测试里平铺开，让断言读起来干净
+const {
     buildWriteCommand, readLifecycle, renewLifecycle, shouldShutdownByLoop, WRITE_MARGIN_SEC,
-} from "@sosraciel-lamda/autodl-manager";
+} = Lifecycle;
 
 /** 造一个只实现 `exec` 的假 SSH 客户端
  *

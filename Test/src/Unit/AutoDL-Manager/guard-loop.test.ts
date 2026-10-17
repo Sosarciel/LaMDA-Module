@@ -22,7 +22,10 @@ import os from "node:os";
 import path from "node:path";
 import { Server } from "ssh2";
 import type { Connection } from "ssh2";
-import { SshClient, readLifecycle, shouldShutdownByLoop } from "@sosraciel-lamda/autodl-manager";
+import { SshClient, Lifecycle } from "@sosraciel-lamda/autodl-manager";
+
+// 生命周期工具集是按 namespace 导出的；测试里平铺开
+const { readLifecycle, shouldShutdownByLoop } = Lifecycle;
 
 /** 生成一个临时主机密钥 */
 const importKey = async (): Promise<string> => {

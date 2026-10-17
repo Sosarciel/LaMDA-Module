@@ -26,8 +26,11 @@
 
 import { Failed, Success, Terminated } from "@zwa73/utils";
 import type { PromiseStatus } from "@zwa73/utils";
-import { scheduleService, validateDeps, expandDeps } from "@sosraciel-lamda/autodl-manager";
+import { Scheduler } from "@sosraciel-lamda/autodl-manager";
 import type { ServiceFunc, ServiceFuncTable } from "@sosraciel-lamda/autodl-manager";
+
+// 调度工具集是按 namespace 导出的；测试里平铺开
+const { scheduleService, validateDeps, expandDeps } = Scheduler;
 
 /** 造一个可控的假服务
  *

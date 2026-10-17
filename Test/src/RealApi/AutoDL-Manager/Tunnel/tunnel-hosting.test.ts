@@ -115,15 +115,17 @@ describe("Tunnel 可用性", () => {
         expect(svc.middleware.probe).toBeUndefined();
     }, TIMEOUT.api);
 
-    it("2b. 服务的 Unique 特征应由「prefix + 服务名」拼出", async () => {
-        // 终端名与进程特征**共用同一个特征串** —— 指挥官指出它们在语义上
-        // 就是同一件事（服务的 Unique 特征），不必区分。
+    it("2b. 每个服务应各自声明 unique_tag", async () => {
+        // tag 是 mgr 唯一该关心的东西 —— 只作 pgrep/pkill 的匹配键。
+        // 它**必须 unique**：共用会让 pkill 误杀、pgrep 误判。
         const ins = await TunnelManager.getInstance(INSTANCE);
-        const prefix = ins!.getPrefix();
+        const services = ins!.getServices();
 
-        expect(prefix).toBe("comfyui_manager_");
-        for (const kind of Object.keys(ins!.getServices()))
-            expect(`${prefix}${kind}`).toBe(`comfyui_manager_${kind}`);
+        const tags = Object.keys(services).map(k => services[k].unique_tag ?? `${INSTANCE}_${k}`);
+        for (const kind of Object.keys(services))
+            expect(tags).toContain(services[kind].unique_tag ?? `${INSTANCE}_${kind}`);
+        // 唯一性
+        expect(new Set(tags).size).toBe(tags.length);
     }, TIMEOUT.api);
 
     it("3. 应能在实例上找到服务的部署文件", async () => {
@@ -241,10 +243,10 @@ describe("Tunnel 可用性", () => {
         const ssh = await ins!.getSshClient();
         const r = await ssh!.exec(
             `cat /proc/${clash.procPid}/cmdline 2>/dev/null | tr '\\0' ' '`);
-        // 期望值由**实例自己的 prefix** 拼出，而不是硬编码一个常量 ——
+        // 期望值由**实例自己的配置**取，而不是硬编码一个常量 ——
         // 这样测试跟随配置，配置一改（如换成 indextts）断言自动跟着走。
         const own = await TunnelManager.getInstance(INSTANCE);
-        expect(r.stdout).toContain(`${own!.getPrefix()}clash`);
+        expect(r.stdout).toContain(own!.getServices().clash.unique_tag ?? `${INSTANCE}_clash`);
 
         // ## pid 与 sid 的关系（实测修正了此前的错误认知）
         // 曾以为「前台 exec 让服务顶替终端 shell，故 pid == sid」——

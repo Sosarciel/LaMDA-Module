@@ -30,10 +30,85 @@
 import { execFileSync } from "node:child_process";
 
 import { SLogger } from "@zwa73/utils";
-import { comfyuiService } from "@sosraciel-lamda/autodl-manager";
-import type { ServiceKind } from "@sosraciel-lamda/autodl-manager";
+import type { ServiceConfig, ServiceKind } from "@sosraciel-lamda/autodl-manager";
 
 import { COMFY_LOCAL_PORT, getAutoDLCred } from "@/src/Constant";
+
+/** 本用例各服务的托管配置（clash / middleware / comfyui）
+ * #region
+ * ## 为什么这份配置在**测试侧**而不在模块里
+ * 模块的机制是**通用**的（隧道 + 服务启停协定），而「clash + middleware + comfyui」
+ * 只是它的**一个用例** —— 换个部署（IndexTTS 之类）就整份替换掉，
+ * 机制层（`Probe` / `Launcher` / `Instance`）一行都不用改。
+ *
+ * 既然没有生产代码消费它，放到模块里就等于把「一个用例」冒充成「模块的默认值」，
+ * 会诱导使用者以为模块认识 comfyui。故它归测试所有。
+ *
+ * ## 只有脚本路径，不含任何实现细节
+ * 不在本地硬编码去贴合远端（像 `node-v22.14.0-linux-x64` 连版本号都写上去，
+ * 换一版就坏）。启动命令、解释器路径、参数、工作目录全在远端的
+ * `/root/ComfyUI-Manager/*.sh` 里，由远端自己掌握。
+ *
+ * ## ⚠️ 返回的是**有序**表 —— 键的顺序即启动顺序
+ * 服务之间存在依赖（clash 先起，Middleware 才能经它出网）。
+ * 不必为此单独维护依赖表：**顺序本身就编码了依赖**，排在后面的必然需要前面的一切。
+ * 真正的依赖边只用 `deps` 显式声明（本用例只有 ComfyUI 依赖 clash）。
+ *
+ * ## 探测：默认用特征匹配，需要更准时才给 `probe_<kind>.sh`
+ * | 服务 | 探测方式 | 原因 |
+ * |------|---------|------|
+ * | clash | 特征匹配 | 进程在就说明在工作 |
+ * | middleware | 特征匹配 | 打包好的 Node 启动是一瞬间，进程在即可用 |
+ * | **comfyui** | **`probe_comfyui.sh`** | 启动要数十秒，进程在≠能用 |
+ *
+ * 快启动的服务不必加 probe（middleware 顶多 2 秒）。
+ * mgr 会**先检查 probe 文件是否存在**：存在就用退出码作判据，不存在就退回特征匹配 ——
+ * 故删掉该文件不会报错，只是判定变宽松。
+ *
+ * ## 各服务显式声明自己的 `unique_tag`
+ * 它是 mgr **唯一**该关心的东西 —— 只作 `pgrep -f` / `pkill -f` 的匹配键。
+ * 远端拿它去建 screen 会话（好让人 `screen -r <tag>` 检视）属于**附带效果**，
+ * 换个实现（tmux / 别的）mgr 也不关心。故这里写字面量，而不是让 mgr 去拼。
+ *
+ * **必须 unique** —— 共用会让 `pkill` 误杀、`pgrep` 误判。
+ * #endregion
+ *
+ * @param scriptDir - 远端脚本目录
+ * @returns 各服务的配置（键序即启动顺序）
+ */
+export const comfyuiService = (scriptDir: string): Record<ServiceKind, ServiceConfig> => ({
+    clash: {
+        start: `${scriptDir}/start_clash.sh`,
+        log: `${scriptDir}/log_clash.sh`,
+        unique_tag: "comfyui_manager_clash",
+        // clash 是原生二进制, 起得极快 —— 5 秒还起不来就是真出问题了
+        expect_ready_sec: 5,
+        // 本地 pgrep, 极廉价 —— 探密些, 早探到就早放行 comfyui
+        poll_interval_ms: 500,
+    },
+    // ⚠️ middleware **不声明任何依赖**, 故与 clash **并发启动**:
+    // mid 实质上不依赖任何东西, 也不被任何东西依赖
+    middleware: {
+        start: `${scriptDir}/start_middleware.sh`,
+        log: `${scriptDir}/log_middleware.sh`,
+        unique_tag: "comfyui_manager_middleware",
+        // 打包好的 Node 启动就是一瞬间
+        expect_ready_sec: 5,
+        poll_interval_ms: 500,
+    },
+    comfyui: {
+        start: `${scriptDir}/start_comfyui.sh`,
+        probe: `${scriptDir}/probe_comfyui.sh`,
+        log: `${scriptDir}/log_comfyui.sh`,
+        unique_tag: "comfyui_manager_comfyui",
+        // ComfyUI 要加载模型与后端, 慢得多 —— 但一分钟内应当能起来
+        expect_ready_sec: 60,
+        // 它的 probe 要经 SSH 打远端原生 API, 比 pgrep 贵得多 —— 探疏些
+        poll_interval_ms: 2_000,
+        // 唯一的一条依赖边: ComfyUI 拉模型/插件要经 clash 代理出网
+        deps: ["clash"],
+    },
+});
 
 /** 测试用实例名（Tunnel 侧的实例名） */
 export const INSTANCE = "TestComfyHost";
@@ -47,32 +122,26 @@ export const INSTANCE = "TestComfyHost";
  */
 export const TERMINAL = "comfyui_manager";
 
-/** 本用例的 Unique 特征前缀（终端名与进程特征共用同一个）
+/** 本用例各服务的 **tag**（进程特征串）
  *
- * ## 为什么终端名与进程特征同一个串
- * 指挥官指出它们在语义上就是同一件事：
- * > 服务终端实例和进程实例的 prefix 我认为没必要区分，
- * > 他们在语义上应该是相同的即为服务 Unique 特征
+ * ## tag 是 mgr 唯一该关心的东西
+ * 它只被用作两个内嵌指令的匹配键：
+ * ```
+ * pgrep -f <tag>    探测进程在不在
+ * pkill -f <tag>    停掉服务
+ * ```
+ * 至于远端**怎么**用它（`screen -r <tag>` / tmux / 别的），属于远端脚本的自由，
+ * mgr 不关心也不该关心。
  *
- * 启动脚本用 `exec -a` 把它写进进程命令行，mgr 用 `pgrep -f` 扫它；
- * 同一个串也直接作终端名。故此处只有**一个**前缀。
+ * ⚠️ **必须 unique** —— 两个服务共用 tag 会让 `pkill` 误杀、`pgrep` 误判。
  *
  * ⚠️ 曾误用大写 `COMFYUI_MANAGER_SVC_` —— 那种新旧特征串不一致的状态
  * 会让 `pgrep` 扫不到旧进程，进而重复启动导致端口冲突而卡满超时。
  */
-export const PREFIX = "comfyui_manager_";
-
-/** 各服务**各自专用**的终端名
- *
- * ## 为什么不再共用一个终端
- * 服务是**前台运行**的 —— 启动脚本用 `exec` 让服务顶替终端 shell，
- * 于是「终端进程 == 服务进程」，Jupyter 面板上能直接看到状态。
- * 代价是终端被服务占住，**一个终端放不下第二个服务**。
- */
-export const SERVICE_TERMINAL: Record<ServiceKind, string> = {
-    clash: `${PREFIX}clash`,
-    middleware: `${PREFIX}middleware`,
-    comfyui: `${PREFIX}comfyui`,
+export const SERVICE_TAG: Record<ServiceKind, string> = {
+    clash: "comfyui_manager_clash",
+    middleware: "comfyui_manager_middleware",
+    comfyui: "comfyui_manager_comfyui",
 };
 
 /** 远端端口（由服务自身的启动参数决定，测试不可改） */
@@ -103,14 +172,14 @@ export const GATEWAY = {
  * ⚠️ 服务表 `service` 现在是**必填**的 —— 本模块不再有「模块默认值」，
  * 服务清单完全由调用方声明。`comfyuiService()` 是本用例的现成预设。
  *
- * `prefix` 是可选的：不填就回退为实例名。
+ * tag 由各服务在 `comfyuiService()` 里显式声明（见 {@link SERVICE_TAG}），
+ * 实例级不再有「前缀」这个中间变量。
  *
  * @returns 隧道实例的接入数据
  */
 export const instanceData = () => ({
     autodl_instance: "AutoDLHost",
     script_dir: SCRIPT_DIR,
-    prefix: "comfyui_manager_",
     service: comfyuiService(SCRIPT_DIR),
 });
 
@@ -284,7 +353,7 @@ export const stopRemoteServices = async (
     kinds: ServiceKind[],
 ): Promise<void> => {
     for (const kind of kinds) {
-        const tag = `${PREFIX}${kind}`;
+        const tag = SERVICE_TAG[kind];
         // 特征串同样要防自匹配: [C]OMFYUI_... 与 COMFYUI_... 等价但不会匹配到本命令
         const safe = `[${tag[0]}]${tag.slice(1)}`;
 

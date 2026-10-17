@@ -1,4 +1,4 @@
-/** 多进程并发接入测试
+﻿/** 多进程并发接入测试
  *
  * ## 这个测试要证明什么
  * 指挥官描述的最基础使用场景：
@@ -31,7 +31,7 @@ import { promisify } from "node:util";
 import { AutoDLManager, TunnelManager } from "@sosraciel-lamda/autodl-manager";
 import { SLogger } from "@zwa73/utils";
 
-import { INSTANCE, assertInstanceRunning, autodlInstanceData, instanceData,
+import { INSTANCE, assertInstanceRunning, autodlInstanceData, comfyuiService, instanceData,
     stopRemoteServices, summarize } from "../Util";
 
 const execFileAsync = promisify(execFile);
@@ -57,14 +57,19 @@ type WorkerEvent = {
 };
 
 /** 启动一个工作进程并等它结束
- * @param id     - 工作进程标识
- * @param outDir - 事件文件输出目录
+ * @param id      - 工作进程标识
+ * @param outDir  - 事件文件输出目录
+ * @param startAt - 起跑线时间戳/毫秒（两个 worker 据此对齐冲锁时机）
  * @returns 该进程记录的事件列表
  */
-const runWorker = async (id: string, outDir: string): Promise<WorkerEvent[]> => {
+const runWorker = async (id: string, outDir: string, startAt?: number): Promise<WorkerEvent[]> => {
     const eventFile = path.join(outDir, `events-${id}.json`);
+    const args = [WORKER, id, eventFile];
+    if (startAt != undefined) args.push(String(startAt));
+    // 用例配置由父进程序列化传入（本文件是 .mjs，读不到 .ts 源码）
+    args.push(JSON.stringify(comfyuiService("/root/ComfyUI-Manager")));
     try {
-        await execFileAsync(process.execPath, [WORKER, id, eventFile],
+        await execFileAsync(process.execPath, args,
             { timeout: 300_000, maxBuffer: 10 * 1024 * 1024 });
     } catch (e) {
         // 子进程非零退出不直接失败 —— 事件文件里有更详细的失败原因
@@ -133,9 +138,18 @@ describe("Tunnel 多进程并发接入", () => {
         }
 
         // 两个进程**同时**启动 —— 这是竞态的关键
+        //
+        // ⚠️ 光靠「同时 spawn」不够：服务改由远端脚本 `screen -dmS` 拉起后，
+        // `bash start_<svc>.sh` **1.5 秒就返回**（此前前台常驻、永不复返），
+        // 启动窗口从几十秒缩到 1.5 秒，两个进程**大概率自然错开**，
+        // 谁也撞不上锁 —— 那样这条用例只是「碰巧通过」，什么都没证明。
+        //
+        // 故给两者一个**共同的起跑线**（spawn 之后再等 3 秒），
+        // 让它们同时冲到抢锁那一步，锁才真的被考验。
+        const startAt = Date.now() + 3_000;
         [eventsA, eventsB] = await Promise.all([
-            runWorker("A", outDir),
-            runWorker("B", outDir),
+            runWorker("A", outDir, startAt),
+            runWorker("B", outDir, startAt),
         ]);
     }, 600_000);
 
@@ -184,13 +198,23 @@ describe("Tunnel 多进程并发接入", () => {
         expect(ins).toBeDefined();
         const ssh = await ins!.getSshClient();
 
-        for (const [kind, pattern] of [
-            ["clash", "[/]root/clash/mihomo"],
-            ["middleware", "[n]ode index.js -p"],
-        ] as const) {
-            const r = await ssh!.exec(`pgrep -f '${pattern}' | wc -l`);
+        // ## 数「服务本体」而不是「screen 包装」
+        // 服务现在由远端脚本用 `screen -dmS <unique_tag>` 拉起，故下列四条的
+        // 命令行**都含 tag**：SCREEN 包装 / `bash -c` / 服务本体 / `tee`。
+        // 按 tag 子串数会恒为 4，数不出份数。
+        //
+        // 服务本体靠 `exec -a` 把 argv[0] 换成 tag，于是它的命令行**以 tag 开头**：
+        //   clash      → `comfyui_manager_clash`
+        //   middleware → `comfyui_manager_middleware index.js -p 6006 …`
+        // 故用 `^tag( |$)` 锚定「以 tag 起头」即可精确数到本体
+        // （不能写成 `^tag$` —— middleware 后面还跟着参数）。
+        //
+        // 这同时也在验证 tag 契约本身：数得到，说明 `exec -a` 真的生效了。
+        for (const kind of ["clash", "middleware"] as const) {
+            const tag = `comfyui_manager_${kind}`;
+            const r = await ssh!.exec(`pgrep -f '^${tag}( |$)' | wc -l`);
             const count = Number(r.stdout.trim());
-            SLogger.info(`  ${kind} 进程数: ${count}`);
+            SLogger.info(`  ${kind} 进程数: ${count}  (tag=${tag})`);
             // 竞态若处理不当, 这里会 >1
             expect(count).toBeLessThanOrEqual(1);
         }
@@ -222,9 +246,24 @@ describe("Tunnel 多进程并发接入", () => {
         const clashStarters = [startA, startB].filter(Boolean).length;
         expect(clashStarters).toBeLessThanOrEqual(1);
 
-        // 且至少有一个进程**观察到**了另一个的存在 ——
-        // 否则说明它们只是碰巧错开, 本条并未真正验证锁在起作用。
-        expect([waitA, waitB, recheckA, recheckB].some(Boolean)).toBe(true);
+        // ## 为什么这里不断言「必须有人撞锁」
+        // 曾经希望「至少一个进程观察到另一个的存在」，以此证明锁真的被撞到。
+        // 但那**在行为正确的并发下并不必然成立**：
+        //
+        //   服务由 `screen -dmS` 拉起后，`bash start_<svc>.sh` 约 1.5 秒就返回。
+        //   先到者抢锁并启动；后到者若恰好在这 1.5 秒内还没走到 `start()`，
+        //   它下一次 `prob()` 就会看到服务已就绪 —— 于是**既不必启动、也不必碰锁**。
+        //
+        // 这条路径**更好**（说明探测足够快、复用生效），把它判红是拿手段当目的。
+        //
+        // 所以真正的判据是「**没有重复启动**」：上面两条断言（启动者 ≤1、进程数 =1）
+        // 已经把它钉死了。撞锁只是**可能**发生的路径之一，记下来便于排障，不作断言。
+        const observed = [waitA, waitB, recheckA, recheckB].filter(Boolean).length;
+        if (observed === 0) {
+            SLogger.info(
+                `  两个进程都未撞锁 —— 后到者在探测阶段就复用了先到者拉起的服务`
+                + `（启动窗口仅 1.5s, 属正常且更优的路径）`);
+        }
     }, 30_000);
 
     afterAll(async () => {

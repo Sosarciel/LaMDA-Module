@@ -1,4 +1,4 @@
-/** 多进程测试的**独立工作进程**
+﻿/** 多进程测试的**独立工作进程**
  *
  * ## 这个文件要证明什么
  * 指挥官描述的最基础使用场景：
@@ -27,6 +27,8 @@
 
 import fs from "node:fs";
 import { createRequire } from "node:module";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 /** CommonJS require —— 被测模块是 CJS(无 exports 映射),
  *  ESM 的 import 解析不了包名, 故用 createRequire 走 Node 的 CJS 解析规则。
@@ -36,9 +38,29 @@ const require = createRequire(import.meta.url);
 /** 命令行参数
  * - argv[2]: 本进程的标识（A / B）
  * - argv[3]: 事件输出的 JSON 文件路径（父进程读取比对）
+ * - argv[4]: 起跑线时间戳（毫秒），供「撞锁」用例对齐两个进程
+ * - argv[5]: 服务配置表的 JSON（由父进程序列化传入）
  */
 const WORKER_ID = process.argv[2] ?? "?";
 const EVENT_FILE = process.argv[3];
+const START_AT = Number(process.argv[4] ?? 0);
+const SERVICE_JSON = process.argv[5];
+
+/** 等到约定的起跑线再继续
+ *
+ * ## 为什么需要它
+ * 服务改由远端脚本 `screen -dmS` 拉起后，`bash start_<svc>.sh` **1.5 秒就返回**
+ * （此前是前台常驻、永不复返）。启动窗口从几十秒缩到 1.5 秒，
+ * 于是两个 worker 自然并发时**大概率错开**，谁也撞不上锁 ——
+ * 那样这条用例就什么也没证明，只是「碰巧通过」。
+ *
+ * 故由父进程给两个 worker 一个共同的起跑线，让它们**同时**冲到抢锁那一步。
+ */
+const waitForStartLine = async () => {
+    if (!START_AT) return;
+    const wait = START_AT - Date.now();
+    if (wait > 0) await new Promise(r => setTimeout(r, wait));
+};
 
 /** 事件缓冲：记录带时间戳的关键节点，供父进程还原时间线 */
 const events = [];
@@ -95,18 +117,37 @@ const flush = () => {
     if (EVENT_FILE) fs.writeFileSync(EVENT_FILE, JSON.stringify(events, null, 2));
 };
 
-/** 载入 MCP 侧与本地凭据 */
+/** 载入 AutoDL 凭据 —— 与其余测试**同源**（`Test/data/Cred.json`）
+ *
+ * 早先这里硬编码读模块目录下的 `data/cred.txt`，那是废弃路径
+ * （文件早已不存在），而 `.mjs` 不经 `tsc` 检查，故一直没被发现。
+ *
+ * 不走 `@/src/Constant`：它是 `.ts`，本文件是直接由 node 运行的 ESM，
+ * 没有编译产物可 require，路径别名也不生效。故直接读同一个 JSON，
+ * 结构见 `Constant.ts` 的 `AutoDLCred`。
+ */
 const readCred = () => {
-    const p = "F:/Sosarciel/Sosarciel-LaMDA/LaMDA-Module/Service-Manager/AutoDL-Manager/data/cred.txt";
-    const L = fs.readFileSync(p, "utf8").split(/\r?\n/).map(s => s.trim());
-    return { token: L[1], uuid: L[10] };
+    // 本文件在 Test/src/RealApi/AutoDL-Manager/Tunnel/MultiProcess/ → 上溯 5 级到 Test/
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const credPath = path.join(here, "..", "..", "..", "..", "..", "data", "Cred.json");
+    const cfg = JSON.parse(fs.readFileSync(credPath, "utf8"));
+    const cred = cfg.AutoDL ?? {};
+    const missing = ["token", "instance_uuid"].filter(k => cred[k] == null || cred[k] === "");
+    if (missing.length > 0) throw new Error(`AutoDL 凭据缺失: ${missing.join(", ")} (${credPath})`);
+    return { token: cred.token, uuid: cred.instance_uuid };
 };
 
 const main = async () => {
     const cred = readCred();
     // 走包名解析 —— Test 项目已在 workspace 中 link 了该模块,
     // 用相对路径会因 worker 位于 src/ 深层而算错。
-    const { AutoDLManager, TunnelManager, comfyuiService } = require("@sosraciel-lamda/autodl-manager");
+    //
+    // ⚠️ 用例配置（comfyuiService）**不从这里取** —— 它归测试所有，
+    // 而本文件是 `.mjs` 直接被 node 运行，引用不到 TypeScript 源码。
+    // 故由父进程序列化后从 argv 传入（见 SERVICE_JSON）。
+    const { AutoDLManager, TunnelManager } = require("@sosraciel-lamda/autodl-manager");
+    if (!SERVICE_JSON) throw new Error("缺少服务配置参数 argv[5]");
+    const service = JSON.parse(SERVICE_JSON);
     // 挂钩 logger 以观察模块内部的决策路径(走等待还是走启动)
     hookLogger(require("@zwa73/utils").SLogger);
 
@@ -146,10 +187,10 @@ const main = async () => {
                     data: {
                         autodl_instance: "BJ",
                         script_dir: "/root/ComfyUI-Manager",
-                        // 两个 worker 用**同一个** prefix —— 它们连的是同一台机器上的
-                        // 同一组服务，本就该看到同样的进程特征（这正是竞态测试的前提）
-                        prefix: "comfyui_manager_",
-                        service: comfyuiService("/root/ComfyUI-Manager"),
+                        // 两个 worker 看到的 `unique_tag` **完全一致** —— 它们连的是同一台机器上
+                        // 的同一组服务，本就该看到同样的进程特征（这正是竞态测试的前提）。
+                        // tag 由 comfyuiService() 里各服务显式声明，实例级不再有中间变量。
+                        service,
                     },
                 },
             },
@@ -168,6 +209,10 @@ const main = async () => {
     // ── 确保就绪：需要时自己去叫终端拉起 ──────────────────────
     // 只要求 clash + middleware —— 本测试验证的是「并发接入与竞态」,
     // ComfyUI 本体在无卡模式下必然失败, 与竞态无关。
+    //
+    // ⚠️ 先等起跑线 —— 两个进程必须**同时**冲到抢锁那一步，
+    // 否则它们会自然错开，锁压根没被考验（见 waitForStartLine 的说明）。
+    await waitForStartLine();
     record("ensure-start");
     const ep = await TunnelManager.ensureReady({
         instanceName: "CloudA",

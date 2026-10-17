@@ -94,14 +94,11 @@ const record = (phase, detail = "") => {
 const hookLogger = (SLogger) => {
     const KEYWORDS = [
         // 抢锁失败的信号 —— 出现它说明锁真的协调了两个进程
-        "TunnelLauncher clash 已有其他进程在启动",
-        "TunnelLauncher middleware 已有其他进程在启动",
+        "TunnelLauncher slow 已有其他进程在启动",
         // 真正执行了启动(抢到锁且复查为 dead 之后才打)
-        "TunnelLauncher 启动 clash",
-        "TunnelLauncher 启动 middleware",
+        "TunnelLauncher 启动 slow",
         // 复查发现已有进程 —— 也是「没重复启动」的证据
-        "TunnelLauncher clash 抢锁后复查有变化",
-        "TunnelLauncher middleware 抢锁后复查有变化",
+        "TunnelLauncher slow 抢锁后复查有变化",
     ];
     const origInfo = SLogger.info.bind(SLogger);
     SLogger.info = (msg, ...rest) => {
@@ -142,12 +139,12 @@ const main = async () => {
     // 走包名解析 —— Test 项目已在 workspace 中 link 了该模块,
     // 用相对路径会因 worker 位于 src/ 深层而算错。
     //
-    // ⚠️ 用例配置（comfyuiService）**不从这里取** —— 它归测试所有，
+    // ⚠️ 实例配置（含 `script_dir` 与 `service`）**不从这里取** —— 它归测试所有，
     // 而本文件是 `.mjs` 直接被 node 运行，引用不到 TypeScript 源码。
     // 故由父进程序列化后从 argv 传入（见 SERVICE_JSON）。
     const { AutoDLManager, TunnelManager } = require("@sosraciel-lamda/autodl-manager");
-    if (!SERVICE_JSON) throw new Error("缺少服务配置参数 argv[5]");
-    const service = JSON.parse(SERVICE_JSON);
+    if (!SERVICE_JSON) throw new Error("缺少实例配置参数 argv[5]");
+    const instanceData = JSON.parse(SERVICE_JSON);
     // 挂钩 logger 以观察模块内部的决策路径(走等待还是走启动)
     hookLogger(require("@zwa73/utils").SLogger);
 
@@ -165,9 +162,9 @@ const main = async () => {
                         instance_uuid: cred.uuid,
                         keep_alive_sec: 1800,
                         // 两个进程用**不同**的本地端口，模拟两台物理机 ——
-                        // 它们各自的隧道映射到同一个远端服务(6006)
+                        // 它们各自的隧道映射到同一个远端服务(假服务 slow 的 18102)
                         local_port_forward: {
-                            [26610 + Number(WORKER_ID.charCodeAt(0) % 10)]: "6006",
+                            [26610 + Number(WORKER_ID.charCodeAt(0) % 10)]: "18102",
                         },
                     },
                 },
@@ -184,20 +181,13 @@ const main = async () => {
                 CloudA: {
                     type: "TunnelInstance",
                     name: "CloudA",
-                    data: {
-                        autodl_instance: "BJ",
-                        script_dir: "/root/ComfyUI-Manager",
-                        // 两个 worker 看到的 `unique_tag` **完全一致** —— 它们连的是同一台机器上
-                        // 的同一组服务，本就该看到同样的进程特征（这正是竞态测试的前提）。
-                        // tag 由 comfyuiService() 里各服务显式声明，实例级不再有中间变量。
-                        service,
-                    },
+                    data: instanceData,
                 },
             },
         },
     });
     await TunnelManager.sm.inited;
-    record("comfyuimgr-init");
+    record("tunnelmgr-init");
 
     // ── 只读探测：此刻远端服务是什么状态？ ────────────────────
     const before = await TunnelManager.probe("CloudA");
@@ -206,9 +196,9 @@ const main = async () => {
         : Object.entries(before).map(([k, v]) => `${k}=${v.ready ? "ready" : v.alive ? "starting" : "none"}`).join(",");
     record("probe-before", snapshot);
 
-    // ── 确保就绪：需要时自己去叫终端拉起 ──────────────────────
-    // 只要求 clash + middleware —— 本测试验证的是「并发接入与竞态」,
-    // ComfyUI 本体在无卡模式下必然失败, 与竞态无关。
+    // ── 确保就绪：需要时自己去拉起服务 ────────────────────────
+    // 只要求 `slow` —— 它是**慢**服务（6 秒才就绪），
+    // 启动窗口足够长，两个 worker 必然重叠，锁才会真的被考验。
     //
     // ⚠️ 先等起跑线 —— 两个进程必须**同时**冲到抢锁那一步，
     // 否则它们会自然错开，锁压根没被考验（见 waitForStartLine 的说明）。
@@ -216,10 +206,10 @@ const main = async () => {
     record("ensure-start");
     const ep = await TunnelManager.ensureReady({
         instanceName: "CloudA",
-        require: ["clash", "middleware"],
-        timeoutSec: 60,
+        require: ["slow"],
+        timeoutSec: 90,
     });
-    record("ensure-done", `endpoint=${ep ?? "undefined"}`);
+    record("ensure-done", `ok=${ep ?? "undefined"}`);
 
     // ── 事后探测 ──────────────────────────────────────────────
     const after = await TunnelManager.probe("CloudA");

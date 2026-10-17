@@ -1,4 +1,4 @@
-/** ⚠️ 危险测试：完全生命周期的启停
+﻿/** ⚠️ 危险测试：完全生命周期的启停
  *
  * ## 为什么是危险的
  * 与 AutoDL-Manager 的 `Dangerous/full-flow.test.ts` 同源：
@@ -10,26 +10,31 @@
  *
  * 本测试的语义是「**调用即拉起**」：调用前断言实例是关的，调用后断言它已可用。
  *
- * ## ⚠️⚠️ 当前有硬性阻断
- * 目标实例 `pro-7916491fc9d3` 运行在**无卡模式**，而 AutoDL 的
- * `power_on` API 的 `payload` **只接受 `"gpu"`** ——
- * 即**无卡模式实例一旦被关，就无法经 API 重新打开**，只能人工在控制台开。
+ * ## 服务用自备假服务，而不是 ComfyUI
+ * 本测试要证的只有一件事：**`ensureReady` 能否在实例关机时自动开机并拉起服务**。
+ * 那与服务是什么毫无关系 —— 用假服务反而更纯粹：
+ * ComfyUI 起不来时（比如无卡模式），我们分不清是「生命周期没工作」
+ * 还是「服务自己起不来」，而假服务只会在真出问题时失败。
+ * ComfyUI 那一条属于**用例验证**，已下沉到 `test-server`。
  *
- * 因此在本测试真正可用之前，必须**先解决「无卡模式实例如何开机」**这个问题，
- * 否则一旦跑起来就会把实例关掉且开不回来。
+ * ## ⚠️ 无卡模式实例的硬性阻断
+ * AutoDL 的 `power_on` API 的 `payload` **只接受 `"gpu"`** ——
+ * 无卡模式实例一旦被关，就无法经 API 重新打开，只能人工在控制台开。
+ * 故 `BLOCKED_BY_GPU_MODE` 拦的正是这一情形。
  *
- * ## 运行方式（解决上述阻断后）
+ * ## 运行方式
  * ```
- * # 1. 环境变量
  * cross-env WITH_API=true AUTODL_COMFY_FLOW=true npm run test -- --selectProjects real-api src/RealApi/AutoDL-Manager/Tunnel/Dangerous --runInBand --forceExit
- * # 2. 把下面的 MANUAL_CONFIRM 改成 true 后直接跑
  * ```
+ * 或把下面的 `MANUAL_CONFIRM` 改成 `true` 后直接跑。
  */
 
 import { AutoDLManager, TunnelManager } from "@sosraciel-lamda/autodl-manager";
 import { SLogger } from "@zwa73/utils";
 
-import { INSTANCE, autodlInstanceData, instanceData, summarize } from "../Util";
+import { FIXTURE_DIR, FIXTURE_TAG } from "../fixture";
+import { cleanupFixtures, deployFixtures, isFixtureUp, stopFixture } from "../fixtureSetup";
+import { autodlInstanceData, summarize } from "../Util";
 
 /** ⚠️ 危险测试总开关：人工确认后才置 true
  *
@@ -46,13 +51,6 @@ const MANUAL_CONFIRM: boolean = false;
  * 故本开关拦的是「目标实例是无卡模式」这一情形：
  * 那种实例被关掉后**开不回来**，跑本测试是纯粹的破坏。
  *
- * ## 现为 `false`（指挥官裁定）
- * 实测目标实例是**有卡**的（`name` 形如「北京BProvGPU32GComfyUI1」、
- * `snapshot_gpu_alias_name` 为 `vGPU-32GB`，`nvidia-smi` 返回
- * RTX 4080 SUPER 32GB），经 API `power_on` 5 秒即进入 running。
- * 故「无卡开不回来」这个顾虑对本实例不成立 —— 而本测试本就是
- * **需要 GPU 的完整业务测试**，不该被防呆开关卡住。
- *
  * 换成无卡实例时，把它改回 `true`。
  */
 const BLOCKED_BY_GPU_MODE: boolean = false;
@@ -66,6 +64,8 @@ const describeFlow = ENABLED ? describe : describe.skip;
 
 /** AutoDL 侧实例名 */
 const HOST_INSTANCE = "AutoDLHost";
+/** Tunnel 侧实例名 */
+const INSTANCE = "FixtureLifecycle";
 
 /** 超时上限/毫秒 */
 const TIMEOUT = {
@@ -74,6 +74,27 @@ const TIMEOUT = {
     boot: 300_000,
     launch: 300_000,
 };
+
+/** 本组的服务配置 —— 只用**快**服务
+ *
+ * 生命周期测试关心的是「能否开机 + 拉起」，不需要慢服务的启动窗口。
+ */
+const fixtureService = () => ({
+    fast: {
+        start: `${FIXTURE_DIR}/start_fast.sh`,
+        log: `${FIXTURE_DIR}/log_fast.sh`,
+        unique_tag: FIXTURE_TAG.fast,
+        expect_ready_sec: 15,
+        poll_interval_ms: 300,
+    },
+});
+
+/** 测试用的 Tunnel 实例 data */
+const fixtureInstanceData = () => ({
+    autodl_instance: HOST_INSTANCE,
+    script_dir: FIXTURE_DIR,
+    service: fixtureService(),
+});
 
 if (!ENABLED) {
     SLogger.warn(
@@ -108,7 +129,7 @@ describeFlow("Tunnel 完全生命周期(危险)", () => {
                     [INSTANCE]: {
                         type: "TunnelInstance",
                         name: INSTANCE,
-                        data: instanceData(),
+                        data: fixtureInstanceData(),
                     },
                 },
             },
@@ -127,15 +148,13 @@ describeFlow("Tunnel 完全生命周期(危险)", () => {
     it("2. ensureReady 应自动开机并把服务拉起", async () => {
         const ok = await TunnelManager.ensureReady({
             instanceName: INSTANCE,
-            // 有卡模式下三个服务都应可用
-            require: ["clash", "middleware", "comfyui"],
+            require: ["fast"],
             timeoutSec: 240,
         });
 
         // ⚠️ 断言 `=== false` 而非 `== undefined` ——
         // `ensureReady` 返回的是布尔, `undefined` 检查对本类型恒不成立,
-        // 失败时会静默放过（假绿）。指挥官早已去掉「入口/端点」概念,
-        // 故这里也不再断言返回 URL, 只断「是否全部就绪」。
+        // 失败时会静默放过（假绿）。
         if (ok === false) {
             const probe = await TunnelManager.probe(INSTANCE);
             throw new Error(
@@ -143,7 +162,7 @@ describeFlow("Tunnel 完全生命周期(危险)", () => {
                 + `${probe == undefined ? "实例不可用" : summarize(probe)}`);
         }
         expect(ok).toBe(true);
-        SLogger.info(`  三个服务全部就绪`);
+        SLogger.info(`  服务已就绪`);
     }, TIMEOUT.boot + TIMEOUT.launch);
 
     it("3. 拉起后 AutoDL 实例应处于运行中", async () => {
@@ -151,20 +170,31 @@ describeFlow("Tunnel 完全生命周期(危险)", () => {
         expect(await ins!.getStatus()).toBe("running");
     }, TIMEOUT.api);
 
-    it("4. ComfyUI 本体应真的能响应(证明 GPU 可用)", async () => {
+    it("4. 服务应真的能响应(证明假服务确实被拉起来了)", async () => {
         const ins = await AutoDLManager.getInstance(HOST_INSTANCE);
         const ssh = await ins!.getSshClient();
-        // /system_stats 是 ComfyUI 的就绪端点, 能返回即证明它真的跑起来了
         const r = await ssh!.exec(
-            "curl -s --max-time 10 http://127.0.0.1:6005/system_stats");
-        expect(r.stdout).toContain("system");
+            `curl -fs --max-time 10 http://127.0.0.1:18101/ >/dev/null 2>&1 && echo UP || echo DOWN`);
+        expect(r.stdout).toContain("UP");
     }, TIMEOUT.api);
+
+    it("5. teardown 应停掉服务", async () => {
+        const cleaned = await TunnelManager.teardown(INSTANCE);
+        SLogger.info(`  清理结果: ${JSON.stringify(cleaned)}`);
+
+        const ins = await AutoDLManager.getInstance(HOST_INSTANCE);
+        const ssh = await ins!.getSshClient();
+        await stopFixture({ ssh: ssh!, kind: "fast" });
+        expect(await isFixtureUp({ ssh: ssh!, kind: "fast" })).toBe(false);
+    }, TIMEOUT.launch);
 
     afterAll(async () => {
         // ⚠️ 本测试的收尾**不停机** —— 由生命周期协商决定何时关机。
-        // 这里只收掉本地隧道。若需要主动关机, 那是另一个显式的危险操作。
+        // 这里只清掉假服务与本地隧道。若需要主动关机, 那是另一个显式的危险操作。
         try {
             const ins = await AutoDLManager.getInstance(HOST_INSTANCE);
+            const ssh = await ins?.getSshClient();
+            if (ssh != undefined) await cleanupFixtures(ssh);
             await ins?.closeTunnel();
         } catch {
             // 收尾失败不应让测试结果变红

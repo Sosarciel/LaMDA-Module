@@ -40,6 +40,15 @@ const HOST_INSTANCE = "AutoDLHost";
 /** Tunnel 侧实例名 */
 const INSTANCE = "FixtureLock";
 
+/** 一个**故意不存在**的脚本目录，用来验证配置写错时的行为
+ *
+ * ⚠️ 它必须是**独立的 Tunnel 实例**而不能复用 {@link INSTANCE}：
+ * 同一个实例的 `script_dir` 只声明一次，改它就等于改了整套前置条件。
+ */
+const BOGUS_INSTANCE = "FixtureBogus";
+/** 那个不存在的脚本目录 */
+const BOGUS_DIR = "/root/NoSuchManagerDir_ShouldNotBeCreated";
+
 /** 超时上限/毫秒 */
 const TIMEOUT = {
     setup: 120_000,
@@ -79,6 +88,34 @@ const fixtureService = () => ({
     },
 });
 
+/** 「脚本目录不存在」用例专用的服务配置
+ * #region
+ * ## ⚠️ 为什么必须用**不同的** `unique_tag`
+ * 探测的判据是「按 tag 找到进程」。若沿用 {@link fixtureService} 的 tag，
+ * 而前几条用例已经把那个服务拉起来了，那么 `ensureReady` 一探测就发现
+ * 「已就绪」→ **直接返回 true，压根走不到 `tryAcquireLock`**，
+ * 于是「脚本目录不存在」这条根本测不到（实测踩到：用例 1618ms 就失败，
+ * 拿到的是 `true` 而非 `false`）。
+ *
+ * 故这里给一组**永远不会活着**的 tag，强制流程走到 `start`
+ * → `tryAcquireLock` → 远端目录不存在 → `NO_SCRIPT_DIR`。
+ *
+ * ## 不带 `probe`
+ * 不配探测脚本时 `ready` 直接等于 `alive`，而 `alive` 恒为 false ——
+ * 正是我们要的「永远不会自己变成就绪」。
+ *
+ * `expect_ready_sec` 压到 3 秒：本用例等的是**预期失败**，不该按常规服务等 15 秒。
+ * #endregion
+ */
+const bogusService = () => ({
+    [FAST]: {
+        start: `${BOGUS_DIR}/start_fast.sh`,
+        unique_tag: "akaset_test_bogus_fast",
+        expect_ready_sec: 3,
+        poll_interval_ms: 300,
+    },
+});
+
 /** 锁目录（与模块 `lockPath` 的拼法一致：`<scriptDir>/.locks/<kind>.lock`） */
 const lockDirOf = (kind: string): string => `${FIXTURE_DIR}/.locks/${kind}.lock`;
 
@@ -105,6 +142,12 @@ describe("Tunnel 服务启动锁", () => {
         await deployFixtures(ssh!);
 
         TunnelManager.initInject({
+            // ## 两个实例**一次性**注册完
+            // `UtilFunc.createInjectable` 只认第一次 `initInject`，
+            // 之后再调会被静默跳过（只留一条 warn）。早先用例 5 里单独
+            // 又调一次注册 `Bogus`，其实**从未生效** —— 于是那条用例拿到的
+            // `false` 来自「实例不存在」而非「脚本目录不存在」，
+            // 断言碰巧成立但推理链是断的。故这里把两者一并登记。
             serviceTable: {
                 instance_table: {
                     [INSTANCE]: {
@@ -114,6 +157,15 @@ describe("Tunnel 服务启动锁", () => {
                             autodl_instance: HOST_INSTANCE,
                             script_dir: FIXTURE_DIR,
                             service: fixtureService(),
+                        },
+                    },
+                    [BOGUS_INSTANCE]: {
+                        type: "TunnelInstance",
+                        name: BOGUS_INSTANCE,
+                        data: {
+                            autodl_instance: HOST_INSTANCE,
+                            script_dir: BOGUS_DIR,
+                            service: bogusService(),
                         },
                     },
                 },
@@ -278,40 +330,40 @@ describe("Tunnel 服务启动锁", () => {
 
     it("5. 脚本目录不存在时应如实报错, 且不擅自建目录", async () => {
         const ssh = await getSsh();
-        const bogus = "/root/NoSuchManagerDir_ShouldNotBeCreated";
 
-        await ssh.exec(`rm -rf '${bogus}'`);
+        await ssh.exec(`rm -rf '${BOGUS_DIR}'`);
 
-        TunnelManager.initInject({
-            serviceTable: {
-                instance_table: {
-                    "Bogus": {
-                        type: "TunnelInstance",
-                        name: "Bogus",
-                        data: {
-                            autodl_instance: HOST_INSTANCE,
-                            script_dir: bogus,
-                            service: fixtureService(),
-                        },
-                    },
-                },
-            },
-        });
-        await TunnelManager.sm.inited;
+        // ## 先确认实例**真的在册**
+        // 这是本用例成立的前提：若 `FixtureBogus` 没注册上，
+        // `ensureReady` 会因「实例不存在」返回 false —— 与脚本目录无关，
+        // 断言就变成了假绿。故这里显式断言它确实被 ServiceManager 管着。
+        const names = await TunnelManager.listInstances();
+        expect(names).toContain(BOGUS_INSTANCE);
+
+        const bogusIns = await TunnelManager.getInstance(BOGUS_INSTANCE);
+        expect(bogusIns).toBeDefined();
+        expect(bogusIns!.getData().script_dir).toBe(BOGUS_DIR);
 
         const ok = await TunnelManager.ensureReady({
-            instanceName: "Bogus",
+            instanceName: BOGUS_INSTANCE,
             require: [FAST],
-            timeoutSec: 12,
+            timeoutSec: 30,
         });
         expect(ok).toBe(false);
 
         // ⚠️ 不能因为 `mkdir -p $(dirname ...)` 就把脚本目录"顺手"建出来 ——
         // 那会把「目录指错了」这件配置错误掩盖成「脚本找不到」。
         const r = await ssh.exec(
-            `test -d '${bogus}' && echo CREATED || echo NOT_CREATED`);
+            `test -d '${BOGUS_DIR}' && echo CREATED || echo NOT_CREATED`);
         expect(r.stdout).toContain("NOT_CREATED");
 
-        SLogger.info(`  脚本目录不存在时未擅自创建目录`);
+        // 也**不该有任何进程**被拉起 —— 脚本都不存在，无从拉起。
+        // 这里用 bogus 自己的 tag（永不会活着），故 0 是确定的，
+        // 不受前面用例是否起过 fast 影响。
+        const n = await ssh.exec(
+            `screen -ls 2>/dev/null | grep -c '[.]akaset_test_bogus[[:space:]]'`);
+        expect(Number(n.stdout.trim())).toBe(0);
+
+        SLogger.info(`  脚本目录不存在时如实失败, 未擅自建目录, 也未拉起任何进程`);
     }, TIMEOUT.launch);
 });

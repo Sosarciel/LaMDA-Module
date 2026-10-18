@@ -22,7 +22,7 @@ const TEST_TABLE: PermissionManagerJsonTable = {
 
 describe("User-Domain 权限系统 测试", () => {
     beforeAll(() => {
-        PermissionManager.initInject({ table: TEST_TABLE });
+        PermissionManager.initInject({ tableStore: TEST_TABLE });
     });
 
     test("1. 应放行角色直接声明的权限节点", async () => {

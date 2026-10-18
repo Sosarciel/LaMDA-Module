@@ -65,7 +65,8 @@ describe("PostgresSQL-Manager 模拟表测试", () => {
     describe("2. 缓存协调器", () => {
         it("2.1 应使用注入的普通缓存协调器", async () => {
             const accesser = new MockTableAccesser<TestDBRow>(manager);
-            accesser.injectCacheCoordinator(mockCacheCoordinator);
+            // 必须 await —— 返回即代表 LISTEN 已挂上, 否则后续写库会落在聋窗里
+            await accesser.injectCacheCoordinator(mockCacheCoordinator);
 
             const testData: TestDBRow = {
                 data: {
@@ -88,7 +89,7 @@ describe("PostgresSQL-Manager 模拟表测试", () => {
             await mockJsonDataCacheCoordinator.inited;
 
             const accesser = new MockTableAccesser<TestDBRow>(manager);
-            accesser.injectCacheCoordinator(mockJsonDataCacheCoordinator);
+            await accesser.injectCacheCoordinator(mockJsonDataCacheCoordinator);
 
             const testData: TestDBRow = {
                 data: {
@@ -111,7 +112,10 @@ describe("PostgresSQL-Manager 模拟表测试", () => {
     describe("3. 数据库通知", () => {
         it("3.1 应通过数据库通知更新缓存", async () => {
             const accesser = new MockTableAccesser<TestDBRow>(manager);
-            accesser.injectCacheCoordinator(mockCacheCoordinator);
+            // ⚠️ 必须 await —— 这是本用例的关键前提。
+            // 不 await 的话 LISTEN 尚未建立, 随后的 UPDATE 会落在聋窗里,
+            // PostgreSQL 不补发通知, 缓存会停在旧值且毫无报错。
+            await accesser.injectCacheCoordinator(mockCacheCoordinator);
 
             const initialData: TestDBRow = {
                 data: {

@@ -1,9 +1,32 @@
 import { CharProfileMockTool } from "@sosraciel-lamda/charprofile-domain/mock";
-import { CharProfile, CharAccesser, CharConstant } from "@sosraciel-lamda/charprofile-domain";
+import { CharProfileDomain, CharAccesser, CharConstant } from "@sosraciel-lamda/charprofile-domain";
 import type { CharOption } from "@sosraciel-lamda/charprofile-domain";
 import fs from "fs";
 import path from "pathe";
 import { DATA_PATH } from "@/src/Constant";
+
+
+//测试侧就地声明 mock 数据里的扩展字段
+//印证领域不再认识这些字段, 由接入方通过模块增强自行声明
+declare module "@sosraciel-lamda/charprofile-domain" {
+    /**角色配置字段表 */
+    interface CharConfigFieldTable {
+        /**角色对状态的固定反馈 */
+        status_reply_table:{[key:string]:string};
+        /**音频翻译术语映射表 */
+        term_map:{[key:string]:string};
+        /**音频翻译术语映射表 翻译后 */
+        term_map_after:{[key:string]:string};
+        /**逻辑回归偏置 */
+        logit_bias_map:{[key:string]:number};
+        /**tts实例名 */
+        tts_instance_name?:string|null;
+        /**tts设置 */
+        tts_option?:{speaker_id:string};
+        /**语言模型实例名 */
+        lam_instance_name:string;
+    }
+}
 
 
 /**确保测试数据目录存在并清理旧数据（幂等） */
@@ -68,7 +91,7 @@ describe("CharProfile-Domain 模块测试", () => {
     beforeAll(async () => {
         await prepareAllTestData();
         // 只初始化一次
-        CharProfile.initInject({ dataPath: DATA_PATH });
+        CharProfileDomain.initInject({ dataPath: DATA_PATH });
     }, 30000);
 
     describe("CharAccesser 测试", () => {
@@ -107,65 +130,67 @@ describe("CharProfile-Domain 模块测试", () => {
             expect(config.getDefineUserName()).toBe(CharConstant.DEFINE_USER_STR);
         });
 
-        test("6. 应正确获取角色LaM实例名", async () => {
+        test("6. 应通过 getField 读到扩展字段", async () => {
             const accesser = await CharAccesser.create(createTestCharOption("MockChar1"));
             const config = await accesser.loadChar();
 
-            expect(config.getLaMInstanceName()).toBe("default");
+            expect(config.getField("lam_instance_name")).toBe("default");
         });
 
-        test("7. 应正确判断是否有语音功能", async () => {
+        test("7. 应通过 getField 读到标准字段", async () => {
+            const accesser = await CharAccesser.create(createTestCharOption("MockChar1"));
+            const config = await accesser.loadChar();
+
+            expect(config.getField("name")).toBe("MockChar1");
+            expect(config.getField("id")).toBe("MockChar1");
+            expect(config.getField("default_user_name")).toBe("TestUser");
+        });
+
+        test("8. 应正确返回全部字段", async () => {
+            const accesser = await CharAccesser.create(createTestCharOption("MockChar2"));
+            const config = await accesser.loadChar();
+
+            const fields = config.getFields();
+            expect(fields.name).toBe("MockChar2");
+            expect(fields.lam_instance_name).toBe("test-lam");
+            expect(fields.tts_instance_name).toBe("test-tts");
+            expect(fields.tts_option).toEqual({ speaker_id: "MockChar2" });
+        });
+
+        test("9. 缺少扩展字段时不应由领域兜底", async () => {
+            const accesser = await CharAccesser.create(createTestCharOption("MockChar1"));
+            const config = await accesser.loadChar();
+
+            //MockChar1 未配置 tts_*, 领域不再兜底, 应原样为 undefined
+            expect(config.getField("tts_instance_name")).toBeUndefined();
+            expect(config.getField("tts_option")).toBeUndefined();
+        });
+
+        test("10. 应能读到状态反馈表", async () => {
+            const accesser = await CharAccesser.create(createTestCharOption("MockChar1"));
+            const config = await accesser.loadChar();
+
+            const table = config.getField("status_reply_table");
+            expect(table["未启动"]).toBe("*MockChar1正在休眠*");
+            expect(table["错误"]).toBe("*MockChar1发生了错误*");
+            expect(table["未知状态"]).toBeUndefined();
+        });
+
+        test("11. 应能读到翻译术语表", async () => {
             const accesser1 = await CharAccesser.create(createTestCharOption("MockChar1"));
             const config1 = await accesser1.loadChar();
-            expect(config1.hasVoice()).toBe(false);
+            expect(config1.getField("term_map")).toEqual({ MockChar1: "モックキャラ1" });
 
             const accesser2 = await CharAccesser.create(createTestCharOption("MockChar2"));
             const config2 = await accesser2.loadChar();
-            expect(config2.hasVoice()).toBe(true);
+            expect(config2.getField("term_map_after")).toEqual({ Mock2: "MockChar2" });
         });
 
-        test("8. 应正确获取TTS配置", async () => {
-            const accesser = await CharAccesser.create(createTestCharOption("MockChar2"));
-            const config = await accesser.loadChar();
-
-            expect(config.getTTSInstanceName()).toBe("test-tts");
-            expect(config.getTTSOption()).toEqual({ speaker_id: "MockChar2" });
-        });
-
-        test("9. 应正确获取状态回复", async () => {
+        test("12. 应能读到logit bias表", async () => {
             const accesser = await CharAccesser.create(createTestCharOption("MockChar1"));
             const config = await accesser.loadChar();
 
-            expect(config.getStatusReply("未启动")).toBe("*MockChar1正在休眠*");
-            expect(config.getStatusReply("错误")).toBe("*MockChar1发生了错误*");
-            expect(config.getStatusReply("未知状态")).toBeUndefined();
-        });
-
-        test("10. 应正确进行术语替换", async () => {
-            const accesser = await CharAccesser.create(createTestCharOption("MockChar1"));
-            const config = await accesser.loadChar();
-
-            const result = config.transReplace("Hello MockChar1!");
-            expect(result).toBe("Hello モックキャラ1!");
-        });
-
-        test("11. 应正确进行翻译后替换", async () => {
-            const accesser = await CharAccesser.create(createTestCharOption("MockChar2"));
-            const config = await accesser.loadChar();
-
-            const result = config.transAfterReplace("Hello Mock2!");
-            expect(result).toBe("Hello MockChar2!");
-        });
-
-        test("12. 应正确获取logit bias", async () => {
-            const accesser = await CharAccesser.create(createTestCharOption("MockChar1"));
-            const config = await accesser.loadChar();
-
-            const logitBias = config.getLogitBias();
-            expect(Array.isArray(logitBias)).toBe(true);
-            expect(logitBias.length).toBe(2);
-            expect(logitBias[0]).toEqual(CharConstant.DEFAULT_LOGIT_BIAS);
-            expect(logitBias[1]).toEqual({ MockChar1: 1 });
+            expect(config.getField("logit_bias_map")).toEqual({ MockChar1: 1 });
         });
 
         test("13. 应正确获取MockChar1场景", async () => {
@@ -241,23 +266,23 @@ describe("CharProfile-Domain 模块测试", () => {
         });
     });
 
-    describe("CharProfile 测试", () => {
-        test("17. 应成功初始化CharProfile并获取角色助手", async () => {
-            const charHelper = await CharProfile.getCharHelper("MockChar1");
-            expect(charHelper).toBeDefined();
-            expect(charHelper?.getCharId()).toBe("MockChar1");
+    describe("CharProfileDomain 测试", () => {
+        test("17. 应成功初始化CharProfileDomain并获取角色档案", async () => {
+            const charProfile = await CharProfileDomain.getCharProfile("MockChar1");
+            expect(charProfile).toBeDefined();
+            expect(charProfile?.getCharId()).toBe("MockChar1");
         });
 
         test("18. 应正确返回不存在角色", async () => {
-            const charHelper = await CharProfile.getCharHelper("NonExistentChar");
-            expect(charHelper).toBeUndefined();
+            const charProfile = await CharProfileDomain.getCharProfile("NonExistentChar");
+            expect(charProfile).toBeUndefined();
         });
 
         test("19. 应成功重载角色配置", async () => {
-            const charHelper = await CharProfile.getCharHelper("MockChar1");
-            expect(charHelper).toBeDefined();
+            const charProfile = await CharProfileDomain.getCharProfile("MockChar1");
+            expect(charProfile).toBeDefined();
 
-            const reloadedConfig = await charHelper?.reloadChar();
+            const reloadedConfig = await charProfile?.reloadChar();
             expect(reloadedConfig).toBeDefined();
             expect(reloadedConfig?.getCharId()).toBe("MockChar1");
         });
@@ -269,8 +294,6 @@ describe("CharProfile-Domain 模块测试", () => {
             expect(CharConstant.CONFIG_EXT).toBe(".json");
             expect(CharConstant.DEFINE_EXT).toBe(".hbs");
             expect(CharConstant.DEFINE_USER_STR).toBe("Individual");
-            expect(CharConstant.DEFAULT_LOGIT_BIAS).toBeDefined();
-            expect(CharConstant.DEFAULT_LOGIT_BIAS["Individual"]).toBe(-10);
         });
     });
 });

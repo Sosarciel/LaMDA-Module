@@ -12,6 +12,12 @@ export type TestParams = {
     preferred_account: string[];
 } & JObject;
 
+/**测试用 UserData 扩展字段 */
+export type TestUserDataExt = {
+    /**默认参数表 */
+    params_table?:Partial<TestParams>;
+};
+
 /**设置测试数据库 */
 export const setupTestDb = async (): Promise<DBManager> => {
     // 创建数据库管理器

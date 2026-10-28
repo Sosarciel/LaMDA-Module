@@ -1,7 +1,7 @@
 import { DBManager } from "@sosraciel-lamda/postgresql-manager";
 import { ConversationModel, MessageModel, FirstModel, DialogTemplate } from "@sosraciel-lamda/dialog-domain";
 import type { CharScene } from "@sosraciel-lamda/charprofile-domain";
-import { createTestScene, setupTestDb, teardownTestDb } from "./Util";
+import { createTestScene, setupTestDb, teardownTestDb, createMsgChain } from "./Util";
 
 // ─── 共享常量 ───────────────────────────────────────────────
 // 所有测试统一使用 2条memory + predialog 的标准场景结构，
@@ -45,31 +45,6 @@ const PREDIALOG = [
 ] as const;
 
 // ─── 测试工具 ───────────────────────────────────────────────
-
-/**创建交替user/char的消息链
- * @param conversationId 对话ID
- * @param count 消息数量
- * @param contentFn 内容生成函数，参数为消息索引
- * @returns 消息模型数组（从旧到新）
- */
-const createMsgChain = async (
-    conversationId: string,
-    count: number,
-    contentFn: (i: number) => string,
-): Promise<MessageModel[]> => {
-    const messages: MessageModel[] = [];
-    for (let i = 0; i < count; i++) {
-        const msg = await MessageModel.create({
-            conversation_id: conversationId,
-            parent_message_id: i === 0 ? undefined : messages[i - 1].getMessageId(),
-            sender_id: i % 2 === 0 ? "user" : "char",
-            sender_type: i % 2 === 0 ? "user" : "char",
-            content: contentFn(i),
-        });
-        messages.push(msg);
-    }
-    return messages;
-};
 
 // ─── 测试集 ───────────────────────────────────────────────
 
@@ -277,6 +252,50 @@ describe("Dialog-Domain DialogTemplate 测试", () => {
             { type: "chat", sender_id: "char", sender_type: "char", content: "Message 7", id: messages[7].getMessageId() },
             { type: "chat", sender_id: "user", sender_type: "user", content: "Message 8", id: messages[8].getMessageId() },
             { type: "chat", sender_id: "char", sender_type: "char", content: "Message 9", id: messages[9].getMessageId() },
+        ]);
+    });
+
+    /**验证15层深度消息链的完整遍历
+     * 检查点：所有15条消息按正确顺序返回；
+     * 每条消息的 sender/content/id 全字段正确；
+     * 额外验证 parent_message_id 链的正确性（DB层面） */
+    test("5.1 应支持自定义 computeLength 决定长度预算", async () => {
+        const conversationModel = await ConversationModel.create({ scene: TEST_SCENE });
+        await FirstModel.loadOrCreate(conversationModel);
+
+        // 字符数差异很大 但 'a' 的个数依次为 1/2/3 用于验证长度度量确实被替换
+        const messages = await createMsgChain(
+            conversationModel.getConversationId(), 3,
+            i => `${'a'.repeat(i + 1)}${'z'.repeat(50)}`,
+        );
+        const countA = (str: string) => str.split('a').length - 1;
+
+        // 按字符数计算时总长约 150 远超预算 按 'a' 计数时全量只有 6
+        const byChar = await DialogTemplate.createHistMessageGraph({
+            defineScene: TEST_DEFINE,
+            maxBudget: { maxLength: 10, maxCount: 100 },
+            conversationModel,
+            messageModel: messages[messages.length - 1]
+        }).build();
+        const byCountA = await DialogTemplate.createHistMessageGraph({
+            defineScene: TEST_DEFINE,
+            maxBudget: { maxLength: 10, maxCount: 100 },
+            conversationModel,
+            messageModel: messages[messages.length - 1],
+            computeLength: (msg) => countA(msg.content)
+        }).build();
+
+        // 只关心历史消息条目 常量块与 predialog 与本用例无关
+        const pickHistory = (list: { id?: string; content?: string }[]) =>
+            list.filter(m => m.id != undefined).map(m => m.content);
+
+        // 默认 content.length 度量下单条已 51 字超出预算 历史全部被截断
+        expect(pickHistory(byChar as never)).toEqual([]);
+        // 自定义度量下三条合计 6 未超预算 全部保留
+        expect(pickHistory(byCountA as never)).toEqual([
+            `${'a'.repeat(1)}${'z'.repeat(50)}`,
+            `${'a'.repeat(2)}${'z'.repeat(50)}`,
+            `${'a'.repeat(3)}${'z'.repeat(50)}`,
         ]);
     });
 

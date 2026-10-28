@@ -253,9 +253,9 @@ describe("Dialog-Store 缓存同步 测试", () => {
             const conversationId = testConversation.data.conversation_id;
 
             // 创建3个消息
-            const testMessage1 = createTestMessage(conversationId, { content: "First message" });
-            const testMessage2 = createTestMessage(conversationId, { content: "Second message" });
-            const testMessage3 = createTestMessage(conversationId, { content: "Third message" });
+            const testMessage1 = createTestMessage(conversationId, { heavy_data: { content: "First message" } });
+            const testMessage2 = createTestMessage(conversationId, { heavy_data: { content: "Second message" } });
+            const testMessage3 = createTestMessage(conversationId, { heavy_data: { content: "Third message" } });
             await DialogStore.setMessage(testMessage1);
             await DialogStore.setMessage(testMessage2);
             await DialogStore.setMessage(testMessage3);
@@ -273,7 +273,7 @@ describe("Dialog-Store 缓存同步 测试", () => {
             expect(DBCache.hasCache(cacheKey)).toBe(true);
 
             // 插入新消息(模拟 genChoice 之后产生的新分支)
-            const testMessage4 = createTestMessage(conversationId, { content: "Fourth message" });
+            const testMessage4 = createTestMessage(conversationId, { heavy_data: { content: "Fourth message" } });
             await DialogStore.setMessage(testMessage4);
             await sleep(100);
 
@@ -300,15 +300,15 @@ describe("Dialog-Store 缓存同步 测试", () => {
             const conversationId = testConversation.data.conversation_id;
 
             // 创建父消息与2个子消息
-            const parentMessage = createTestMessage(conversationId, { content: "Parent message" });
+            const parentMessage = createTestMessage(conversationId, { heavy_data: { content: "Parent message" } });
             await DialogStore.setMessage(parentMessage);
             const childMessage1 = createTestMessage(conversationId, {
                 parent_message_id: parentMessage.data.message_id,
-                content: "Child message 1",
+                heavy_data: { content: "Child message 1" },
             });
             const childMessage2 = createTestMessage(conversationId, {
                 parent_message_id: parentMessage.data.message_id,
-                content: "Child message 2",
+                heavy_data: { content: "Child message 2" },
             });
             await DialogStore.setMessage(childMessage1);
             await DialogStore.setMessage(childMessage2);
@@ -326,7 +326,7 @@ describe("Dialog-Store 缓存同步 测试", () => {
             // 再插入一个子消息
             const childMessage3 = createTestMessage(conversationId, {
                 parent_message_id: parentMessage.data.message_id,
-                content: "Child message 3",
+                heavy_data: { content: "Child message 3" },
             });
             await DialogStore.setMessage(childMessage3);
             await sleep(100);
@@ -347,7 +347,7 @@ describe("Dialog-Store 缓存同步 测试", () => {
             await DialogStore.setConversation(testConversation);
             const conversationId = testConversation.data.conversation_id;
 
-            const testMessage1 = createTestMessage(conversationId, { content: "First message" });
+            const testMessage1 = createTestMessage(conversationId, { heavy_data: { content: "First message" } });
             await DialogStore.setMessage(testMessage1);
 
             // 取列表填充缓存
@@ -359,7 +359,7 @@ describe("Dialog-Store 缓存同步 测试", () => {
             const updatedMessage = createTestMessage(conversationId, {
                 message_id: testMessage1.data.message_id,
                 parent_message_id: testMessage1.data.parent_message_id,
-                content: "Updated content",
+                heavy_data: { content: "Updated content" },
             });
             await DialogStore.setMessage(updatedMessage);
             await sleep(100);
@@ -376,8 +376,8 @@ describe("Dialog-Store 缓存同步 测试", () => {
             await DialogStore.setConversation(testConversation);
             const conversationId = testConversation.data.conversation_id;
 
-            const testMessage1 = createTestMessage(conversationId, { content: "First message" });
-            const testMessage2 = createTestMessage(conversationId, { content: "Second message" });
+            const testMessage1 = createTestMessage(conversationId, { heavy_data: { content: "First message" } });
+            const testMessage2 = createTestMessage(conversationId, { heavy_data: { content: "Second message" } });
             await DialogStore.setMessage(testMessage1);
             await DialogStore.setMessage(testMessage2);
 
@@ -404,11 +404,11 @@ describe("Dialog-Store 缓存同步 测试", () => {
             await DialogStore.setConversation(testConversation);
             const conversationId = testConversation.data.conversation_id;
 
-            const parentMessage = createTestMessage(conversationId, { content: "Parent message" });
+            const parentMessage = createTestMessage(conversationId, { heavy_data: { content: "Parent message" } });
             await DialogStore.setMessage(parentMessage);
             const childMessage = createTestMessage(conversationId, {
                 parent_message_id: parentMessage.data.message_id,
-                content: "Child message",
+                heavy_data: { content: "Child message" },
             });
             await DialogStore.setMessage(childMessage);
 

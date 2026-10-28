@@ -2,6 +2,7 @@ import { DBManager } from "@sosraciel-lamda/postgresql-manager";
 import { DialogStore } from "@sosraciel-lamda/dialog-store";
 import type { ConversationStruct, MessageStruct, AnchorStruct, ConversationStructExt, MessageStructExt, AnchorStructExt } from "@sosraciel-lamda/dialog-store";
 import type { MessageModelExt, ConversationModelExt } from "@sosraciel-lamda/dialog-domain";
+import { MessageModel } from "@sosraciel-lamda/dialog-domain";
 import { DBCache } from "@sosraciel-lamda/dialog-store/dist/DBCache";
 import { UtilFunc } from "@zwa73/utils";
 import { PG_PORT } from "@/src/Constant";
@@ -15,6 +16,8 @@ export type TestLightData = {
 
 /**测试用重数据类型 */
 export type TestHeavyData = {
+    /** 消息内容 content 已从存储层核心字段迁出 */
+    content?: string;
     translate_content_table?: Record<string, string>;
     metadata?: { key: string; value?: string };
 };
@@ -61,7 +64,8 @@ export const createTestMessage = (conversationId: string, options?: {
     parent_message_id?: string | null;
     sender_id?: string;
     sender_type?: "user" | "char";
-    content?: string;
+    /** 直接指定重量字段 content 已迁出核心字段 需走 heavy_data */
+    heavy_data?: Partial<TestHeavyData>;
 }): MessageStruct<MessageModelExt> => {
     return {
         data: {
@@ -69,12 +73,12 @@ export const createTestMessage = (conversationId: string, options?: {
             conversation_id: conversationId,
             parent_message_id: options?.parent_message_id ?? undefined,
             sender_id: options?.sender_id || "user",
-            content: options?.content || "Test message",
             light_data: {
                 sender_type: options?.sender_type || "user" as const,
             },
             heavy_data: {
-                translate_content_table: {}
+                translate_content_table: {},
+                ...options?.heavy_data,
             }
         }
     };
@@ -120,7 +124,6 @@ export const createTestMessageGeneric = <TMsg extends MessageStructExt = {m_ligh
         message_id?: string;
         parent_message_id?: string | null;
         sender_id?: string;
-        content?: string;
         light_data?: Partial<TMsg['m_light']>;
         heavy_data?: Partial<TMsg['m_heavy']>;
     }
@@ -131,7 +134,6 @@ export const createTestMessageGeneric = <TMsg extends MessageStructExt = {m_ligh
             conversation_id: conversationId,
             parent_message_id: options?.parent_message_id || null,
             sender_id: options?.sender_id || "user",
-            content: options?.content || "Test message",
             ...(options?.light_data && { light_data: options.light_data }),
             ...(options?.heavy_data && { heavy_data: options.heavy_data }),
         }
@@ -207,4 +209,29 @@ export const teardownTestDb = async (manager: DBManager | undefined) => {
     } catch (e) {
         // 忽略错误
     }
+};
+
+/**创建交替 user/char 的直线消息链
+ * @param conversationId 对话ID
+ * @param count 消息数量
+ * @param contentFn 内容生成函数 参数为消息索引
+ * @returns 消息模型数组（从旧到新）
+ */
+export const createMsgChain = async (
+    conversationId: string,
+    count: number,
+    contentFn: (i: number) => string,
+): Promise<MessageModel[]> => {
+    const messages: MessageModel[] = [];
+    for (let i = 0; i < count; i++) {
+        const msg = await MessageModel.create({
+            conversation_id: conversationId,
+            parent_message_id: i === 0 ? undefined : messages[i - 1].getMessageId(),
+            sender_id: i % 2 === 0 ? "user" : "char",
+            sender_type: i % 2 === 0 ? "user" : "char",
+            content: contentFn(i),
+        });
+        messages.push(msg);
+    }
+    return messages;
 };

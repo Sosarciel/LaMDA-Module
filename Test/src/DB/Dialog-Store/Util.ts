@@ -1,4 +1,4 @@
-import { DBManager } from "@sosraciel-lamda/postgresql-manager";
+﻿import { DBManager } from "@sosraciel-lamda/postgresql-manager";
 import { DialogStore } from "@sosraciel-lamda/dialog-store";
 import type { ConversationStruct, MessageStruct, AnchorStruct, ConversationStructExt, MessageStructExt, AnchorStructExt } from "@sosraciel-lamda/dialog-store";
 import { DBCache } from "@sosraciel-lamda/dialog-store/dist/DBCache";
@@ -13,6 +13,8 @@ export type TestLightData = {
 
 /**测试用重数据类型 */
 export type TestHeavyData = {
+    /** 消息内容 content 已从存储层核心字段迁出 */
+    content?: string;
     translate_content_table?: Record<string, string>;
     metadata?: { key: string; value?: string };
 };
@@ -54,14 +56,16 @@ export const createTestConversation = <TConv extends ConversationStructExt = {m_
     } as ConversationStruct<TConv>;
 };
 
-/**创建测试消息结构体 */
+/**创建测试消息结构体
+ * content 已迁出核心字段 通过 heavy_data 传入
+ */
 export const createTestMessage = <TMsg extends MessageStructExt = {m_light:{}, m_heavy:{}}>(
     conversationId: string,
     options?: {
         message_id?: string;
         parent_message_id?: string | null;
         sender_id?: string;
-        content?: string;
+        target_waypoint_id?: string;
         light_data?: Partial<TMsg['m_light']>;
         heavy_data?: Partial<TMsg['m_heavy']>;
     }
@@ -72,7 +76,7 @@ export const createTestMessage = <TMsg extends MessageStructExt = {m_light:{}, m
             conversation_id: conversationId,
             parent_message_id: options?.parent_message_id || null,
             sender_id: options?.sender_id || "user",
-            content: options?.content || "Test message",
+            ...(options?.target_waypoint_id && { target_waypoint_id: options.target_waypoint_id }),
             ...(options?.light_data && { light_data: options.light_data }),
             ...(options?.heavy_data && { heavy_data: options.heavy_data }),
         }

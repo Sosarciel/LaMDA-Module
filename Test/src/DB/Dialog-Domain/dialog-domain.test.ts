@@ -59,14 +59,14 @@ describe("Dialog-Domain 主测试", () => {
         await DialogStore.setConversation(testConversation);
 
         // 创建消息记录
-        const testMessage = createTestMessage(testConversation.data.conversation_id, { content: "I need help with my order" });
+        const testMessage = createTestMessage(testConversation.data.conversation_id, { heavy_data: { content: "I need help with my order" } });
         await DialogStore.setMessage(testMessage);
 
         // 获取消息记录
         const retrievedMessage = await DialogStore.getMessage(testMessage.data.message_id);
         expect(retrievedMessage).toBeDefined();
         expect(retrievedMessage?.data.message_id).toBe(testMessage.data.message_id);
-        expect(retrievedMessage?.data.content).toBe(testMessage.data.content);
+        expect((retrievedMessage?.data as any)?.heavy_data?.content).toBe((testMessage.data as any)?.heavy_data?.content);
     });
 
     test("4. 应成功创建消息树结构", async () => {
@@ -75,14 +75,14 @@ describe("Dialog-Domain 主测试", () => {
         await DialogStore.setConversation(testConversation);
 
         // 创建根消息
-        const parentMessage = createTestMessage(testConversation.data.conversation_id, { content: "What's the weather today?" });
+        const parentMessage = createTestMessage(testConversation.data.conversation_id, { heavy_data: { content: "What's the weather today?" } });
         await DialogStore.setMessage(parentMessage);
 
         // 创建子消息
         const childMessage = createTestMessage(testConversation.data.conversation_id, {
             parent_message_id: parentMessage.data.message_id,
             sender_id: "assistant",
-            content: "It's sunny today!"
+            heavy_data: { content: "It's sunny today!" }
         });
         await DialogStore.setMessage(childMessage);
 
@@ -98,14 +98,14 @@ describe("Dialog-Domain 主测试", () => {
         await DialogStore.setConversation(testConversation);
 
         // 创建根消息
-        const parentMessage = createTestMessage(testConversation.data.conversation_id, { content: "What's the weather today?" });
+        const parentMessage = createTestMessage(testConversation.data.conversation_id, { heavy_data: { content: "What's the weather today?" } });
         await DialogStore.setMessage(parentMessage);
 
         // 创建子消息
         const childMessage = createTestMessage(testConversation.data.conversation_id, {
             parent_message_id: parentMessage.data.message_id,
             sender_id: "assistant",
-            content: "It's sunny today!"
+            heavy_data: { content: "It's sunny today!" }
         });
         await DialogStore.setMessage(childMessage);
 
@@ -137,11 +137,11 @@ describe("Dialog-Domain 主测试", () => {
         await DialogStore.setConversation(testConversation);
 
         // 创建消息
-        const testMessage = createTestMessage(testConversation.data.conversation_id, { content: "I need help with my order" });
+        const testMessage = createTestMessage(testConversation.data.conversation_id, { heavy_data: { content: "I need help with my order" } });
         await DialogStore.setMessage(testMessage);
 
         // 创建新的消息用于测试
-        const newMessage = createTestMessage(testConversation.data.conversation_id, { content: "Test message for cascade delete" });
+        const newMessage = createTestMessage(testConversation.data.conversation_id, { heavy_data: { content: "Test message for cascade delete" } });
         await DialogStore.setMessage(newMessage);
 
         // 验证消息存在
@@ -179,7 +179,7 @@ describe("Dialog-Domain 主测试", () => {
             await DialogStore.setConversation(testConversation, { client });
 
             // 创建消息
-            const testMessage = createTestMessage(newConversationId, { content: "I need help with my order" });
+            const testMessage = createTestMessage(newConversationId, { heavy_data: { content: "I need help with my order" } });
             await DialogStore.setMessage(testMessage, { client });
         });
 
@@ -195,9 +195,9 @@ describe("Dialog-Domain 主测试", () => {
         const conversationId = conversationModel.getConversationId();
 
         // 创建3个消息
-        const testMessage1 = createTestMessage(conversationId, { content: "First message" });
-        const testMessage2 = createTestMessage(conversationId, { content: "Second message" });
-        const testMessage3 = createTestMessage(conversationId, { content: "Third message" });
+        const testMessage1 = createTestMessage(conversationId, { heavy_data: { content: "First message" } });
+        const testMessage2 = createTestMessage(conversationId, { heavy_data: { content: "Second message" } });
+        const testMessage3 = createTestMessage(conversationId, { heavy_data: { content: "Third message" } });
 
         await DialogStore.setMessage(testMessage1);
         await DialogStore.setMessage(testMessage2);
@@ -220,9 +220,9 @@ describe("Dialog-Domain 主测试", () => {
         const conversationId = conversationModel.getConversationId();
 
         // 创建3个消息
-        const testMessage1 = createTestMessage(conversationId, { content: "First message" });
-        const testMessage2 = createTestMessage(conversationId, { content: "Second message" });
-        const testMessage3 = createTestMessage(conversationId, { content: "Third message" });
+        const testMessage1 = createTestMessage(conversationId, { heavy_data: { content: "First message" } });
+        const testMessage2 = createTestMessage(conversationId, { heavy_data: { content: "Second message" } });
+        const testMessage3 = createTestMessage(conversationId, { heavy_data: { content: "Third message" } });
 
         await DialogStore.setMessage(testMessage1);
         await DialogStore.setMessage(testMessage2);
@@ -244,21 +244,21 @@ describe("Dialog-Domain 主测试", () => {
         const conversationId = conversationModel.getConversationId();
 
         // 创建父消息
-        const parentMessage = createTestMessage(conversationId, { content: "Parent message" });
+        const parentMessage = createTestMessage(conversationId, { heavy_data: { content: "Parent message" } });
         await DialogStore.setMessage(parentMessage);
 
         // 创建3个子消息
         const childMessage1 = createTestMessage(conversationId, {
             parent_message_id: parentMessage.data.message_id,
-            content: "Child message 1"
+            heavy_data: { content: "Child message 1" }
         });
         const childMessage2 = createTestMessage(conversationId, {
             parent_message_id: parentMessage.data.message_id,
-            content: "Child message 2"
+            heavy_data: { content: "Child message 2" }
         });
         const childMessage3 = createTestMessage(conversationId, {
             parent_message_id: parentMessage.data.message_id,
-            content: "Child message 3"
+            heavy_data: { content: "Child message 3" }
         });
 
         await DialogStore.setMessage(childMessage1);
@@ -299,21 +299,21 @@ describe("Dialog-Domain 主测试", () => {
         await DialogStore.setConversation(testConversation);
 
         // 创建消息记录
-        const testMessage = createTestMessage(testConversation.data.conversation_id, { content: "Initial content" });
+        const testMessage = createTestMessage(testConversation.data.conversation_id, { heavy_data: { content: "Initial content" } });
         await DialogStore.setMessage(testMessage);
 
         // 更新消息记录 - 使用新的结构体，保持相同的消息ID
         const updatedMessage = createTestMessage(testConversation.data.conversation_id, {
             message_id: testMessage.data.message_id,
             parent_message_id: testMessage.data.parent_message_id,
-            content: "Updated content"
+            heavy_data: { content: "Updated content" }
         });
         await DialogStore.setMessage(updatedMessage);
 
         // 获取更新后的消息记录
         const retrievedMessage = await DialogStore.getMessage(testMessage.data.message_id);
         expect(retrievedMessage).toBeDefined();
-        expect(retrievedMessage?.data.content).toBe("Updated content");
+        expect((retrievedMessage?.data as any)?.heavy_data?.content).toBe("Updated content");
     });
 
     test("15. 应成功测试缓存与数据库通知的同步（通过直接调用SQL）", async () => {
@@ -322,18 +322,18 @@ describe("Dialog-Domain 主测试", () => {
         await DialogStore.setConversation(testConversation);
 
         // 创建消息记录
-        const testMessage = createTestMessage(testConversation.data.conversation_id, { content: "Initial content" });
+        const testMessage = createTestMessage(testConversation.data.conversation_id, { heavy_data: { content: "Initial content" } });
         await DialogStore.setMessage(testMessage);
 
         // 验证缓存
         const cachedMessage = await DialogStore.getMessage(testMessage.data.message_id);
         expect(cachedMessage).toBeDefined();
-        expect(cachedMessage?.data.content).toBe("Initial content");
+        expect((cachedMessage?.data as any)?.heavy_data?.content).toBe("Initial content");
 
         // 不通过访问器，直接用mgr发指令更新数据
         await manager.client.query(`
             UPDATE dialog.message
-            SET data = jsonb_set(data, '{content}', to_jsonb('Updated via SQL'::text), true)
+            SET data = jsonb_set(data, '{heavy_data,content}', to_jsonb('Updated via SQL'::text), true)
             WHERE data->>'message_id' = '${testMessage.data.message_id}';
         `);
 
@@ -343,6 +343,6 @@ describe("Dialog-Domain 主测试", () => {
         // 验证缓存是否已更新
         const updatedCachedMessage = await DialogStore.getMessage(testMessage.data.message_id);
         expect(updatedCachedMessage).toBeDefined();
-        expect(updatedCachedMessage?.data.content).toBe("Updated via SQL");
+        expect((updatedCachedMessage?.data as any)?.heavy_data?.content).toBe("Updated via SQL");
     });
 });

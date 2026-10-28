@@ -1,323 +1,264 @@
 import { DBManager } from "@sosraciel-lamda/postgresql-manager";
-import { DialogStoreHelper, MessageEntity } from "@sosraciel-lamda/dialog-store";
+import { DialogStoreHelper, MessageEntity, WaypointEntity } from "@sosraciel-lamda/dialog-store";
 import { ConversationEntity } from "@sosraciel-lamda/dialog-store";
+import type { WaypointStructExt } from "@sosraciel-lamda/dialog-store";
 import { TestMessageExt, TestConversationExt, setupTestDb, teardownTestDb } from "./Util";
+
+/**测试用 waypoint 扩展类型 */
+type TestWaypointExt = WaypointStructExt;
 
 describe("Dialog-Store DialogStoreHelper 测试", () => {
     let manager: DBManager;
 
     beforeAll(async () => {
         manager = await setupTestDb();
+        // 自愈: 若上次运行中断在禁用触发器的窗口内 此处无条件恢复 避免污染后续用例
+        await manager.client.query(`ALTER TABLE dialog.message ENABLE TRIGGER trg__message__before_insert_or_update`);
     }, 30000);
 
     afterAll(async () => {
         await teardownTestDb(manager);
     }, 30000);
 
-    test("1. 应在遇到 FirstEntity 时正常结束", async () => {
-        // 创建对话
-        const conversationEntity = await ConversationEntity.create<TestConversationExt>({});
-
-        // 创建消息链
-        const msg1 = await MessageEntity.create({
-            conversation_id: conversationEntity.getConversationId(),
-            sender_id: 'user1',
-            content: '消息1',
-        });
-        const msg2 = await MessageEntity.create({
-            conversation_id: conversationEntity.getConversationId(),
-            parent_message_id: msg1.getMessageId(),
-            sender_id: 'char1',
-            content: '消息2',
-        });
-
-        // 测试 createHistChain
-        const result = await DialogStoreHelper.createHistChain({
-            conversationEntity,
-            messageEntity: msg2,
-            maxLength: 10000,
-            maxCount: 100,
-            computeLength: (entity) => entity.getContent().length,
-        });
-
-        // 验证结果
-        expect(result.chain.length).toBe(2);
-        expect(result.totalCount).toBe(2);
-        expect(result.stopReason.reason).toBe('first');
-        expect(result.chain[0].getMessageId()).toBe(msg1.getMessageId());
-        expect(result.chain[1].getMessageId()).toBe(msg2.getMessageId());
-    });
-
-    test("2. 应在消息条数超限时停止", async () => {
-        // 创建对话
-        const conversationEntity = await ConversationEntity.create<TestConversationExt>({});
-
-        // 创建 5 条消息
+    /**创建直线消息链 */
+    const createMsgChain = async (
+        conversationEntity: ConversationEntity<TestConversationExt>,
+        count: number,
+        prefix: string,
+    ): Promise<MessageEntity<TestMessageExt>[]> => {
         const messages: MessageEntity<TestMessageExt>[] = [];
-        let parentId: string | undefined;
-        for (let i = 0; i < 5; i++) {
-            const msg = await MessageEntity.create({
+        for (let i = 0; i < count; i++) {
+            const msg = await MessageEntity.create<TestMessageExt>({
                 conversation_id: conversationEntity.getConversationId(),
-                parent_message_id: parentId,
-                sender_id: `sender${i}`,
-                content: `消息${i}`,
+                parent_message_id: i === 0 ? undefined : messages[i - 1].getMessageId(),
+                sender_id: "user",
+                heavy_data: { content: `${prefix}${i}` },
             });
             messages.push(msg);
-            parentId = msg.getMessageId();
         }
+        return messages;
+    };
 
-        // 测试 createHistChain，maxCount 设为 3
-        const result = await DialogStoreHelper.createHistChain({
+    /**把消息的 target_waypoint_id 直接改写成任意值 绕过存在性校验触发器 */
+    const setRawWaypointId = async (
+        messageEntity: MessageEntity<TestMessageExt>,
+        waypointId: string,
+    ) => {
+        await manager.client.query(`ALTER TABLE dialog.message DISABLE TRIGGER trg__message__before_insert_or_update`);
+        try {
+            await manager.client.query(
+                `UPDATE dialog.message SET data = jsonb_set(data, '{target_waypoint_id}', to_jsonb($1::text))` +
+                ` WHERE data->>'message_id' = $2`,
+                [waypointId, messageEntity.getMessageId()]
+            );
+        } finally {
+            await manager.client.query(`ALTER TABLE dialog.message ENABLE TRIGGER trg__message__before_insert_or_update`);
+        }
+    };
+
+    /**收集遍历产出的游标标识 根游标记为 'first' 一并收集以便断言其走法 */
+    const collectSteps = async (
+        generator: AsyncGenerator<{ entity: unknown; move: unknown }, void, unknown>,
+    ): Promise<{ ids: string[]; moves: string[] }> => {
+        const ids: string[] = [];
+        const moves: string[] = [];
+        for await (const step of generator) {
+            const entity = step.entity as {
+                getMessageId?: () => string;
+                getWaypointId?: () => string;
+            };
+            const messageId = entity.getMessageId?.();
+            const waypointId = entity.getWaypointId?.();
+            if (messageId != undefined) ids.push(messageId);
+            else if (waypointId != undefined) ids.push(waypointId);
+            else ids.push("first");
+            moves.push(step.move as string);
+        }
+        return { ids, moves };
+    };
+
+    test("1. 消息 target_waypoint_id 指向不存在的 waypoint 时清除指针并走稠密树", async () => {
+        const conversationEntity = await ConversationEntity.create<TestConversationExt>({});
+        const msgs = await createMsgChain(conversationEntity, 4, "d1_msg");
+        const ghostWaypointId = "ghost-waypoint-not-exist";
+        await setRawWaypointId(msgs[3], ghostWaypointId);
+
+        const { ids, moves } = await collectSteps(DialogStoreHelper.traverseUp<TestConversationExt>({
             conversationEntity,
-            messageEntity: messages[4],
-            maxLength: 10000,
-            maxCount: 3,
-            computeLength: (entity) => entity.getContent().length,
-        });
+            messageEntity: msgs[3],
+            onJump: () => 'jumpWaypoint',
+        }));
 
-        // 验证结果
-        expect(result.chain.length).toBe(3);
-        expect(result.totalCount).toBe(3);
-        expect(result.stopReason.reason).toBe('count');
-        if (result.stopReason.reason === 'count') {
-            expect(result.stopReason.exceededCount).toBe(4);
-        }
+        // 悬垂指针被自检清除 随后每步都沿稠密树 最终产出根游标
+        expect(ids).toEqual([
+            msgs[3].getMessageId(),
+            msgs[2].getMessageId(),
+            msgs[1].getMessageId(),
+            msgs[0].getMessageId(),
+            "first",
+        ]);
+        expect(moves).toEqual(['continue', 'continue', 'continue', 'continue', 'continue']);
+
+        // 指针确实被写回清除
+        const reloaded = await MessageEntity.load<TestMessageExt>(msgs[3].getMessageId());
+        expect(reloaded?.getWaypointId()).toBeUndefined();
     });
 
-    test("3. 应在总长度超限时停止", async () => {
-        // 创建对话
+    test("2. 消息游标返回 jumpMessage 时回落稠密树", async () => {
         const conversationEntity = await ConversationEntity.create<TestConversationExt>({});
+        const msgs = await createMsgChain(conversationEntity, 3, "d2_msg");
 
-        // 创建消息链，每条消息长度为 10
-        const msg1 = await MessageEntity.create({
-            conversation_id: conversationEntity.getConversationId(),
-            sender_id: 'user1',
-            content: '0123456789', // 长度 10
-        });
-        const msg2 = await MessageEntity.create({
-            conversation_id: conversationEntity.getConversationId(),
-            parent_message_id: msg1.getMessageId(),
-            sender_id: 'char1',
-            content: '0123456789', // 长度 10
-        });
-        const msg3 = await MessageEntity.create({
-            conversation_id: conversationEntity.getConversationId(),
-            parent_message_id: msg2.getMessageId(),
-            sender_id: 'user2',
-            content: '0123456789', // 长度 10
-        });
-
-        // 测试 createHistChain，maxLength 设为 25
-        const result = await DialogStoreHelper.createHistChain({
+        const { ids, moves } = await collectSteps(DialogStoreHelper.traverseUp<TestConversationExt>({
             conversationEntity,
-            messageEntity: msg3,
-            maxLength: 25,
-            maxCount: 100,
-            computeLength: (entity) => entity.getContent().length,
-        });
+            messageEntity: msgs[2],
+            onJump: () => 'jumpMessage',
+        }));
 
-        // 验证结果
-        expect(result.chain.length).toBe(2);
-        expect(result.totalLength).toBe(20);
-        expect(result.totalCount).toBe(2);
-        expect(result.stopReason.reason).toBe('length');
-        if (result.stopReason.reason === 'length') {
-            // 如果接入第 3 条消息，总长度会是 30
-            expect(result.stopReason.wouldBeLength).toBe(30);
-        }
+        expect(ids).toEqual([
+            msgs[2].getMessageId(),
+            msgs[1].getMessageId(),
+            msgs[0].getMessageId(),
+            "first",
+        ]);
+        expect(moves).toEqual(['continue', 'continue', 'continue', 'continue']);
     });
 
-    test("4. 应支持自定义 computeLength 计算", async () => {
-        // 创建对话
+    test("3. 消息游标指定不存在的落点消息时回落稠密树", async () => {
         const conversationEntity = await ConversationEntity.create<TestConversationExt>({});
+        const msgs = await createMsgChain(conversationEntity, 3, "d3_msg");
 
-        // 创建消息链，内容中包含不同数量的 'a' 字符
-        const msg1 = await MessageEntity.create({
+        const { ids, moves } = await collectSteps(DialogStoreHelper.traverseUp<TestConversationExt>({
+            conversationEntity,
+            messageEntity: msgs[2],
+            onJump: () => ({ jumpMessage: "not-exist-message" }),
+        }));
+
+        expect(ids).toEqual([
+            msgs[2].getMessageId(),
+            msgs[1].getMessageId(),
+            msgs[0].getMessageId(),
+            "first",
+        ]);
+        expect(moves).toEqual(['continue', 'continue', 'continue', 'continue']);
+    });
+
+    test("4. 消息游标返回 stop 时就地产出并终止", async () => {
+        const conversationEntity = await ConversationEntity.create<TestConversationExt>({});
+        const msgs = await createMsgChain(conversationEntity, 3, "d4_msg");
+
+        const { ids, moves } = await collectSteps(DialogStoreHelper.traverseUp<TestConversationExt>({
+            conversationEntity,
+            messageEntity: msgs[2],
+            onJump: () => 'stop',
+        }));
+
+        expect(ids).toEqual([msgs[2].getMessageId()]);
+        expect(moves).toEqual(['stop']);
+    });
+
+    test("5. waypoint 游标返回 continue 时因无稠密树边而终止", async () => {
+        const conversationEntity = await ConversationEntity.create<TestConversationExt>({});
+        const msgs = await createMsgChain(conversationEntity, 3, "d5_msg");
+        const wp = await WaypointEntity.create<TestWaypointExt>({
             conversation_id: conversationEntity.getConversationId(),
-            sender_id: 'user1',
-            content: 'aaabbb', // 包含 3 个 'a'
+            base_message_id: msgs[1].getMessageId(),
         });
-        const msg2 = await MessageEntity.create({
+        const waypointId = wp.getWaypointId();
+        await msgs[2].updateData({ target_waypoint_id: waypointId });
+
+        const { ids, moves } = await collectSteps(DialogStoreHelper.traverseUp<TestConversationExt>({
+            conversationEntity,
+            messageEntity: msgs[2],
+            onJump: ({ currEntity }) => (
+                currEntity instanceof WaypointEntity ? 'continue' : 'jumpWaypoint'
+            ),
+        }));
+
+        // msg2 跳到 waypoint 后 waypoint 游标返回 continue 不成立 故直接终止不再产出该步
+        expect(ids).toEqual([msgs[2].getMessageId()]);
+        expect(moves).toEqual(['jumpWaypoint']);
+    });
+
+    test("6. 不传 onJump 时即使消息挂载 waypoint 也完全走稠密树", async () => {
+        const conversationEntity = await ConversationEntity.create<TestConversationExt>({});
+        const msgs = await createMsgChain(conversationEntity, 4, "d6_msg");
+        const wp = await WaypointEntity.create<TestWaypointExt>({
             conversation_id: conversationEntity.getConversationId(),
-            parent_message_id: msg1.getMessageId(),
-            sender_id: 'char1',
-            content: 'aaaaacccc', // 包含 5 个 'a'
+            base_message_id: msgs[1].getMessageId(),
         });
-        const msg3 = await MessageEntity.create({
+        await msgs[3].updateData({ target_waypoint_id: wp.getWaypointId() });
+
+        const { ids, moves } = await collectSteps(DialogStoreHelper.traverseUp<TestConversationExt>({
+            conversationEntity,
+            messageEntity: msgs[3],
+        }));
+
+        // 未启用 onJump 时 waypoint 完全不参与 逐条产出真实消息直到根
+        expect(ids).toEqual([
+            msgs[3].getMessageId(),
+            msgs[2].getMessageId(),
+            msgs[1].getMessageId(),
+            msgs[0].getMessageId(),
+            "first",
+        ]);
+        expect(moves).toEqual(['continue', 'continue', 'continue', 'continue', 'continue']);
+    });
+
+    test("7. waypoint 指向 waypoint 时连续多跳", async () => {
+        const conversationEntity = await ConversationEntity.create<TestConversationExt>({});
+        const msgs = await createMsgChain(conversationEntity, 5, "d7_msg");
+        const wpOld = await WaypointEntity.create<TestWaypointExt>({
             conversation_id: conversationEntity.getConversationId(),
-            parent_message_id: msg2.getMessageId(),
-            sender_id: 'user2',
-            content: 'aaaaaaadddd', // 包含 7 个 'a'
+            base_message_id: msgs[1].getMessageId(),
         });
+        const wpNew = await WaypointEntity.create<TestWaypointExt>({
+            conversation_id: conversationEntity.getConversationId(),
+            target_waypoint_id: wpOld.getWaypointId(),
+        });
+        await msgs[4].updateData({ target_waypoint_id: wpNew.getWaypointId() });
 
-        // 自定义 computeLength：计算内容中 'a' 字符的个数
-        const countA = (str: string) => str.split('a').length - 1;
-
-        // 测试 createHistChain，maxLength 设为 10（按 'a' 的个数计算）
-        // msg3: 7 个 'a'，可以接入，总长度 7
-        // msg2: 5 个 'a'，接入后总长度 12 > 10，停止
-        const result = await DialogStoreHelper.createHistChain({
+        const { ids, moves } = await collectSteps(DialogStoreHelper.traverseUp<TestConversationExt>({
             conversationEntity,
-            messageEntity: msg3,
-            maxLength: 10,
-            maxCount: 100,
-            computeLength: (entity) => countA(entity.getContent()),
-        });
+            messageEntity: msgs[4],
+            onJump: ({ currEntity }) => (
+                currEntity instanceof WaypointEntity ? 'jumpWaypoint' : 'jumpWaypoint'
+            ),
+        }));
 
-        // 验证结果
-        expect(result.chain.length).toBe(1);
-        expect(result.totalLength).toBe(7);
-        expect(result.totalCount).toBe(1);
-        expect(result.stopReason.reason).toBe('length');
-        if (result.stopReason.reason === 'length') {
-            // 如果接入 msg2，总长度会是 7 + 5 = 12
-            expect(result.stopReason.wouldBeLength).toBe(12);
-        }
+        // msg4 跳 wpNew 再跳 wpOld wpOld 无落点 waypoint 视为指向根 产出后终止
+        expect(ids).toEqual([
+            msgs[4].getMessageId(),
+            wpNew.getWaypointId(),
+            wpOld.getWaypointId(),
+        ]);
+        expect(moves).toEqual(['jumpWaypoint', 'jumpWaypoint', 'jumpWaypoint']);
     });
 
-    test("5. 应支持 onIntercept 返回 include 截断（命中计入链）", async () => {
+    test("8. waypoint 成环时告警并终止回溯", async () => {
         const conversationEntity = await ConversationEntity.create<TestConversationExt>({});
-
-        const messages: MessageEntity<TestMessageExt>[] = [];
-        let parentId: string | undefined;
-        for (let i = 0; i < 5; i++) {
-            const msg = await MessageEntity.create({
-                conversation_id: conversationEntity.getConversationId(),
-                parent_message_id: parentId,
-                sender_id: `sender${i}`,
-                content: `intercept_msg_${i}`,
-            });
-            messages.push(msg);
-            parentId = msg.getMessageId();
-        }
-
-        // onIntercept 在 msg2 命中返回 'include'：msg2计入链并截断
-        // traverseUp: msg4→msg3→msg2(命中include)→停止
-        // chain(unshift): [msg2, msg3, msg4]
-        const result = await DialogStoreHelper.createHistChain({
-            conversationEntity,
-            messageEntity: messages[4],
-            maxLength: 10000,
-            maxCount: 100,
-            computeLength: (entity) => entity.getContent().length,
-            onIntercept: (entity) => entity.getContent().includes('msg_2') ? 'include' : 'continue',
+        const msgs = await createMsgChain(conversationEntity, 3, "d8_msg");
+        const wpA = await WaypointEntity.create<TestWaypointExt>({
+            conversation_id: conversationEntity.getConversationId(),
         });
-
-        expect(result.chain.length).toBe(3);
-        expect(result.chain[0].getMessageId()).toBe(messages[2].getMessageId());
-        expect(result.chain[1].getMessageId()).toBe(messages[3].getMessageId());
-        expect(result.chain[2].getMessageId()).toBe(messages[4].getMessageId());
-        // intercept_msg_2(15) + intercept_msg_3(15) + intercept_msg_4(15) = 45
-        expect(result.totalLength).toBe(45);
-        expect(result.totalCount).toBe(3);
-        expect(result.stopReason.reason).toBe('intercept');
-        if (result.stopReason.reason === 'intercept') {
-            expect(result.stopReason.result).toBe('include');
-        }
-    });
-
-    test("6. 应支持 onIntercept 返回 reject 截断（命中不计入链）", async () => {
-        const conversationEntity = await ConversationEntity.create<TestConversationExt>({});
-
-        const messages: MessageEntity<TestMessageExt>[] = [];
-        let parentId: string | undefined;
-        for (let i = 0; i < 5; i++) {
-            const msg = await MessageEntity.create({
-                conversation_id: conversationEntity.getConversationId(),
-                parent_message_id: parentId,
-                sender_id: `sender${i}`,
-                content: `reject_msg_${i}`,
-            });
-            messages.push(msg);
-            parentId = msg.getMessageId();
-        }
-
-        // onIntercept 在 msg2 命中返回 'reject'：msg2不计入链并截断
-        // traverseUp: msg4→msg3→msg2(命中reject,不计入)→停止
-        // chain: [msg3, msg4]
-        const result = await DialogStoreHelper.createHistChain({
-            conversationEntity,
-            messageEntity: messages[4],
-            maxLength: 10000,
-            maxCount: 100,
-            computeLength: (entity) => entity.getContent().length,
-            onIntercept: (entity) => entity.getContent().includes('msg_2') ? 'reject' : 'continue',
+        const wpB = await WaypointEntity.create<TestWaypointExt>({
+            conversation_id: conversationEntity.getConversationId(),
+            target_waypoint_id: wpA.getWaypointId(),
         });
+        await wpA.updateData({ target_waypoint_id: wpB.getWaypointId() });
+        await msgs[2].updateData({ target_waypoint_id: wpB.getWaypointId() });
 
-        expect(result.chain.length).toBe(2);
-        expect(result.chain[0].getMessageId()).toBe(messages[3].getMessageId());
-        expect(result.chain[1].getMessageId()).toBe(messages[4].getMessageId());
-        // reject_msg_3(12) + reject_msg_4(12) = 24，msg2未计入
-        expect(result.totalLength).toBe(24);
-        expect(result.totalCount).toBe(2);
-        expect(result.stopReason.reason).toBe('intercept');
-        if (result.stopReason.reason === 'intercept') {
-            expect(result.stopReason.result).toBe('reject');
-        }
-    });
-
-    test("7. 应支持 onIntercept 返回 continue 不截断", async () => {
-        const conversationEntity = await ConversationEntity.create<TestConversationExt>({});
-
-        const messages: MessageEntity<TestMessageExt>[] = [];
-        let parentId: string | undefined;
-        for (let i = 0; i < 5; i++) {
-            const msg = await MessageEntity.create({
-                conversation_id: conversationEntity.getConversationId(),
-                parent_message_id: parentId,
-                sender_id: `sender${i}`,
-                content: `cont_msg_${i}`,
-            });
-            messages.push(msg);
-            parentId = msg.getMessageId();
-        }
-
-        // onIntercept 始终返回 'continue'，不截断，遍历到 FirstEntity 正常结束
-        const result = await DialogStoreHelper.createHistChain({
+        const { ids, moves } = await collectSteps(DialogStoreHelper.traverseUp<TestConversationExt>({
             conversationEntity,
-            messageEntity: messages[4],
-            maxLength: 10000,
-            maxCount: 100,
-            computeLength: (entity) => entity.getContent().length,
-            onIntercept: () => 'continue',
-        });
+            messageEntity: msgs[2],
+            onJump: () => 'jumpWaypoint',
+        }));
 
-        expect(result.chain.length).toBe(5);
-        for (let i = 0; i < 5; i++) {
-            expect(result.chain[i].getMessageId()).toBe(messages[i].getMessageId());
-        }
-        expect(result.stopReason.reason).toBe('first');
-    });
-
-    test("8. 应支持 onIntercept 在 length/count 限制之后调用", async () => {
-        const conversationEntity = await ConversationEntity.create<TestConversationExt>({});
-
-        const messages: MessageEntity<TestMessageExt>[] = [];
-        let parentId: string | undefined;
-        for (let i = 0; i < 5; i++) {
-            const msg = await MessageEntity.create({
-                conversation_id: conversationEntity.getConversationId(),
-                parent_message_id: parentId,
-                sender_id: `sender${i}`,
-                content: `prio_msg_${i}`,
-            });
-            messages.push(msg);
-            parentId = msg.getMessageId();
-        }
-
-        // maxCount=2 优先于 onIntercept：只遍历 msg4→msg3，onIntercept 在 msg2 之前就被 count 截断
-        const result = await DialogStoreHelper.createHistChain({
-            conversationEntity,
-            messageEntity: messages[4],
-            maxLength: 10000,
-            maxCount: 2,
-            computeLength: (entity) => entity.getContent().length,
-            onIntercept: (entity) => entity.getContent().includes('msg_2') ? 'include' : 'continue',
-        });
-
-        expect(result.chain.length).toBe(2);
-        expect(result.chain[0].getMessageId()).toBe(messages[3].getMessageId());
-        expect(result.chain[1].getMessageId()).toBe(messages[4].getMessageId());
-        expect(result.stopReason.reason).toBe('count');
+        // 环上每个 waypoint 各产出一次后命中已访问集合终止
+        expect(ids).toEqual([
+            msgs[2].getMessageId(),
+            wpB.getWaypointId(),
+            wpA.getWaypointId(),
+        ]);
+        expect(moves).toEqual(['jumpWaypoint', 'jumpWaypoint', 'jumpWaypoint']);
     });
 });

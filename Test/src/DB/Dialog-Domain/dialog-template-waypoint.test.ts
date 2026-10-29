@@ -29,6 +29,9 @@ const collectStream = async (stream: AsyncIterable<{ content: string }>): Promis
     return list;
 };
 
+/**取 waypoint 列表的显示名 未命名者落到其 ID */
+const nameOf = (waypointList: WaypointModel[]): string[] => waypointList.map(w => w.getName());
+
 /**默认策略: 消息挂了 waypoint 就往 waypoint 方向跳
  * waypoint 侧优先跳 waypoint 其次跳消息 都没有则取全量摘要跳根
  */
@@ -214,7 +217,7 @@ describe("Dialog-Domain waypoint 稀疏跳跃", () => {
         await msgs[2].updateData({ target_waypoint_id: wp.getWaypointId() });
         const waypointId = wp.getWaypointId();
 
-        await DialogStore.deleteWaypoint(waypointId);
+        await WaypointModel.delete(waypointId);
         const reloaded = await DialogStore.getMessage(msgs[2].getMessageId(), { ignoreCache: true });
         expect(reloaded?.data.target_waypoint_id).toBeUndefined();
 
@@ -259,20 +262,20 @@ describe("Dialog-Domain waypoint 稀疏跳跃", () => {
         })).rejects.toBeDefined();
     });
 
-    test("10. createWaypoint 自动建基到 parent 并串联上一个 waypoint", async () => {
+    test("10. createWaypoint 建基到当前消息自身并串联上一个 waypoint", async () => {
         const msgs = await createMsgChain(conversationId, 5, i => `msg${i}`);
 
         const first = await msgs[2].createWaypoint({ name: "wp-a", segmentSummary: "seg-a" });
         expect(first).toBeDefined();
-        // 建基到当前消息的 parent 首个 wp 无落点 waypoint
-        expect(first!.getBaseMessageId()).toBe(msgs[1].getMessageId());
+        // 建基消息是当前消息自身 落点由回溯时取它的 parent 得出
+        expect(first!.getBaseMessageId()).toBe(msgs[2].getMessageId());
         expect(first!.getTargetWaypointId()).toBeUndefined();
         expect(first!.getName()).toBe("wp-a");
         expect(first!.getSegmentSummary()).toBe("seg-a");
 
         const second = await msgs[4].createWaypoint({ name: "wp-b", segmentSummary: "seg-b" });
         expect(second).toBeDefined();
-        expect(second!.getBaseMessageId()).toBe(msgs[3].getMessageId());
+        expect(second!.getBaseMessageId()).toBe(msgs[4].getMessageId());
         // 向上回溯应串到 msg2 上的 wp-a
         expect(second!.getTargetWaypointId()).toBe(first!.getWaypointId());
 
@@ -281,12 +284,33 @@ describe("Dialog-Domain waypoint 稀疏跳跃", () => {
         expect(reloaded.getWaypointId()).toBe(second!.getWaypointId());
     });
 
+    test("10.1 原地建 wp 后回溯应原地不动 不得跳过任何消息", async () => {
+        const msgs = await createMsgChain(conversationId, 6, i => `msg${i}`);
+        // 在当前消息上建 wp 且不带摘要 逐条回落
+        await msgs[5].createWaypoint({ name: "self-wp" });
+
+        const list = await collectStream(DialogTemplate.createHistMessageStream({
+            defineScene: TEST_DEFINE,
+            conversationModel,
+            messageModel: await MessageModel.load(msgs[5].getMessageId()) as MessageModel,
+            onJump: ({ model }) => {
+                if (!(model instanceof WaypointModel))
+                    return model.getWaypointId() != undefined ? 'jumpWaypoint' : 'continue';
+                // 无摘要的 wp 一律回落消息
+                return 'jumpMessage';
+            },
+        }));
+
+        // 建基若错记成 parent 这里会丢掉 msg4 变成 msg5,msg3,...
+        expect(list).toEqual(["msg5", "msg4", "msg3", "msg2", "msg1", "msg0"]);
+    });
+
     test("11. createWaypoint 在首条消息上拒绝创建", async () => {
         const msgs = await createMsgChain(conversationId, 3, i => `msg${i}`);
 
         const onRoot = await msgs[0].createWaypoint({ name: "wp-root" });
         expect(onRoot).toBeUndefined();
-        expect(await conversationModel.getWaypointByName("wp-root")).toBeUndefined();
+        expect(await conversationModel.findWaypointByName("wp-root")).toBeUndefined();
     });
 
     test("12. createWaypoint 名字重复时拒绝创建", async () => {
@@ -297,7 +321,7 @@ describe("Dialog-Domain waypoint 稀疏跳跃", () => {
         const second = await msgs[4].createWaypoint({ name: "dup" });
         expect(second).toBeUndefined();
         // 未产生第二个同名 waypoint
-        expect(await conversationModel.listWaypointNames()).toEqual(["dup"]);
+        expect(nameOf(await conversationModel.getWaypointList())).toEqual(["dup"]);
     });
 
     test("13. 按名运维 waypoint 并列出回溯路径", async () => {
@@ -305,25 +329,54 @@ describe("Dialog-Domain waypoint 稀疏跳跃", () => {
         await msgs[2].createWaypoint({ name: "old", segmentSummary: "seg-1" });
         await msgs[5].createWaypoint({ name: "new" });
 
-        // 回溯路径由近及远
-        expect(await msgs[5].listPathWaypointNames()).toEqual(["new", "old"]);
-        expect(await conversationModel.listWaypointNames()).toEqual(["new", "old"]);
+        // 回溯路径由近及远 全量列表按写入顺序
+        expect(nameOf(await msgs[5].getPathWaypointList())).toEqual(["new", "old"]);
+        expect(nameOf(await conversationModel.getWaypointList())).toEqual(["old", "new"]);
 
-        const target = await conversationModel.getWaypointByName("new");
+        const target = await conversationModel.findWaypointByName("new");
         expect(target).toBeDefined();
         // 摘要设置与删除
         await target!.updateData({ segment_summary: "seg-new" });
-        expect((await conversationModel.getWaypointByName("new"))!.getSegmentSummary()).toBe("seg-new");
+        expect((await conversationModel.findWaypointByName("new"))!.getSegmentSummary()).toBe("seg-new");
         await target!.updateData({ segment_summary: undefined });
-        expect((await conversationModel.getWaypointByName("new"))!.getSegmentSummary()).toBeUndefined();
+        expect((await conversationModel.findWaypointByName("new"))!.getSegmentSummary()).toBeUndefined();
         // 重命名
         await target!.setName("renamed");
-        expect(await conversationModel.getWaypointByName("new")).toBeUndefined();
-        expect(await conversationModel.listWaypointNames()).toEqual(["old", "renamed"]);
+        expect(await conversationModel.findWaypointByName("new")).toBeUndefined();
+        expect(nameOf(await conversationModel.getWaypointList())).toEqual(["old", "renamed"]);
         // 删除
-        await DialogStore.deleteWaypoint(target!.getWaypointId());
-        expect(await conversationModel.listWaypointNames()).toEqual(["old"]);
+        await WaypointModel.delete(target!.getWaypointId());
+        expect(nameOf(await conversationModel.getWaypointList())).toEqual(["old"]);
         // 删除后消息侧指针被触发器清理 回溯路径只剩 old
-        expect(await msgs[5].listPathWaypointNames()).toEqual(["old"]);
+        expect(nameOf(await msgs[5].getPathWaypointList())).toEqual(["old"]);
+    });
+
+    test("14. 未命名 waypoint 的 getName 回落到 ID 且可按 ID 查找", async () => {
+        const msgs = await createMsgChain(conversationId, 5, i => `msg${i}`);
+        // createWaypoint 强制要名字 未命名只会来自直接建表或历史数据
+        const waypoint = await WaypointModel.create({
+            conversation_id: conversationId,
+            base_message_id: msgs[2].getMessageId(),
+            segment_summary: "无名字段",
+        });
+        await msgs[2].updateData({ target_waypoint_id: waypoint.getWaypointId() });
+        const waypointId = waypoint.getWaypointId();
+
+        // 没设名字时显示 ID 且 hasName 为假
+        expect(waypoint.hasName()).toBe(false);
+        expect(waypoint.getName()).toBe(waypointId);
+        expect(nameOf(await conversationModel.getWaypointList())).toEqual([waypointId]);
+
+        // 按 ID 也能查到 与按名等价
+        const byId = await conversationModel.findWaypointByName(waypointId);
+        expect(byId?.getWaypointId()).toBe(waypointId);
+
+        // 设名后回落消失 按旧 ID 仍可查到
+        await waypoint.setName("named-wp");
+        expect(waypoint.hasName()).toBe(true);
+        expect(waypoint.getName()).toBe("named-wp");
+        expect(nameOf(await conversationModel.getWaypointList())).toEqual(["named-wp"]);
+        const stillById = await conversationModel.findWaypointByName(waypointId);
+        expect(stillById?.getName()).toBe("named-wp");
     });
 });
